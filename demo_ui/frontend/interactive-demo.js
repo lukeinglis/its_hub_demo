@@ -18,6 +18,12 @@ function iwEscapeHtml(text) {
     return div.innerHTML;
 }
 
+function iwFormatLatency(ms) {
+    if (ms == null) return 'N/A';
+    if (ms >= 1000) return (ms / 1000).toFixed(1) + 's';
+    return ms + 'ms';
+}
+
 // ============================================================
 // STATE
 // ============================================================
@@ -616,8 +622,9 @@ function iwBuildResultPane(data, type, title, minCost, minLatency) {
     if (latency != null && latency <= minLatency) badges += '<span class="iw-pane-badge fastest">Fastest</span>';
 
     // Format cost
+    const isEstimated = !!data.tokens_estimated;
     const costFmt = cost != null
-        ? (cost < 0.0001 ? '$' + cost.toExponential(2) : '$' + cost.toFixed(4))
+        ? (isEstimated ? '~' : '') + (cost < 0.0001 ? '$' + cost.toExponential(2) : '$' + cost.toFixed(4))
         : 'N/A';
 
     // Response content
@@ -710,12 +717,16 @@ function iwBuildResultPane(data, type, title, minCost, minLatency) {
                 <div class="iw-pane-badges">${badges}</div>
             </div>
             <div class="iw-pane-body">
+                <div class="iw-response-time">
+                    <span class="response-time-value">${iwFormatLatency(latency)}</span>
+                    <span class="response-time-label">response time</span>
+                </div>
                 ${finalAnswerHtml}
                 <div class="iw-pane-response">${responseHtml}</div>
                 <div class="iw-pane-meta">
-                    <span class="iw-meta-tag"><span class="meta-label">Latency:</span><span class="meta-value">${latency != null ? latency + 'ms' : 'N/A'}</span></span>
-                    <span class="iw-meta-tag"><span class="meta-label">Cost:</span><span class="meta-value">${costFmt}</span></span>
-                    <span class="iw-meta-tag"><span class="meta-label">Tokens:</span><span class="meta-value">${(data.input_tokens || 0) + (data.output_tokens || 0)}</span></span>
+                    <span class="iw-meta-tag"><span class="meta-label">Latency:</span><span class="meta-value">${iwFormatLatency(latency)}</span></span>
+                    <span class="iw-meta-tag"><span class="meta-label">Cost${isEstimated ? ' (est.)' : ''}:</span><span class="meta-value">${costFmt}</span></span>
+                    <span class="iw-meta-tag"><span class="meta-label">Tokens${isEstimated ? ' (est.)' : ''}:</span><span class="meta-value">${isEstimated ? '~' : ''}${(data.input_tokens || 0) + (data.output_tokens || 0)}</span></span>
                 </div>
             </div>
             ${hasFullReasoning ? `
@@ -734,12 +745,13 @@ function iwBuildResultPane(data, type, title, minCost, minLatency) {
                 </button>
                 <div class="iw-expand-content">
                     <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; font-size:13px;">
-                        <span style="color:var(--text-tertiary)">Latency</span><span style="font-family:'IBM Plex Mono',monospace">${latency != null ? latency + 'ms' : 'N/A'}</span>
-                        <span style="color:var(--text-tertiary)">Cost</span><span style="font-family:'IBM Plex Mono',monospace">${costFmt}</span>
-                        <span style="color:var(--text-tertiary)">Input Tokens</span><span style="font-family:'IBM Plex Mono',monospace">${(data.input_tokens || 0).toLocaleString()}</span>
-                        <span style="color:var(--text-tertiary)">Output Tokens</span><span style="font-family:'IBM Plex Mono',monospace">${(data.output_tokens || 0).toLocaleString()}</span>
+                        <span style="color:var(--text-tertiary)">Latency</span><span style="font-family:'IBM Plex Mono',monospace">${iwFormatLatency(latency)}</span>
+                        <span style="color:var(--text-tertiary)">Cost${isEstimated ? ' (est.)' : ''}</span><span style="font-family:'IBM Plex Mono',monospace">${costFmt}</span>
+                        <span style="color:var(--text-tertiary)">Input Tokens${isEstimated ? ' (est.)' : ''}</span><span style="font-family:'IBM Plex Mono',monospace">${isEstimated ? '~' : ''}${(data.input_tokens || 0).toLocaleString()}</span>
+                        <span style="color:var(--text-tertiary)">Output Tokens${isEstimated ? ' (est.)' : ''}</span><span style="font-family:'IBM Plex Mono',monospace">${isEstimated ? '~' : ''}${(data.output_tokens || 0).toLocaleString()}</span>
                         ${data.model_size ? `<span style="color:var(--text-tertiary)">Model Size</span><span>${iwEscapeHtml(data.model_size)}</span>` : ''}
                     </div>
+                    ${isEstimated ? `<div class="iw-estimate-note">Token counts and cost are estimates. ITS algorithms make multiple internal LLM calls whose usage is not individually tracked. Latency is actual wall-clock time.</div>` : ''}
                 </div>
             </div>
             ${traceExpandable}

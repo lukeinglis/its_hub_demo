@@ -635,6 +635,43 @@
     padding: 20px;
 }
 
+/* ===== RESPONSE TIME DISPLAY ===== */
+.iw-response-time {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    margin-bottom: 14px;
+    padding: 10px 14px;
+    background: var(--bg-tertiary);
+    border-left: 3px solid var(--primary);
+}
+
+.iw-response-time .response-time-value {
+    font-size: 22px;
+    font-weight: 700;
+    font-family: 'IBM Plex Mono', monospace;
+    color: var(--text-primary);
+}
+
+.iw-response-time .response-time-label {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-tertiary);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+/* ===== ESTIMATE NOTE ===== */
+.iw-estimate-note {
+    margin-top: 10px;
+    padding: 8px 12px;
+    font-size: 11px;
+    line-height: 1.5;
+    color: var(--text-tertiary);
+    background: var(--bg-secondary);
+    border-left: 3px solid var(--text-tertiary);
+}
+
 .iw-pane-response {
     font-size: 14px;
     line-height: 1.7;

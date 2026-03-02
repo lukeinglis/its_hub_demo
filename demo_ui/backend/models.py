@@ -116,14 +116,39 @@ class ParticleGibbsTrace(BaseModel):
 
 
 class ResultDetail(BaseModel):
-    """Details of a single result (baseline or ITS)."""
+    """Details of a single result (baseline or ITS).
+
+    Metric accuracy by result type:
+      Baseline — latency, input_tokens, output_tokens, and cost_usd are all
+        actual values. Latency is wall-clock measured. Token counts come from
+        the litellm response usage object. Cost is calculated from actual
+        tokens and the model's configured pricing.
+      ITS — latency is actual (wall-clock). Token counts (input_tokens,
+        output_tokens) are *estimates* derived from the baseline token counts
+        multiplied by the number of candidates, plus algorithm-specific
+        overhead (judge calls for Best-of-N, PRM calls for process-based
+        algorithms). cost_usd is calculated from these estimated tokens and
+        is therefore also an estimate. The underlying ITS algorithm classes
+        do not currently surface per-call token usage; to get actual ITS
+        token counts, the algorithm internals would need to accumulate
+        litellm usage data across all internal LLM calls.
+
+    When tokens_estimated is True, the frontend prefixes token/cost values
+    with "~" and labels them "(est.)" to communicate this to users.
+    """
     answer: str = Field(..., description="The final answer text")
-    latency_ms: int = Field(..., description="Latency in milliseconds")
+    latency_ms: int = Field(..., description="Latency in milliseconds (actual wall-clock)")
     log_preview: str = Field(default="", description="Placeholder for step logs (future)")
     model_size: Optional[str] = Field(default=None, description="Model size (e.g., 'Large', 'Small')")
-    cost_usd: Optional[float] = Field(default=None, description="Cost in USD")
-    input_tokens: Optional[int] = Field(default=None, description="Number of input tokens")
-    output_tokens: Optional[int] = Field(default=None, description="Number of output tokens")
+    cost_usd: Optional[float] = Field(default=None, description="Cost in USD (estimated when tokens_estimated=True)")
+    input_tokens: Optional[int] = Field(default=None, description="Number of input tokens (estimated for ITS results)")
+    output_tokens: Optional[int] = Field(default=None, description="Number of output tokens (estimated for ITS results)")
+    tokens_estimated: bool = Field(
+        default=False,
+        description="Whether token counts are estimates. True for ITS results "
+        "(algorithms don't expose per-call usage), False for baseline results "
+        "(actual counts from litellm)."
+    )
     trace: Optional[dict] = Field(default=None, description="Algorithm trace data for visualization")
     tool_calls: Optional[list[ToolCall]] = Field(default=None, description="Tool calls made during execution")
 
