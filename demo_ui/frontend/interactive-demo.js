@@ -66,6 +66,46 @@ const IW_CURATED_PROMPTS = {
         { q: 'Compare supervised and unsupervised machine learning with examples.', a: null },
         { q: 'What is the difference between a stack and a queue? Give a real-world analogy for each.', a: null },
     ],
+    'improve_performance_beam_search': [
+        { q: 'Find all integer solutions to the equation x² + y² = 25.', a: '(0,±5), (±3,±4), (±4,±3), (±5,0)' },
+        { q: 'A sequence is defined by a₁ = 2 and aₙ = 3aₙ₋₁ - 1. What is a₄?', a: '41' },
+        { q: 'How many distinct ways can you partition the number 7 into positive integers?', a: '15' },
+    ],
+    'improve_performance_particle_filtering': [
+        { q: 'Compute the derivative of f(x) = x³ ln(x) and evaluate it at x = 1.', a: '1' },
+        { q: 'What is the remainder when 2⁵⁰ is divided by 7?', a: '4' },
+        { q: 'Solve the system: 2x + 3y = 12 and 4x - y = 5.', a: 'x = 27/14, y = 25/7' },
+    ],
+    'improve_performance_entropic_particle_filtering': [
+        { q: 'How many 4-digit numbers have digits that sum to 9?', a: '165' },
+        { q: 'If log₂(x) + log₂(x-2) = 3, find x.', a: '4' },
+        { q: 'What is the sum of all even numbers between 1 and 100 inclusive?', a: '2550' },
+    ],
+    'improve_performance_particle_gibbs': [
+        { q: 'Find the area enclosed by y = x² and y = 2x + 3.', a: '32/3' },
+        { q: 'A bag has 5 red and 3 blue balls. Two are drawn without replacement. What is P(both red)?', a: '5/14' },
+        { q: 'What is the greatest common divisor of 252 and 198?', a: '18' },
+    ],
+    'match_frontier_beam_search': [
+        { q: 'Evaluate the integral ∫₀¹ x·eˣ dx.', a: '1' },
+        { q: 'How many trailing zeros does 50! have?', a: '12' },
+        { q: 'Solve for x: |2x - 5| = 3.', a: 'x = 1 or x = 4' },
+    ],
+    'match_frontier_particle_filtering': [
+        { q: 'What is the determinant of the matrix [[1,2,3],[4,5,6],[7,8,9]]?', a: '0' },
+        { q: 'Find the coefficient of x³ in the expansion of (2x + 1)⁵.', a: '80' },
+        { q: 'If f(x) = sin(x)/x, what is the limit as x → 0?', a: '1' },
+    ],
+    'match_frontier_entropic_particle_filtering': [
+        { q: 'How many non-negative integer solutions are there to x + y + z = 10?', a: '66' },
+        { q: 'What is the sum of the infinite geometric series 1 + 1/3 + 1/9 + 1/27 + ...?', a: '3/2' },
+        { q: 'Find the inverse of the function f(x) = (2x + 1)/(x - 3).', a: 'f⁻¹(x) = (3x + 1)/(x - 2)' },
+    ],
+    'match_frontier_particle_gibbs': [
+        { q: 'Compute 15 choose 4.', a: '1365' },
+        { q: 'What is the radius of convergence of the power series Σ xⁿ/n! ?', a: '∞' },
+        { q: 'Solve the recurrence relation T(n) = 2T(n/2) + n with T(1) = 1 for n = 8.', a: '24' },
+    ],
 };
 
 // ============================================================
@@ -409,6 +449,7 @@ function iwBudgetChanged(slider) {
 
 // Re-populate curated prompts when algorithm changes
 function iwAlgorithmChanged() {
+    iwState.algorithm = document.getElementById('iwAlgorithm').value;
     iwPopulatePrompts();
 }
 
@@ -690,7 +731,9 @@ function iwBuildResultPane(data, type, title, minCost, minLatency) {
             const trace = typeof data.trace === 'string' ? JSON.parse(data.trace) : data.trace;
             if (trace && trace.algorithm) {
                 const traceHtml = renderAlgorithmTrace(trace, true);
-                const count = trace.candidates ? trace.candidates.length + ' candidates' : 'details';
+                const count = trace.algorithm === 'particle_gibbs'
+                    ? (trace.iterations ? trace.iterations.length + ' iterations' : 'details')
+                    : (trace.candidates ? trace.candidates.length + ' candidates' : 'details');
                 traceExpandable = `
                     <div class="iw-expandable" aria-expanded="false" onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
                         <button class="iw-expand-btn">
@@ -794,11 +837,12 @@ function iwRenderTrace(traceRaw) {
     if (!trace || !trace.algorithm) { setVisible(section, false); return; }
 
     setVisible(section, true);
-    const algName = trace.algorithm === 'self_consistency' ? 'Self-Consistency' :
-                    trace.algorithm === 'best_of_n' ? 'Best-of-N' : trace.algorithm;
+    const algName = (ALGORITHM_DESCRIPTIONS[trace.algorithm] && ALGORITHM_DESCRIPTIONS[trace.algorithm].name) || trace.algorithm;
 
-    document.getElementById('iwTraceSubtitle').textContent =
-        `${algName} evaluated ${trace.candidates ? trace.candidates.length : '?'} candidates`;
+    const subtitle = trace.algorithm === 'particle_gibbs'
+        ? `${algName} ran ${trace.iterations ? trace.iterations.length : '?'} iterations of particle filtering`
+        : `${algName} evaluated ${trace.candidates ? trace.candidates.length : '?'} candidates`;
+    document.getElementById('iwTraceSubtitle').textContent = subtitle;
 
     if (typeof renderAlgorithmTrace === 'function') {
         try {

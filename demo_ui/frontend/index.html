@@ -429,8 +429,16 @@ gcloud auth application-default login</div>
                     <div class="iw-form-group">
                         <label for="iwAlgorithm">ITS Algorithm</label>
                         <select id="iwAlgorithm" onchange="iwAlgorithmChanged()">
-                            <option value="self_consistency">Self-Consistency</option>
-                            <option value="best_of_n">Best-of-N</option>
+                            <optgroup label="Production">
+                                <option value="self_consistency">Self-Consistency</option>
+                                <option value="best_of_n">Best-of-N</option>
+                            </optgroup>
+                            <optgroup label="Research (requires PRM)">
+                                <option value="beam_search">Beam Search</option>
+                                <option value="particle_filtering">Particle Filtering</option>
+                                <option value="entropic_particle_filtering">Entropic Particle Filtering</option>
+                                <option value="particle_gibbs">Particle Gibbs</option>
+                            </optgroup>
                         </select>
                     </div>
 
