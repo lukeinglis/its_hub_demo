@@ -447,11 +447,20 @@ function iwBudgetChanged(slider) {
     document.getElementById('iwBudgetValue').textContent = slider.value;
 }
 
-// Re-populate curated prompts when algorithm changes
+// Re-populate curated prompts when algorithm changes; show/hide criterion selector
 function iwAlgorithmChanged() {
     iwState.algorithm = document.getElementById('iwAlgorithm').value;
+
+    // Show judge criterion selector only for best_of_n
+    const criterionGroup = document.getElementById('iwCriterionGroup');
+    if (criterionGroup) {
+        setVisible(criterionGroup, iwState.algorithm === 'best_of_n');
+    }
+
     iwPopulatePrompts();
 }
+
+
 
 function iwPopulatePrompts() {
     const select = document.getElementById('iwCuratedSelect');
@@ -540,6 +549,14 @@ async function iwSubmit() {
 
         if (iwState.scenario === 'match_frontier') {
             requestBody.frontier_model_id = iwState.frontierModelId;
+        }
+
+        // Include judge criterion for best_of_n
+        if (iwState.algorithm === 'best_of_n') {
+            const criterionSelect = document.getElementById('iwCriterionSelect');
+            if (criterionSelect) {
+                requestBody.judge_criterion = criterionSelect.value;
+            }
         }
 
         const response = await fetch(API_BASE_URL + '/compare', {

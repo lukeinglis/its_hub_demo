@@ -46,6 +46,10 @@ class CompareRequest(BaseModel):
         default="auto",
         description="Question type for configuration. 'auto' detects automatically."
     )
+    judge_criterion: Optional[str] = Field(
+        default="overall_quality",
+        description="Judge criterion for Best-of-N: built-in name or custom evaluation prompt"
+    )
 
 
 # --- Algorithm Trace Models ---

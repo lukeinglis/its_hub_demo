@@ -722,7 +722,8 @@ async def run_its(
     enable_tools: bool = False,
     tool_vote: str | None = None,
     exclude_args: list[str] | None = None,
-    question_type: str = "general"
+    question_type: str = "general",
+    judge_criterion: str = "overall_quality",
 ) -> tuple[str, int, int, int, dict | None, list[ToolCall] | None]:
     """
     Run ITS inference with the specified algorithm.
@@ -739,6 +740,7 @@ async def run_its(
         tool_vote: Tool voting strategy
         exclude_args: Arguments to exclude from tool voting
         question_type: Question type ("math", "tool_calling", or "general")
+        judge_criterion: Judge criterion for Best-of-N (built-in name or custom prompt)
 
     Returns:
         (answer, latency_ms, input_tokens, output_tokens, trace, tool_calls)
@@ -751,10 +753,27 @@ async def run_its(
 
     # Create algorithm instance
     if algorithm == "best_of_n":
+        # Resolve judge criterion: built-in or custom
+        built_in_criteria = {"overall_quality", "multi_step_tool_judge"}
+        if judge_criterion in built_in_criteria:
+            criterion_to_use = judge_criterion
+        else:
+            # Custom criterion — register with CriterionRegistry
+            from reward_hub.llm_judge.prompts import Criterion, CriterionRegistry
+            criterion_name = f"custom_{hash(judge_criterion) & 0xFFFFFFFF:08x}"
+            logger.info(f"Registering custom judge criterion as: {criterion_name}")
+            custom_criterion = Criterion(
+                name=criterion_name,
+                content=judge_criterion,
+                description="Custom evaluation criterion",
+            )
+            CriterionRegistry.register(custom_criterion)
+            criterion_to_use = criterion_name
+
         # Use LLM judge for Best-of-N
         judge = LLMJudgeRewardModel(
             model=DEFAULT_JUDGE_MODEL,
-            criterion="overall_quality",
+            criterion=criterion_to_use,
             judge_type="pointwise",
             api_key=api_key,
             enable_judge_logging=False,
@@ -1002,7 +1021,8 @@ async def compare(request: CompareRequest):
                 enable_tools=request.enable_tools,
                 tool_vote=request.tool_vote,
                 exclude_args=request.exclude_args,
-                question_type=question_type
+                question_type=question_type,
+                judge_criterion=request.judge_criterion,
             )
             frontier_baseline_task = run_baseline(frontier_model, request.question, enable_tools=request.enable_tools)
 
@@ -1034,7 +1054,8 @@ async def compare(request: CompareRequest):
                 enable_tools=enable_tools,
                 tool_vote=request.tool_vote or "tool_name",  # Default to tool_name voting
                 exclude_args=request.exclude_args,
-                question_type=question_type
+                question_type=question_type,
+                judge_criterion=request.judge_criterion,
             )
 
         else:
@@ -1058,7 +1079,8 @@ async def compare(request: CompareRequest):
                 enable_tools=request.enable_tools,
                 tool_vote=request.tool_vote,
                 exclude_args=request.exclude_args,
-                question_type=question_type
+                question_type=question_type,
+                judge_criterion=request.judge_criterion,
             )
 
         logger.info(
