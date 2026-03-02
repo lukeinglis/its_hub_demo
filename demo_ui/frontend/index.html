@@ -313,9 +313,15 @@
                 <p class="iw-step-subtitle">This demo runs live API calls against real models. You need at least one provider configured.</p>
 
                 <div class="iw-info-banner">
-                    <strong>How it works:</strong> The demo connects to your configured model providers.
-                    Which models appear depends on which API keys you have set in the backend's <code>.env</code> file.
-                    You only need <strong>one provider</strong> to get started.
+                    <strong>Setup:</strong> Copy the example env file and add at least one API key, then restart the backend:
+                    <code style="display:block; margin:8px 0 4px; padding:8px 10px; background:var(--bg-tertiary); font-size:12px;">cp demo_ui/.env.example demo_ui/.env  # then add your key</code>
+                    <code style="display:block; margin:0 0 8px; padding:8px 10px; background:var(--bg-tertiary); font-size:12px;">uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload</code>
+                    You only need <strong>one provider</strong> to get started. Click a card below to copy its env variable.
+                </div>
+
+                <div class="iw-backend-status">
+                    <span class="iw-backend-status-dot" id="iwBackendDot"></span>
+                    <span class="iw-backend-status-url" id="iwBackendUrl">http://localhost:8000</span>
                 </div>
 
                 <div class="iw-provider-grid">
@@ -361,9 +367,7 @@ gcloud auth application-default login</div>
                     </div>
                 </div>
 
-                <p style="font-size:13px; color:var(--text-tertiary); text-align:center; margin-bottom:20px;">
-                    Click a card to copy its env variable, then paste into <code>demo_ui/.env</code> and restart the backend.
-                </p>
+                <div id="iwStep1Error" class="iw-step1-error hidden"></div>
 
                 <div class="iw-center-actions">
                     <button class="btn-primary" onclick="iwCheckProviders()">

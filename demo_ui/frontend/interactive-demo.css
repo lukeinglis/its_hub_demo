@@ -179,6 +179,52 @@
     color: var(--text-primary);
 }
 
+/* ===== STEP 1 INLINE ERROR ===== */
+.iw-step1-error {
+    padding: 16px 20px;
+    background: var(--bg-primary);
+    border: 2px solid var(--danger);
+    border-left: 4px solid var(--danger);
+    margin-bottom: 20px;
+    color: var(--danger);
+    font-size: 14px;
+    line-height: 1.6;
+    animation: wizardFadeIn 0.3s ease-out;
+}
+
+/* ===== BACKEND STATUS INDICATOR ===== */
+.iw-backend-status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 20px;
+    font-size: 12px;
+    color: var(--text-tertiary);
+}
+
+.iw-backend-status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--text-tertiary);
+    flex-shrink: 0;
+}
+
+.iw-backend-status-dot.online {
+    background: var(--success);
+    box-shadow: 0 0 4px rgba(163, 190, 140, 0.5);
+}
+
+.iw-backend-status-dot.offline {
+    background: var(--danger);
+    box-shadow: 0 0 4px rgba(191, 97, 106, 0.5);
+}
+
+.iw-backend-status-url {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+}
+
 /* ===== STATUS SUMMARY (Step 2) ===== */
 .iw-status-summary {
     display: flex;

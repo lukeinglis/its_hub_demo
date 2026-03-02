@@ -111,6 +111,10 @@ function iwInit() {
     // Hide elements from the original interactive UI
     setVisible(document.getElementById('expertModeToggle'), false);
 
+    // Clear Step 1 error
+    const step1Err = document.getElementById('iwStep1Error');
+    if (step1Err) { step1Err.innerHTML = ''; setVisible(step1Err, false); }
+
     // Reset provider card visuals before detection
     document.querySelectorAll('.iw-provider-card[data-provider]').forEach(card => {
         card.classList.remove('iw-provider-active');
@@ -129,10 +133,17 @@ function iwInit() {
 // ============================================================
 
 async function iwDetectProvidersForCards() {
+    const dot = document.getElementById('iwBackendDot');
     try {
         const resp = await fetch(API_BASE_URL + '/providers', { signal: AbortSignal.timeout(3000) });
-        if (!resp.ok) return;
+        if (!resp.ok) {
+            if (dot) dot.classList.add('offline');
+            return;
+        }
         const data = await resp.json();
+
+        // Backend is reachable — update status dot
+        if (dot) { dot.classList.remove('offline'); dot.classList.add('online'); }
 
         for (const [key, prov] of Object.entries(data.providers)) {
             const card = document.querySelector(`.iw-provider-card[data-provider="${key}"]`);
@@ -145,7 +156,8 @@ async function iwDetectProvidersForCards() {
             }
         }
     } catch (_) {
-        // Backend not running — cards stay neutral, no error shown
+        // Backend not running — cards stay neutral, show offline dot
+        if (dot) { dot.classList.remove('online'); dot.classList.add('offline'); }
     }
 }
 
@@ -230,27 +242,45 @@ document.addEventListener('click', function(e) {
 // ============================================================
 
 async function iwCheckProviders() {
+    const step1Err = document.getElementById('iwStep1Error');
     const statusEl = document.getElementById('iwProviderStatus');
     const modelListEl = document.getElementById('iwModelList');
     const proceedBtn = document.getElementById('iwProceedBtn');
 
-    // Show step 2 with loading
+    // Clear any previous Step 1 error
+    if (step1Err) { step1Err.innerHTML = ''; setVisible(step1Err, false); }
+
+    // Health check BEFORE navigating away from Step 1
+    try {
+        const healthResp = await fetch(API_BASE_URL + '/health', { signal: AbortSignal.timeout(5000) });
+        if (!healthResp.ok) throw new Error('Backend returned status ' + healthResp.status);
+    } catch (err) {
+        // Show error inline on Step 1 — do NOT navigate to Step 2
+        if (step1Err) {
+            step1Err.innerHTML = `
+                <strong>Could not connect to the backend.</strong><br>
+                Make sure the backend server is running:<br>
+                <code style="display:block;margin-top:8px;padding:8px;background:var(--bg-tertiary);font-size:12px;">cd demo_ui && uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload</code>
+                <div style="margin-top:8px;font-size:12px;color:var(--text-tertiary);">Error: ${iwEscapeHtml(err.message)}</div>
+            `;
+            setVisible(step1Err, true);
+        }
+        return;
+    }
+
+    // Backend is healthy — proceed to Step 2
     iwShowStep(2);
-    statusEl.innerHTML = '<div class="iw-loading"><div class="spinner"></div><div class="iw-loading-text">Checking backend and provider credentials...</div></div>';
+    statusEl.innerHTML = '<div class="iw-loading"><div class="spinner"></div><div class="iw-loading-text">Detecting provider credentials and available models...</div></div>';
     modelListEl.innerHTML = '';
     proceedBtn.disabled = true;
 
     try {
-        // 1. Health check
-        const healthResp = await fetch(API_BASE_URL + '/health', { signal: AbortSignal.timeout(5000) });
-        if (!healthResp.ok) throw new Error('Backend not responding');
-
-        // 2. Provider check
+        // Provider check
         const provResp = await fetch(API_BASE_URL + '/providers');
         const provData = await provResp.json();
         iwState.providers = provData.providers;
 
-        // 3. Model list
+        // Model list
         const modelsResp = await fetch(API_BASE_URL + '/models');
         const modelsData = await modelsResp.json();
         iwState.models = modelsData.models;
@@ -291,16 +321,14 @@ async function iwCheckProviders() {
             modelListEl.innerHTML = modelsHtml;
             proceedBtn.disabled = false;
         } else {
-            modelListEl.innerHTML = '<div class="iw-error">No models available. Please configure at least one provider and restart the backend.</div>';
+            modelListEl.innerHTML = '<div class="iw-error">No models available. Please configure at least one provider in <code>demo_ui/.env</code> and restart the backend.</div>';
         }
 
     } catch (err) {
         statusEl.innerHTML = `
             <div class="iw-error">
-                <strong>Could not connect to the backend.</strong><br>
-                Make sure the backend server is running:<br>
-                <code style="display:block;margin-top:8px;padding:8px;background:var(--bg-tertiary);">cd demo_ui && uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload</code>
-                <br>Error: ${iwEscapeHtml(err.message)}
+                <strong>Error fetching provider data.</strong><br>
+                Error: ${iwEscapeHtml(err.message)}
             </div>
         `;
         modelListEl.innerHTML = '';

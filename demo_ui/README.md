@@ -228,6 +228,8 @@ VERTEX_LOCATION=us-central1
 # VLLM_MODEL_NAME=your-model-name
 ```
 
+> **Quick Start:** The **Guided Demo** works immediately with no API keys. The **Interactive Demo** requires at least one provider key configured in `demo_ui/.env`. Add a key, restart the backend, and the Interactive Demo will auto-detect it.
+
 **Provider Notes**:
 - **OpenAI**: Native OpenAI API - most reliable, best for production demos
 - **OpenRouter**: Unified API for open-source models - great for cost-effective demos and model diversity
@@ -285,6 +287,8 @@ Open `http://localhost:8000` to see the landing page with two options:
 All data is placeholder/mock — see [Plugging in Real Data (Guided Demo)](#plugging-in-real-data-guided-demo) to replace with real captured results.
 
 ### Interactive Demo Walkthrough
+
+> **Note:** Step 1 auto-detects which providers have valid API keys and highlights their cards green. You need at least one active provider to proceed. If no providers are detected, an inline error will appear on Step 1 with setup instructions.
 
 1. **Access** — Review which providers are available. Click any card to copy its env variable. Active providers are highlighted green automatically.
 2. **Status** — Click "Check Access & Continue" to detect configured credentials and see available models.
