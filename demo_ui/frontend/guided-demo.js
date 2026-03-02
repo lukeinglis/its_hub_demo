@@ -18,6 +18,12 @@
 // STATE
 // ============================================================
 
+function guidedFormatLatency(ms) {
+    if (ms == null) return 'N/A';
+    if (ms >= 1000) return (ms / 1000).toFixed(1) + 's';
+    return ms + 'ms';
+}
+
 const guidedDemoState = {
     goal: null,        // 'improve_performance' or 'match_frontier'
     method: null,      // 'self_consistency' or 'best_of_n'
@@ -253,9 +259,9 @@ function initGuidedWizard() {
         }
     });
 
-    // Hide old guided badge and back button
+    // Hide old guided badge and back button (new wizard has its own UI)
     const badge = document.getElementById('guidedDemoBadge');
-    if (badge) badge.style.display = 'none';
+    if (badge) { badge.classList.add('hidden'); badge.style.display = ''; }
 
     const backBtn = document.getElementById('wizardBackBtn');
     if (backBtn) backBtn.style.display = 'none';
@@ -591,7 +597,7 @@ function guidedBuildResponsePane(title, type, data) {
                     ${title}
                 </div>
                 <div class="guided-pane-badges">
-                    <span class="guided-pane-badge">${data.latency_ms}ms</span>
+                    <span class="guided-pane-badge">${guidedFormatLatency(data.latency_ms)}</span>
                     <span class="guided-pane-badge">${costFmt}</span>
                 </div>
             </div>

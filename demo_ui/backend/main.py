@@ -871,18 +871,54 @@ async def run_its(
     # Build trace from the full result
     trace = build_trace(algorithm, result, tool_vote=tool_vote)
 
-    # Estimate token usage for ITS
-    # ITS algorithms typically make multiple calls (roughly proportional to budget)
-    # For outcome-based (best_of_n, self_consistency): budget calls
-    # For process-based: budget calls spread across steps
-    # This is an approximation since we don't have exact tracking within algorithms
+    # --- Estimated token usage for ITS ---
+    #
+    # WHY ESTIMATED: ITS algorithms call the LLM multiple times internally
+    # (via ainfer()), but the algorithm classes do not accumulate or return
+    # per-call token usage from litellm. Until the algorithm internals are
+    # updated to surface aggregated usage data, we estimate based on:
+    #
+    #   1. The baseline's actual token counts (from a single litellm call)
+    #   2. The number of candidates the algorithm produced
+    #   3. Algorithm-specific overhead (judge/PRM scoring calls)
+    #
+    # These estimates are marked with tokens_estimated=True in the response
+    # so the frontend can label them accordingly.
+    #
+    # WHAT IS ACTUAL vs ESTIMATED for ITS results:
+    #   - latency_ms:    ACTUAL (wall-clock around the full ainfer() call)
+    #   - input_tokens:  ESTIMATED (see formula below)
+    #   - output_tokens: ESTIMATED (see formula below)
+    #   - cost_usd:      ESTIMATED (derived from estimated tokens x pricing)
+    #
+    num_candidates = len(result.responses) if hasattr(result, 'responses') else budget
+
     if baseline_input_tokens > 0 and baseline_output_tokens > 0:
-        # Estimate: ITS makes ~budget calls, each similar to baseline
-        # Input stays similar, output may vary
-        estimated_input = baseline_input_tokens * budget
-        estimated_output = baseline_output_tokens * budget
+        # Base: assume each candidate uses roughly the same tokens as baseline
+        estimated_input = baseline_input_tokens * num_candidates
+        estimated_output = baseline_output_tokens * num_candidates
+
+        if algorithm == "best_of_n":
+            # Best-of-N also makes one LLM judge call per candidate to score
+            # it. The judge sees the candidate response (~baseline_output_tokens)
+            # plus a scoring prompt (~200 tokens), and produces a short score
+            # output (~50 tokens).
+            judge_input_per_call = baseline_output_tokens + 200
+            judge_output_per_call = 50
+            estimated_input += judge_input_per_call * num_candidates
+            estimated_output += judge_output_per_call * num_candidates
+        elif algorithm in ["beam_search", "particle_filtering", "entropic_particle_filtering", "particle_gibbs"]:
+            # Process-based algorithms make PRM scoring calls at each
+            # reasoning step. We use the actual step count from the result
+            # when available, otherwise fall back to budget * 4 as a rough
+            # average. Each PRM call uses ~150 input and ~30 output tokens.
+            if hasattr(result, 'steps_used_lst'):
+                prm_calls = sum(result.steps_used_lst)
+            else:
+                prm_calls = budget * 4
+            estimated_input += 150 * prm_calls
+            estimated_output += 30 * prm_calls
     else:
-        # Fallback: no estimation available
         estimated_input = 0
         estimated_output = 0
 
@@ -1094,6 +1130,7 @@ async def compare(request: CompareRequest):
                 cost_usd=its_cost if its_cost > 0 else None,
                 input_tokens=its_input_tokens if its_input_tokens > 0 else None,
                 output_tokens=its_output_tokens if its_output_tokens > 0 else None,
+                tokens_estimated=True,
                 trace=its_trace,
                 tool_calls=its_tool_calls if its_tool_calls else None,
             ),
