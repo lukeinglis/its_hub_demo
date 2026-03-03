@@ -254,11 +254,7 @@ class PerformanceVizV2 {
     }
 
     formatCost(cost) {
-        if (cost == null) return 'N/A';
-        if (cost < 0.0001) return `$${cost.toExponential(2)}`;
-        if (cost < 0.01) return `$${cost.toFixed(4)}`;
-        if (cost < 1) return `$${cost.toFixed(3)}`;
-        return `$${cost.toFixed(2)}`;
+        return formatCost(cost);
     }
 }
 

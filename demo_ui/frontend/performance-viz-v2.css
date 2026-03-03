@@ -5,7 +5,7 @@
 .perf-v2-container {
     background: var(--bg-secondary, #3b4252);
     border: 2px solid var(--border-color, #4c566a);
-    border-radius: 8px;
+    border-radius: var(--radius-viz);
     padding: 32px;
     margin: 32px 0;
 }
@@ -24,7 +24,7 @@
 /* ===== SAVINGS CALLOUT ===== */
 .perf-v2-savings {
     background: linear-gradient(135deg, var(--success) 0%, var(--success) 100%);
-    border-radius: 12px;
+    border-radius: var(--radius-viz);
     padding: 32px;
     text-align: center;
     margin-bottom: 40px;
@@ -36,7 +36,7 @@
     background: rgba(255, 255, 255, 0.2);
     color: white;
     padding: 6px 16px;
-    border-radius: 20px;
+    border-radius: var(--radius-viz-pill);
     font-size: 12px;
     font-weight: 700;
     letter-spacing: 0.1em;
@@ -74,7 +74,7 @@
 .perf-v2-metric {
     background: var(--bg-primary, #2e3440);
     border: 2px solid var(--border-color, #4c566a);
-    border-radius: 8px;
+    border-radius: var(--radius-viz);
     padding: 24px;
 }
 
@@ -113,14 +113,14 @@
 .perf-v2-bar-track {
     height: 36px;
     background: var(--bg-secondary, #3b4252);
-    border-radius: 6px;
+    border-radius: var(--radius-viz-sm);
     overflow: hidden;
     position: relative;
 }
 
 .perf-v2-bar-fill {
     height: 100%;
-    border-radius: 6px;
+    border-radius: var(--radius-viz-sm);
     transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1);
     position: relative;
     display: flex;
@@ -164,7 +164,7 @@
 .perf-v2-table-container {
     background: var(--bg-primary, #2e3440);
     border: 2px solid var(--border-color, #4c566a);
-    border-radius: 8px;
+    border-radius: var(--radius-viz);
     padding: 24px;
 }
 
@@ -268,20 +268,9 @@
     }
 }
 
-/* Animation on load */
-@keyframes slideInUp {
-    from {
-        opacity: 0;
-        transform: translateY(20px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
-}
-
+/* Animation on load — reuses fadeInUp from main.css */
 .perf-v2-metric {
-    animation: slideInUp 0.5s ease-out backwards;
+    animation: fadeInUp 0.5s ease-out backwards;
 }
 
 .perf-v2-metric:nth-child(1) { animation-delay: 0.1s; }

@@ -37,6 +37,21 @@
     --radius: 0px;
     --radius-lg: 0px;
     --radius-xl: 0px;
+
+    /* Visualization-specific rounding (data viz intentionally uses rounded corners) */
+    --radius-viz: 8px;
+    --radius-viz-sm: 6px;
+    --radius-viz-pill: 20px;
+
+    /* Spacing scale */
+    --space-1: 4px;
+    --space-2: 8px;
+    --space-3: 12px;
+    --space-4: 16px;
+    --space-6: 24px;
+    --space-8: 32px;
+    --space-10: 40px;
+    --space-12: 48px;
 }
 
 [data-theme="light"] {

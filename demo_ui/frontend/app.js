@@ -42,7 +42,9 @@ function formatLatency(ms) {
 function formatCost(cost_usd) {
     if (cost_usd == null || cost_usd === undefined) return 'N/A';
     if (cost_usd < 0.0001) return '$' + cost_usd.toExponential(2);
-    return '$' + cost_usd.toFixed(4);
+    if (cost_usd < 0.01) return '$' + cost_usd.toFixed(4);
+    if (cost_usd < 1) return '$' + cost_usd.toFixed(3);
+    return '$' + cost_usd.toFixed(2);
 }
 
 let currentExpectedAnswer = null;
@@ -2241,17 +2243,7 @@ function setSizeBadge(elementId, size) {
 function setCostBadge(elementId, cost_usd, threshold = 0.01) {
     const badge = document.getElementById(elementId);
     if (cost_usd !== null && cost_usd !== undefined && cost_usd > 0) {
-        // Format cost
-        let costText;
-        if (cost_usd < 0.01) {
-            costText = '<$0.01';
-        } else if (cost_usd < 1) {
-            costText = '$' + cost_usd.toFixed(3);
-        } else {
-            costText = '$' + cost_usd.toFixed(2);
-        }
-
-        badge.textContent = costText;
+        badge.textContent = formatCost(cost_usd);
         // Mark as expensive if above threshold
         badge.className = cost_usd > threshold ? 'cost-badge expensive' : 'cost-badge';
         setVisible(badge, true);
