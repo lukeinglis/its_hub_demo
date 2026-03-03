@@ -50,6 +50,10 @@ class CompareRequest(BaseModel):
         default="overall_quality",
         description="Judge criterion for Best-of-N: built-in name or custom evaluation prompt"
     )
+    expected_answer: Optional[str] = Field(
+        default=None,
+        description="Expected correct answer for quality evaluation"
+    )
 
 
 # --- Algorithm Trace Models ---
@@ -153,6 +157,8 @@ class ResultDetail(BaseModel):
         "(algorithms don't expose per-call usage), False for baseline results "
         "(actual counts from litellm)."
     )
+    is_correct: Optional[bool] = Field(default=None, description="Whether the answer is correct (None if no expected answer)")
+    eval_method: Optional[str] = Field(default=None, description="Evaluation method: 'exact_match', 'llm_judge', or None")
     trace: Optional[dict] = Field(default=None, description="Algorithm trace data for visualization")
     tool_calls: Optional[list[ToolCall]] = Field(default=None, description="Tool calls made during execution")
 

@@ -47,6 +47,7 @@ if openai_key:
 else:
     logger.warning("OPENAI_API_KEY not found in environment!")
 
+from backend.evaluation import evaluate_correctness
 from its_hub.lms import OpenAICompatibleLanguageModel, LiteLLMLanguageModel, StepGeneration
 from its_hub.algorithms import (
     BestOfN,
@@ -1089,6 +1090,36 @@ async def compare(request: CompareRequest):
             f"baseline_latency={baseline_latency}ms, its_latency={its_latency}ms"
         )
 
+        # --- Quality evaluation ---
+        baseline_is_correct = None
+        baseline_eval_method = None
+        its_is_correct = None
+        its_eval_method = None
+        small_baseline_is_correct = None
+        small_baseline_eval_method = None
+
+        if request.expected_answer:
+            eval_tasks = [
+                evaluate_correctness(request.question, baseline_answer, request.expected_answer, question_type),
+                evaluate_correctness(request.question, its_answer, request.expected_answer, question_type),
+            ]
+            if request.use_case == "match_frontier" and small_baseline_answer is not None:
+                eval_tasks.append(
+                    evaluate_correctness(request.question, small_baseline_answer, request.expected_answer, question_type)
+                )
+
+            eval_results = await asyncio.gather(*eval_tasks)
+
+            baseline_is_correct, baseline_eval_method = eval_results[0]
+            its_is_correct, its_eval_method = eval_results[1]
+            if len(eval_results) > 2:
+                small_baseline_is_correct, small_baseline_eval_method = eval_results[2]
+
+            logger.info(
+                f"[{run_id}] Quality evaluation: baseline={baseline_is_correct}, "
+                f"its={its_is_correct}, method={its_eval_method}"
+            )
+
         # Get model configs
         model_config = get_model_config(request.model_id)
         model_size = model_config.get("size", "Unknown")
@@ -1143,6 +1174,8 @@ async def compare(request: CompareRequest):
                 cost_usd=baseline_cost if baseline_cost > 0 else None,
                 input_tokens=baseline_input_tokens if baseline_input_tokens > 0 else None,
                 output_tokens=baseline_output_tokens if baseline_output_tokens > 0 else None,
+                is_correct=baseline_is_correct,
+                eval_method=baseline_eval_method,
                 tool_calls=baseline_tool_calls if baseline_tool_calls else None,
             ),
             "its": ResultDetail(
@@ -1154,6 +1187,8 @@ async def compare(request: CompareRequest):
                 input_tokens=its_input_tokens if its_input_tokens > 0 else None,
                 output_tokens=its_output_tokens if its_output_tokens > 0 else None,
                 tokens_estimated=True,
+                is_correct=its_is_correct,
+                eval_method=its_eval_method,
                 trace=its_trace,
                 tool_calls=its_tool_calls if its_tool_calls else None,
             ),
@@ -1164,6 +1199,7 @@ async def compare(request: CompareRequest):
                 "run_id": run_id,
                 "use_case": request.use_case,
                 "question_type": question_type,
+                "expected_answer": request.expected_answer,
             }
         }
 
@@ -1177,6 +1213,8 @@ async def compare(request: CompareRequest):
                 cost_usd=small_baseline_cost if small_baseline_cost and small_baseline_cost > 0 else None,
                 input_tokens=small_baseline_input_tokens if small_baseline_input_tokens and small_baseline_input_tokens > 0 else None,
                 output_tokens=small_baseline_output_tokens if small_baseline_output_tokens and small_baseline_output_tokens > 0 else None,
+                is_correct=small_baseline_is_correct,
+                eval_method=small_baseline_eval_method,
                 tool_calls=small_baseline_tool_calls if small_baseline_tool_calls else None,
             )
             response_data["meta"]["frontier_model_id"] = request.frontier_model_id

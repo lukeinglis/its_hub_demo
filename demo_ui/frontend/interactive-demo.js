@@ -548,6 +548,7 @@ async function iwSubmit() {
             algorithm: iwState.algorithm,
             budget: iwState.budget,
             use_case: iwState.scenario === 'match_frontier' ? 'match_frontier' : 'improve_model',
+            expected_answer: iwState.expectedAnswer || null,
         };
 
         if (iwState.scenario === 'match_frontier') {
@@ -698,6 +699,13 @@ function iwBuildResultPane(data, type, title, minCost, minLatency) {
     const latency = (data.latency_ms !== null && data.latency_ms !== undefined) ? Number(data.latency_ms) : null;
     if (cost != null && cost <= minCost) badges += '<span class="iw-pane-badge cheapest">Cheapest</span>';
     if (latency != null && latency <= minLatency) badges += '<span class="iw-pane-badge fastest">Fastest</span>';
+    if (data.is_correct === true) {
+        const method = data.eval_method === 'exact_match' ? 'Exact Match' : 'LLM Judge';
+        badges += `<span class="iw-pane-badge correct">Correct <span class="iw-eval-method">(${method})</span></span>`;
+    } else if (data.is_correct === false) {
+        const method = data.eval_method === 'exact_match' ? 'Exact Match' : 'LLM Judge';
+        badges += `<span class="iw-pane-badge incorrect">Incorrect <span class="iw-eval-method">(${method})</span></span>`;
+    }
 
     // Format cost
     const isEstimated = !!data.tokens_estimated;

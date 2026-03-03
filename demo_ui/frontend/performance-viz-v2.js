@@ -60,6 +60,20 @@ class PerformanceVizV2 {
                 ],
                 'lower'
             );
+
+            // Quality metric — only when correctness data exists
+            if (data.small_baseline.is_correct != null || data.its.is_correct != null || data.baseline.is_correct != null) {
+                html += this.renderMetricComparison(
+                    'Quality',
+                    '%',
+                    [
+                        { label: 'Small Baseline', value: data.small_baseline.is_correct === true ? 100 : data.small_baseline.is_correct === false ? 0 : null, color: '#64748b' },
+                        { label: 'Small + ITS', value: data.its.is_correct === true ? 100 : data.its.is_correct === false ? 0 : null, color: '#0ea5e9' },
+                        { label: 'Frontier', value: data.baseline.is_correct === true ? 100 : data.baseline.is_correct === false ? 0 : null, color: '#8b5cf6' }
+                    ],
+                    'higher'
+                );
+            }
         } else {
             html += this.renderMetricComparison(
                 'Cost',
@@ -90,6 +104,19 @@ class PerformanceVizV2 {
                 ],
                 'lower'
             );
+
+            // Quality metric — only when correctness data exists
+            if (data.baseline.is_correct != null || data.its.is_correct != null) {
+                html += this.renderMetricComparison(
+                    'Quality',
+                    '%',
+                    [
+                        { label: 'Baseline', value: data.baseline.is_correct === true ? 100 : data.baseline.is_correct === false ? 0 : null, color: '#64748b' },
+                        { label: 'ITS', value: data.its.is_correct === true ? 100 : data.its.is_correct === false ? 0 : null, color: '#0ea5e9' }
+                    ],
+                    'higher'
+                );
+            }
         }
 
         html += '</div>'; // Close metrics
@@ -243,6 +270,22 @@ class PerformanceVizV2 {
             html += `<td>${costPerToken}</td>`;
         });
         html += '</tr>';
+
+        // Correctness row — only if any model has correctness data
+        const hasCorrectness = models.some(m => m.data.is_correct != null);
+        if (hasCorrectness) {
+            html += '<tr><td class="perf-v2-table-label">Correctness</td>';
+            models.forEach(model => {
+                if (model.data.is_correct === true) {
+                    html += '<td style="color: var(--success, #22c55e); font-weight: 600;">Correct</td>';
+                } else if (model.data.is_correct === false) {
+                    html += '<td style="color: var(--danger, #ef4444); font-weight: 600;">Incorrect</td>';
+                } else {
+                    html += '<td>N/A</td>';
+                }
+            });
+            html += '</tr>';
+        }
 
         html += `
                     </tbody>

@@ -545,6 +545,18 @@
     border: 1px solid rgba(163, 190, 140, 0.3);
 }
 
+.iw-pane-badge.incorrect {
+    color: var(--danger);
+    background: rgba(191, 97, 106, 0.15);
+    border: 1px solid rgba(191, 97, 106, 0.3);
+}
+
+.iw-eval-method {
+    font-weight: 400;
+    font-size: 9px;
+    opacity: 0.8;
+}
+
 .iw-pane-body {
     padding: 20px;
 }
