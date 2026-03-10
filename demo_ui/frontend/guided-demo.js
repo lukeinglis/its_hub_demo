@@ -3,16 +3,25 @@
  *
  * Flow: Goal → Method → Scenario → Prompt/Submit → Responses/Trace → Performance
  *
- * WHERE TO PLUG IN REAL DATA LATER:
- * ──────────────────────────────────
- * 1. GUIDED_MOCK_QUESTIONS  — Replace placeholder questions per scenario+method
- * 2. getMockResponse()      — Replace the fallback generator with real captured data
- * 3. guidedRunTraceAnimation() — Enhance with real algorithm trace output
- * 4. getMockPerformance()   — Replace with real cost/latency/token metrics
+ * Data loading:
+ *   On startup, fetches guided-demo-data.json (captured via capture_guided_scenarios.py).
+ *   If the file is present, real API responses are used for all 8 scenario+method combos.
+ *   If the file is missing or fails to load, hardcoded mock data is used as fallback.
  *
  * The GUIDED_SCENARIOS object defines the branching structure (goals → scenarios).
  * You can add/remove scenarios there without changing any other code.
  */
+
+// ============================================================
+// CAPTURED DATA LOADING
+// ============================================================
+
+let GUIDED_CAPTURED_DATA = null;
+
+fetch('guided-demo-data.json')
+    .then(r => r.json())
+    .then(data => { GUIDED_CAPTURED_DATA = data; })
+    .catch(err => console.warn('Guided demo data not loaded, using mock fallback:', err));
 
 // ============================================================
 // STATE
@@ -49,8 +58,8 @@ const GUIDED_SCENARIOS = {
         title: 'Open Source Model',
         subtitle: 'Enhance an open-source model',
         icon: '🔓',
-        model: 'Llama 3 8B',
-        provider: 'Meta',
+        model: 'Qwen 2.5 7B',
+        provider: 'OpenRouter',
         description: 'Open-source models see significant accuracy gains from ITS techniques.',
     },
     match_same_family: {
@@ -59,10 +68,10 @@ const GUIDED_SCENARIOS = {
         title: 'Same Model Family',
         subtitle: 'Small model matching a larger model in the same family',
         icon: '👨‍👦',
-        smallModel: 'GPT-4o mini',
-        frontierModel: 'GPT-4o',
+        smallModel: 'GPT-4.1 Nano',
+        frontierModel: 'GPT-4.1',
         provider: 'OpenAI',
-        description: 'GPT-4o mini + ITS can match GPT-4o quality at a fraction of the cost.',
+        description: 'GPT-4.1 Nano + ITS can match GPT-4.1 quality at a fraction of the cost.',
     },
     match_cross_family: {
         id: 'match_cross_family',
@@ -70,9 +79,9 @@ const GUIDED_SCENARIOS = {
         title: 'Cross-Family Match',
         subtitle: 'Small open-source model matching a larger frontier model',
         icon: '🔀',
-        smallModel: 'Llama 3 8B',
+        smallModel: 'Llama 3.2 3B',
         frontierModel: 'GPT-4o',
-        provider: 'Meta / OpenAI',
+        provider: 'OpenRouter / OpenAI',
         description: 'A small open-source model + ITS competing with a large frontier model.',
     },
 };
@@ -83,25 +92,42 @@ const GUIDED_SCENARIOS = {
 // ============================================================
 
 const GUIDED_MOCK_QUESTIONS = {
-    'improve_frontier_self_consistency': 'What is 144 / 12 + 7 * 3 - 5?',
-    'improve_frontier_best_of_n': 'Explain the key differences between TCP and UDP protocols, and when you would choose each one.',
-    'improve_opensource_self_consistency': 'If a train travels 120 km in 1.5 hours, what is its average speed in km/h?',
+    'improve_frontier_self_consistency': 'A square is inscribed in a circle of radius 10 cm. What is the area of the region inside the circle but outside the square? Express your answer in terms of pi.',
+    'improve_frontier_best_of_n': 'Write a concise analogy that explains how a neural network learns, making it accessible to someone with no technical background.',
+    'improve_opensource_self_consistency': 'A bag contains 4 red balls, 3 blue balls, and 5 green balls. If 3 balls are drawn at random without replacement, what is the probability that exactly 2 are the same color? Express as a simplified fraction.',
     'improve_opensource_best_of_n': 'What are the three laws of thermodynamics? Explain each briefly.',
-    'match_same_family_self_consistency': 'A store has a 20% off sale. If an item originally costs $85, what is the sale price?',
-    'match_same_family_best_of_n': 'Compare and contrast supervised and unsupervised machine learning. Give one example of each.',
-    'match_cross_family_self_consistency': 'What is the sum of the first 10 prime numbers?',
+    'match_same_family_self_consistency': 'Three cards are drawn from a standard deck of 52 cards without replacement. What is the probability all three are hearts? Express as a simplified fraction.',
+    'match_same_family_best_of_n': 'Explain the difference between correlation and causation with a concrete example that a business executive could use in a presentation.',
+    'match_cross_family_self_consistency': 'A bag contains 4 red balls, 3 blue balls, and 5 green balls. If 3 balls are drawn at random without replacement, what is the probability that exactly 2 are the same color? Express as a simplified fraction.',
     'match_cross_family_best_of_n': 'Explain why the sky is blue using the concept of Rayleigh scattering.',
 };
 
 // ============================================================
-// MOCK RESPONSES — Replace with real captured responses later
+// RESPONSE DATA — uses captured JSON when available, mock fallback otherwise
 // ============================================================
 
 function getMockResponse(scenarioId, method) {
     const scenario = GUIDED_SCENARIOS[scenarioId];
     const isMatchFrontier = scenario.goal === 'match_frontier';
 
-    // --- Self-Consistency mocks ---
+    // --- Try captured data first ---
+    const key = `${scenarioId}_${method}`;
+    const captured = GUIDED_CAPTURED_DATA && GUIDED_CAPTURED_DATA[key];
+    if (captured) {
+        const result = {
+            baseline: captured.baseline,
+            its: captured.its,
+            trace: captured.trace || null,
+        };
+        if (isMatchFrontier && captured.frontier) {
+            result.frontier = captured.frontier;
+        }
+        return result;
+    }
+
+    // --- Fallback: hardcoded mocks ---
+
+    // Self-Consistency mocks
     if (method === 'self_consistency') {
         const result = {
             baseline: {
@@ -147,7 +173,7 @@ function getMockResponse(scenarioId, method) {
         return result;
     }
 
-    // --- Best-of-N mocks ---
+    // Best-of-N mocks
     const scores = [0.72, 0.85, 0.95, 0.61, 0.88, 0.77, 0.91, 0.68];
     const result = {
         baseline: {
@@ -190,7 +216,7 @@ function getMockResponse(scenarioId, method) {
 }
 
 // ============================================================
-// MOCK PERFORMANCE DATA — Replace with real metrics later
+// PERFORMANCE DATA — derived from response data (real or mock)
 // ============================================================
 
 function getMockPerformance(scenarioId, method) {
@@ -208,7 +234,6 @@ function getMockPerformance(scenarioId, method) {
                 mockResp.its.input_tokens + mockResp.its.output_tokens,
                 mockResp.frontier.input_tokens + mockResp.frontier.output_tokens,
             ],
-            quality: [60, 92, 95],
         };
     }
     return {
@@ -219,7 +244,6 @@ function getMockPerformance(scenarioId, method) {
             mockResp.baseline.input_tokens + mockResp.baseline.output_tokens,
             mockResp.its.input_tokens + mockResp.its.output_tokens,
         ],
-        quality: [70, 94],
     };
 }
 
@@ -491,9 +515,12 @@ function guidedPopulatePrompt() {
         ${modelTag}
     `;
 
-    // Prompt text
+    // Prompt text — prefer captured data, fall back to mock questions
     const key = `${guidedDemoState.scenario}_${method}`;
-    const question = GUIDED_MOCK_QUESTIONS[key] || 'Placeholder question — replace with real demo question';
+    const capturedEntry = GUIDED_CAPTURED_DATA && GUIDED_CAPTURED_DATA[key];
+    const question = (capturedEntry && capturedEntry.question)
+        || GUIDED_MOCK_QUESTIONS[key]
+        || 'Placeholder question — replace with real demo question';
     document.getElementById('guidedPromptText').textContent = question;
 
     // Reset submit button
@@ -786,11 +813,6 @@ function guidedRenderPerformance() {
     // Cost chart
     chartsEl.innerHTML += guidedBuildChart('Cost', perf.columns, perf.cost, 'lower',
         v => v < 0.0001 ? '$' + v.toExponential(2) : '$' + v.toFixed(4)
-    );
-
-    // Quality chart
-    chartsEl.innerHTML += guidedBuildChart('Quality Score', perf.columns, perf.quality, 'higher',
-        v => v + '%'
     );
 
     // Latency chart

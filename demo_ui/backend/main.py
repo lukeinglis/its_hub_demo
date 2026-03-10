@@ -527,6 +527,11 @@ async def run_baseline(
             # providers (e.g. OpenRouter) and the call fails silently.
             request_data["api_key"] = lm.api_key
             request_data["api_base"] = lm.endpoint
+            # litellm needs a provider prefix to route non-OpenAI models correctly.
+            # Without it, models like "meta-llama/llama-3.2-3b-instruct" fail with
+            # "LLM Provider NOT provided". Detect OpenRouter by base_url.
+            if "openrouter.ai" in lm.endpoint and not request_data.get("model", "").startswith("openrouter/"):
+                request_data["model"] = "openrouter/" + request_data["model"]
             full_response = await litellm.acompletion(**request_data)
 
             # Extract usage from full response
