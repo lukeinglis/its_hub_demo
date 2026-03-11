@@ -17,8 +17,7 @@
 // ============================================================
 
 let GUIDED_CAPTURED_DATA = null;
-
-fetch('guided-demo-data.json')
+let _guidedDataPromise = fetch('guided-demo-data.json')
     .then(r => r.json())
     .then(data => { GUIDED_CAPTURED_DATA = data; })
     .catch(err => console.warn('Guided demo data not loaded, using mock fallback:', err));
@@ -45,22 +44,22 @@ const GUIDED_SCENARIOS = {
     improve_frontier: {
         id: 'improve_frontier',
         goal: 'improve_performance',
-        title: 'Frontier Model',
-        subtitle: 'Enhance a leading commercial model',
+        title: 'Small Commercial Model',
+        subtitle: 'Boost accuracy of a small, fast model',
         icon: '🌟',
-        model: 'GPT-4o',
+        model: 'GPT-4.1 Nano',
         provider: 'OpenAI',
-        description: 'Even frontier models benefit from ITS — multiple reasoning paths reduce errors.',
+        description: 'Small models make frequent errors — ITS generates multiple reasoning paths and votes on the best answer, dramatically improving accuracy.',
     },
     improve_opensource: {
         id: 'improve_opensource',
         goal: 'improve_performance',
         title: 'Open Source Model',
-        subtitle: 'Enhance an open-source model',
+        subtitle: 'Boost accuracy of an open-source model',
         icon: '🔓',
-        model: 'Qwen 2.5 7B',
+        model: 'Llama 3.2 3B',
         provider: 'OpenRouter',
-        description: 'Open-source models see significant accuracy gains from ITS techniques.',
+        description: 'A 3B open-source model makes mistakes on harder problems — ITS recovers the correct answer through consensus.',
     },
     match_same_family: {
         id: 'match_same_family',
@@ -92,10 +91,10 @@ const GUIDED_SCENARIOS = {
 // ============================================================
 
 const GUIDED_MOCK_QUESTIONS = {
-    'improve_frontier_self_consistency': 'A square is inscribed in a circle of radius 10 cm. What is the area of the region inside the circle but outside the square? Express your answer in terms of pi.',
-    'improve_frontier_best_of_n': 'Write a concise analogy that explains how a neural network learns, making it accessible to someone with no technical background.',
+    'improve_frontier_self_consistency': 'Three cards are drawn from a standard deck of 52 cards without replacement. What is the probability all three are hearts? Express as a simplified fraction.',
+    'improve_frontier_best_of_n': 'Explain the difference between correlation and causation with a concrete example that a business executive could use in a presentation.',
     'improve_opensource_self_consistency': 'A bag contains 4 red balls, 3 blue balls, and 5 green balls. If 3 balls are drawn at random without replacement, what is the probability that exactly 2 are the same color? Express as a simplified fraction.',
-    'improve_opensource_best_of_n': 'What are the three laws of thermodynamics? Explain each briefly.',
+    'improve_opensource_best_of_n': 'What are the three laws of thermodynamics? Explain each briefly with a real-world example.',
     'match_same_family_self_consistency': 'Three cards are drawn from a standard deck of 52 cards without replacement. What is the probability all three are hearts? Express as a simplified fraction.',
     'match_same_family_best_of_n': 'Explain the difference between correlation and causation with a concrete example that a business executive could use in a presentation.',
     'match_cross_family_self_consistency': 'A bag contains 4 red balls, 3 blue balls, and 5 green balls. If 3 balls are drawn at random without replacement, what is the probability that exactly 2 are the same color? Express as a simplified fraction.',
@@ -538,11 +537,13 @@ function guidedSubmit() {
     btn.disabled = true;
     btn.innerHTML = '<span class="spinner" style="width:18px;height:18px;border-width:2px;margin:0;"></span><span>Running...</span>';
 
-    // Simulate processing delay
-    setTimeout(() => {
-        guidedRenderResponses();
-        guidedShowStep(5);
-    }, 800);
+    // Wait for captured data to load, then render
+    _guidedDataPromise.finally(() => {
+        setTimeout(() => {
+            guidedRenderResponses();
+            guidedShowStep(5);
+        }, 400);
+    });
 }
 
 function guidedRenderResponses() {
@@ -551,9 +552,28 @@ function guidedRenderResponses() {
     const mockData = getMockResponse(guidedDemoState.scenario, method);
     const isMatchFrontier = scenario.goal === 'match_frontier';
 
+    // --- Question display at top of results ---
+    const key = `${guidedDemoState.scenario}_${method}`;
+    const capturedEntry = GUIDED_CAPTURED_DATA && GUIDED_CAPTURED_DATA[key];
+    const question = (capturedEntry && capturedEntry.question)
+        || GUIDED_MOCK_QUESTIONS[key] || '';
+
     const container = document.getElementById('guidedResponses');
     container.className = 'guided-responses ' + (isMatchFrontier ? 'three-col' : 'two-col');
-    container.innerHTML = '';
+
+    // Build question banner (spans full width above response columns)
+    const expectedAnswer = capturedEntry && capturedEntry.expected_answer;
+    const expectedHtml = expectedAnswer
+        ? `<div class="guided-expected-answer"><span class="guided-expected-label">Expected Answer:</span> ${expectedAnswer}</div>`
+        : '';
+    let questionHtml = `
+        <div class="guided-question-banner" style="grid-column: 1 / -1;">
+            <div class="guided-question-label">Question</div>
+            <div class="guided-question-text">${question}</div>
+            ${expectedHtml}
+        </div>
+    `;
+    container.innerHTML = questionHtml;
 
     // Baseline pane
     const baselineLabel = isMatchFrontier
@@ -578,6 +598,11 @@ function guidedRenderResponses() {
         );
     }
 
+    // Render LaTeX math in response panes
+    if (typeof renderMath === 'function') {
+        renderMath(container);
+    }
+
     // Show trace button area
     const traceArea = document.getElementById('guidedTraceArea');
     setVisible(traceArea, true);
@@ -596,6 +621,23 @@ function guidedRenderResponses() {
     setVisible(document.getElementById('guidedNextArea'), false);
 }
 
+/**
+ * Consolidate multi-line LaTeX blocks so KaTeX can find matching delimiters.
+ * Converts  \[\n...\n\]  →  $$...$$ (single line)
+ * and       \(\n...\n\)  →  $...$  (single line)
+ */
+function guidedPreprocessLatex(text) {
+    // Display math: \[ ... \] (possibly spanning multiple lines)
+    text = text.replace(/\\\[\s*\n([\s\S]*?)\n\s*\\\]/g, function(_, inner) {
+        return '$$' + inner.replace(/\n/g, ' ').trim() + '$$';
+    });
+    // Also handle single-line \[...\]
+    text = text.replace(/\\\[(.+?)\\\]/g, '$$$1$$');
+    // Inline math: \( ... \)
+    text = text.replace(/\\\((.+?)\\\)/g, '$$$1$$');
+    return text;
+}
+
 function guidedBuildResponsePane(title, type, data) {
     const indicatorClass = type === 'its' ? 'its' : type === 'frontier' ? 'frontier' : 'baseline';
     const paneClass = type === 'its' ? ' its-pane' : type === 'frontier' ? ' frontier-pane' : '';
@@ -604,10 +646,11 @@ function guidedBuildResponsePane(title, type, data) {
         ? '$' + data.cost_usd.toExponential(2)
         : '$' + data.cost_usd.toFixed(4);
 
-    // Use formatAsHTML if available (from the main inline script)
+    // Preprocess LaTeX before formatting as HTML paragraphs
+    const processedText = guidedPreprocessLatex(data.response);
     const responseHtml = typeof formatAsHTML === 'function'
-        ? formatAsHTML(data.response)
-        : '<p>' + data.response.replace(/\n\n/g, '</p><p>').replace(/\n/g, '<br>') + '</p>';
+        ? formatAsHTML(processedText)
+        : '<p>' + processedText.replace(/\n\n/g, '</p><p>').replace(/\n/g, '<br>') + '</p>';
 
     return `
         <div class="guided-response-pane${paneClass}">

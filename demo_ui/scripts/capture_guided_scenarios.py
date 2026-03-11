@@ -30,51 +30,59 @@ import httpx
 
 GUIDED_CONFIGS = [
     # --- improve_frontier ---
-    # GPT-4o: geometry problem with ~87% per-candidate accuracy.
-    # Self-consistency filters out the occasional wrong reasoning path.
+    # GPT-4.1 Nano: small model that makes frequent errors on moderate math.
+    # SC majority voting recovers the correct answer.
+    # Retry: keep recapturing until baseline is wrong but ITS is right.
     {
         "key": "improve_frontier_self_consistency",
         "scenario_id": "improve_frontier",
         "use_case": "improve_model",
         "algorithm": "self_consistency",
-        "model_id": "gpt-4o",
+        "model_id": "gpt-4.1-nano",
         "budget": 8,
-        "question": "A square is inscribed in a circle of radius 10 cm. What is the area of the region inside the circle but outside the square? Express your answer in terms of pi.",
+        "question": "Three cards are drawn from a standard deck of 52 cards without replacement. What is the probability all three are hearts? Express as a simplified fraction.",
+        "expected_answer": "11/850",
         "question_type": "math",
+        "require_improvement": True,
     },
     {
         "key": "improve_frontier_best_of_n",
         "scenario_id": "improve_frontier",
         "use_case": "improve_model",
         "algorithm": "best_of_n",
-        "model_id": "gpt-4o",
+        "model_id": "gpt-4.1-nano",
         "budget": 8,
-        "question": "Write a concise analogy that explains how a neural network learns, making it accessible to someone with no technical background.",
+        "question": "Explain the difference between correlation and causation with a concrete example that a business executive could use in a presentation.",
         "question_type": "general",
+        "judge_criterion": "Rate on accuracy, depth of explanation, and quality of the example. Be strict — only give 10 for exceptional responses.",
+        "require_improvement": True,
     },
     # --- improve_opensource ---
-    # Qwen 2.5 7B: combinatorics probability with ~75% per-candidate accuracy.
-    # Self-consistency filters out incorrect reasoning paths.
+    # Llama 3.2 3B: 3B open-source model that struggles with probability.
+    # SC majority voting recovers the correct answer.
     {
         "key": "improve_opensource_self_consistency",
         "scenario_id": "improve_opensource",
         "use_case": "improve_model",
         "algorithm": "self_consistency",
-        "model_id": "qwen-2.5-7b",
+        "model_id": "llama-3.2-3b",
         "budget": 8,
         "question": "A bag contains 4 red balls, 3 blue balls, and 5 green balls. If 3 balls are drawn at random without replacement, what is the probability that exactly 2 are the same color? Express as a simplified fraction.",
         "expected_answer": "29/44",
         "question_type": "math",
+        "require_improvement": True,
     },
     {
         "key": "improve_opensource_best_of_n",
         "scenario_id": "improve_opensource",
         "use_case": "improve_model",
         "algorithm": "best_of_n",
-        "model_id": "qwen-2.5-7b",
+        "model_id": "llama-3.2-3b",
         "budget": 8,
-        "question": "What are the three laws of thermodynamics? Explain each briefly.",
+        "question": "What are the three laws of thermodynamics? Explain each briefly with a real-world example.",
         "question_type": "general",
+        "judge_criterion": "Rate on scientific accuracy, clarity of examples, and completeness. Be strict — only give 10 for exceptional responses.",
+        "require_improvement": True,
     },
     # --- match_same_family ---
     # GPT-4.1-nano vs GPT-4.1: card probability with clear vote divergence.
@@ -222,6 +230,8 @@ async def capture_one(
         request_body["frontier_model_id"] = config["frontier_model_id"]
     if config.get("expected_answer"):
         request_body["expected_answer"] = config["expected_answer"]
+    if config.get("judge_criterion"):
+        request_body["judge_criterion"] = config["judge_criterion"]
 
     try:
         resp = await client.post(
@@ -279,6 +289,8 @@ async def capture_one(
         result["trace"] = trace
 
     result["question"] = config["question"]
+    if config.get("expected_answer"):
+        result["expected_answer"] = config["expected_answer"]
 
     print(f"  Baseline: {result['baseline']['latency_ms']}ms, "
           f"{result['baseline']['output_tokens']} tokens")
@@ -289,6 +301,28 @@ async def capture_one(
               f"{result['frontier']['output_tokens']} tokens")
 
     return result
+
+
+def _responses_differ(result: dict[str, Any], algo: str) -> bool:
+    """Check whether the ITS response is meaningfully different from baseline.
+
+    For SC: the baseline and ITS final answers should differ (baseline wrong,
+    ITS right via majority vote).
+    For BoN: the ITS response should be longer or structurally different from
+    baseline (judge selected a better candidate).
+    """
+    b_resp = result["baseline"]["response"]
+    i_resp = result["its"]["response"]
+
+    if algo == "self_consistency":
+        # For math SC: check if the two answers are textually different
+        # (one is wrong, the other is right via voting)
+        b_short = b_resp[:200].strip()
+        i_short = i_resp[:200].strip()
+        return b_short != i_short
+
+    # For BoN: responses should be different text (judge picked a different candidate)
+    return b_resp.strip() != i_resp.strip()
 
 
 # ============================================================
@@ -332,12 +366,36 @@ async def main() -> None:
             sys.exit(1)
 
     # Capture all 8 combinations
+    # For configs with require_improvement=True, retry up to MAX_RETRIES
+    # times until the baseline and ITS responses visibly differ.
+    MAX_RETRIES = 5
     results: dict[str, Any] = {}
     async with httpx.AsyncClient() as client:
         for config in GUIDED_CONFIGS:
-            result = await capture_one(client, args.backend_url, config)
-            if result:
-                results[config["key"]] = result
+            need_improvement = config.get("require_improvement", False)
+            algo = config["algorithm"]
+            best_result = None
+
+            attempts = MAX_RETRIES if need_improvement else 1
+            for attempt in range(1, attempts + 1):
+                if attempt > 1:
+                    print(f"  Retry {attempt}/{attempts} — looking for baseline != ITS ...")
+                result = await capture_one(client, args.backend_url, config)
+                if not result:
+                    continue
+
+                if not need_improvement or _responses_differ(result, algo):
+                    best_result = result
+                    if need_improvement:
+                        print(f"  Found improvement on attempt {attempt}")
+                    break
+                else:
+                    print(f"  Baseline and ITS are too similar, retrying...")
+                    best_result = result  # keep as fallback
+                    await asyncio.sleep(1)
+
+            if best_result:
+                results[config["key"]] = best_result
             else:
                 print(f"  SKIPPED (failed): {config['key']}")
             await asyncio.sleep(1)
