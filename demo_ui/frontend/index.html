@@ -193,6 +193,9 @@
                 <span class="wizard-crumb g-crumb" data-step="6">Performance</span>
             </div>
 
+            <!-- Persistent selection summary bar — builds up as choices are made -->
+            <div class="guided-scenario-summary hidden" id="guidedScenarioSummary"></div>
+
             <!-- Step 1: Goal Selection -->
             <div id="guidedStep1" class="wizard-step guided-step">
                 <h3 class="wizard-step-title guided-step-title">What would you like to explore?</h3>
@@ -245,7 +248,6 @@
             <!-- Step 4: Prompt + Submit -->
             <div id="guidedStep4" class="wizard-step guided-step hidden">
                 <button class="wizard-back-btn guided-back-btn" onclick="guidedGoBack(3)">← Back</button>
-                <div class="guided-scenario-summary" id="guidedScenarioSummary"></div>
                 <h3 class="guided-step-title">Ready to Run</h3>
                 <p class="guided-step-subtitle">Review the question and submit to see the pre-loaded scenario</p>
                 <div class="guided-inference-callout" id="guidedInferenceCallout"></div>

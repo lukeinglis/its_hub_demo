@@ -104,6 +104,7 @@ body {
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     position: relative;
+    overflow-x: hidden;
 }
 
 /* Terminal scanline effect */
@@ -1933,6 +1934,8 @@ button:disabled {
     border: 2px solid var(--border-color);
     border-radius: var(--radius-lg);
     box-shadow: var(--shadow-sm);
+    max-width: 100%;
+    box-sizing: border-box;
 }
 
 /* Old wizard-step / wizard-card rules removed — now in shared wizard section below.

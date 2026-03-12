@@ -261,6 +261,9 @@ function initGuidedWizard() {
     const wizard = document.getElementById('guidedWizard');
     setVisible(wizard, true);
 
+    // Hide summary bar
+    setVisible(document.getElementById('guidedScenarioSummary'), false);
+
     // Hide all other sections
     ['useCaseSection', 'scenarioSection', 'configSection', 'questionSection',
      'errorContainer', 'expectedAnswerContainer', 'resultsContainer',
@@ -351,6 +354,7 @@ function guidedGoBack(toStep) {
         }
     }
 
+    guidedUpdateSummaryBar();
     guidedShowStep(toStep);
 }
 
@@ -366,6 +370,66 @@ document.addEventListener('click', function(e) {
 });
 
 // ============================================================
+// SELECTION SUMMARY BAR — progressively builds as choices are made
+// ============================================================
+
+function guidedUpdateSummaryBar() {
+    const summaryEl = document.getElementById('guidedScenarioSummary');
+    const { goal, method, scenario } = guidedDemoState;
+
+    // Hide on step 1 (no selections yet)
+    if (!goal) {
+        setVisible(summaryEl, false);
+        return;
+    }
+
+    let tags = '';
+    const goalLabel = goal === 'improve_performance' ? 'Improve Model Performance' : 'Match Frontier Model';
+    tags += `
+        <span class="guided-summary-tag">
+            <span class="tag-label">Goal:</span>
+            <span class="tag-value">${goalLabel}</span>
+        </span>
+    `;
+
+    if (method) {
+        const methodLabel = method === 'self_consistency' ? 'Self-Consistency' : 'Best-of-N';
+        tags += `
+            <span class="guided-summary-tag">
+                <span class="tag-label">Method:</span>
+                <span class="tag-value">${methodLabel}</span>
+            </span>
+        `;
+    }
+
+    if (scenario) {
+        const sc = GUIDED_SCENARIOS[scenario];
+        if (sc.goal === 'match_frontier') {
+            tags += `
+                <span class="guided-summary-tag">
+                    <span class="tag-label">Small:</span>
+                    <span class="tag-value">${sc.smallModel}</span>
+                </span>
+                <span class="guided-summary-tag">
+                    <span class="tag-label">Frontier:</span>
+                    <span class="tag-value">${sc.frontierModel}</span>
+                </span>
+            `;
+        } else {
+            tags += `
+                <span class="guided-summary-tag">
+                    <span class="tag-label">Model:</span>
+                    <span class="tag-value">${sc.model}</span>
+                </span>
+            `;
+        }
+    }
+
+    summaryEl.innerHTML = tags;
+    setVisible(summaryEl, true);
+}
+
+// ============================================================
 // STEP 1: GOAL SELECTION
 // ============================================================
 
@@ -377,6 +441,7 @@ function guidedSelectGoal(goal) {
         card.classList.toggle('selected', card.dataset.goal === goal);
     });
 
+    guidedUpdateSummaryBar();
     setTimeout(() => guidedShowStep(2), 250);
 }
 
@@ -391,6 +456,8 @@ function guidedSelectMethod(method) {
     document.querySelectorAll('#guidedStep2 .guided-card').forEach(card => {
         card.classList.toggle('selected', card.dataset.method === method);
     });
+
+    guidedUpdateSummaryBar();
 
     // Populate scenario cards for step 3
     setTimeout(() => {
@@ -462,6 +529,8 @@ function guidedSelectScenario(scenarioId) {
         card.classList.toggle('selected', card.dataset.scenario === scenarioId);
     });
 
+    guidedUpdateSummaryBar();
+
     // Populate step 4 (prompt)
     setTimeout(() => {
         guidedPopulatePrompt();
@@ -476,45 +545,6 @@ function guidedSelectScenario(scenarioId) {
 function guidedPopulatePrompt() {
     const scenario = GUIDED_SCENARIOS[guidedDemoState.scenario];
     const method = guidedDemoState.method;
-    const goalLabel = guidedDemoState.goal === 'improve_performance'
-        ? 'Improve Model Performance'
-        : 'Match Frontier Model';
-    const methodLabel = method === 'self_consistency' ? 'Self-Consistency' : 'Best-of-N';
-
-    // Summary tags
-    const summaryEl = document.getElementById('guidedScenarioSummary');
-    let modelTag = '';
-    if (scenario.goal === 'match_frontier') {
-        modelTag = `
-            <span class="guided-summary-tag">
-                <span class="tag-label">Small:</span>
-                <span class="tag-value">${scenario.smallModel}</span>
-            </span>
-            <span class="guided-summary-tag">
-                <span class="tag-label">Frontier:</span>
-                <span class="tag-value">${scenario.frontierModel}</span>
-            </span>
-        `;
-    } else {
-        modelTag = `
-            <span class="guided-summary-tag">
-                <span class="tag-label">Model:</span>
-                <span class="tag-value">${scenario.model}</span>
-            </span>
-        `;
-    }
-
-    summaryEl.innerHTML = `
-        <span class="guided-summary-tag">
-            <span class="tag-label">Goal:</span>
-            <span class="tag-value">${goalLabel}</span>
-        </span>
-        <span class="guided-summary-tag">
-            <span class="tag-label">Method:</span>
-            <span class="tag-value">${methodLabel}</span>
-        </span>
-        ${modelTag}
-    `;
 
     // Inference callout — explain that ITS doesn't touch the model
     const calloutEl = document.getElementById('guidedInferenceCallout');
@@ -579,14 +609,10 @@ function guidedRenderResponses() {
 
     // Build question banner (spans full width above response columns)
     const expectedAnswer = capturedEntry && capturedEntry.expected_answer;
-    const expectedHtml = expectedAnswer
-        ? `<div class="guided-expected-answer"><span class="guided-expected-label">Expected Answer:</span> ${expectedAnswer}</div>`
-        : '';
     let questionHtml = `
         <div class="guided-question-banner" style="grid-column: 1 / -1;">
             <div class="guided-question-label">Question</div>
             <div class="guided-question-text">${question}</div>
-            ${expectedHtml}
         </div>
     `;
     container.innerHTML = questionHtml;
@@ -614,9 +640,14 @@ function guidedRenderResponses() {
         );
     }
 
-    // Render LaTeX math in response panes
-    if (typeof renderMath === 'function') {
-        renderMath(container);
+    // Expected answer — prominent, spanning full width for easy comparison
+    if (expectedAnswer) {
+        container.innerHTML += `
+            <div class="guided-expected-answer-bar" style="grid-column: 1 / -1;">
+                <span class="guided-expected-label">Expected Answer:</span>
+                <span class="guided-expected-value">${expectedAnswer}</span>
+            </div>
+        `;
     }
 
     // Add "Why is this better?" insight box for certain scenarios
@@ -624,6 +655,26 @@ function guidedRenderResponses() {
     if (insightBox) {
         container.innerHTML += insightBox;
     }
+
+    // Render LaTeX math in response panes (after all innerHTML is finalized)
+    if (typeof renderMath === 'function') {
+        renderMath(container);
+    }
+
+    // Sync all reasoning toggles — clicking one opens/closes all
+    const allToggles = container.querySelectorAll('.guided-reasoning-toggle');
+    allToggles.forEach(details => {
+        details.addEventListener('toggle', function() {
+            const isOpen = this.open;
+            allToggles.forEach(d => {
+                if (d !== details) d.open = isOpen;
+            });
+            // Attach scroll sync after opening
+            if (isOpen) {
+                guidedSyncReasoningScroll(container);
+            }
+        });
+    });
 
     // Show trace button area
     const traceArea = document.getElementById('guidedTraceArea');
@@ -714,6 +765,75 @@ function buildScenarioInsight(scenarioId, method) {
     `;
 }
 
+/**
+ * Sync scroll position across all reasoning panes.
+ * Scrolls by percentage so panes of different heights stay in sync.
+ */
+function guidedSyncReasoningScroll(container) {
+    const panes = container.querySelectorAll('.guided-reasoning-toggle .guided-pane-response');
+    if (panes.length < 2) return;
+
+    let syncing = false;
+    panes.forEach(pane => {
+        // Remove any existing listener by replacing the node (simple approach)
+        if (pane._scrollSynced) return;
+        pane._scrollSynced = true;
+
+        pane.addEventListener('scroll', function() {
+            if (syncing) return;
+            syncing = true;
+            const scrollPct = this.scrollHeight > this.clientHeight
+                ? this.scrollTop / (this.scrollHeight - this.clientHeight)
+                : 0;
+            panes.forEach(other => {
+                if (other !== pane) {
+                    const maxScroll = other.scrollHeight - other.clientHeight;
+                    other.scrollTop = scrollPct * maxScroll;
+                }
+            });
+            syncing = false;
+        });
+    });
+}
+
+/**
+ * Extract a final answer from a model response.
+ * For math: looks for \boxed{...} or "Final answer: ..." patterns.
+ * For general: uses the last substantive paragraph.
+ * Returns { answer: string, hasBoxed: boolean }
+ */
+function guidedExtractFinalAnswer(responseText) {
+    // Try \boxed{...} (LaTeX math answer)
+    const boxedMatches = responseText.match(/\\boxed\{([^}]+)\}/g);
+    if (boxedMatches) {
+        const lastBoxed = boxedMatches[boxedMatches.length - 1];
+        const inner = lastBoxed.replace(/\\boxed\{/, '').replace(/\}$/, '');
+        return { answer: '$$\\boxed{' + inner + '}$$', hasBoxed: true };
+    }
+
+    // Try "The final answer is: X" or "Final answer: X"
+    const finalMatch = responseText.match(/(?:the\s+)?final\s+answer\s*(?:is)?[:\s]*(.+?)(?:\n|$)/i);
+    if (finalMatch) {
+        return { answer: finalMatch[1].trim(), hasBoxed: false };
+    }
+
+    // Try "Therefore, ... is X" or "The answer is X" near the end
+    const lines = responseText.trim().split('\n').filter(l => l.trim());
+    for (let i = lines.length - 1; i >= Math.max(0, lines.length - 5); i--) {
+        const line = lines[i].trim();
+        if (line.match(/^(?:therefore|thus|so|hence|the answer|answer:)/i) && line.length < 300) {
+            return { answer: line, hasBoxed: false };
+        }
+    }
+
+    // Fallback: last non-empty paragraph (truncated)
+    const lastLine = lines[lines.length - 1] || '';
+    if (lastLine.length <= 300) {
+        return { answer: lastLine, hasBoxed: false };
+    }
+    return { answer: lastLine.substring(0, 200) + '...', hasBoxed: false };
+}
+
 function guidedBuildResponsePane(title, type, data) {
     const indicatorClass = type === 'its' ? 'its' : type === 'frontier' ? 'frontier' : 'baseline';
     const paneClass = type === 'its' ? ' its-pane' : type === 'frontier' ? ' frontier-pane' : '';
@@ -722,11 +842,23 @@ function guidedBuildResponsePane(title, type, data) {
         ? '$' + data.cost_usd.toExponential(2)
         : '$' + data.cost_usd.toFixed(4);
 
-    // Preprocess LaTeX before formatting as HTML paragraphs
+    // Extract final answer
+    const extracted = guidedExtractFinalAnswer(data.response);
+
+    // Format the final answer for display
+    const answerProcessed = guidedPreprocessLatex(extracted.answer);
+    const answerHtml = typeof formatAsHTML === 'function'
+        ? formatAsHTML(answerProcessed)
+        : '<p>' + answerProcessed + '</p>';
+
+    // Format full reasoning for the collapsible dropdown
     const processedText = guidedPreprocessLatex(data.response);
     const responseHtml = typeof formatAsHTML === 'function'
         ? formatAsHTML(processedText)
         : '<p>' + processedText.replace(/\n\n/g, '</p><p>').replace(/\n/g, '<br>') + '</p>';
+
+    // Unique ID for the collapsible
+    const collapseId = 'reasoning_' + type + '_' + Math.random().toString(36).slice(2, 8);
 
     return `
         <div class="guided-response-pane${paneClass}">
@@ -740,7 +872,14 @@ function guidedBuildResponsePane(title, type, data) {
                     <span class="guided-pane-badge">${costFmt}</span>
                 </div>
             </div>
-            <div class="guided-pane-response">${responseHtml}</div>
+            <div class="guided-pane-final-answer">
+                <div class="guided-final-answer-label">Final Answer</div>
+                <div class="guided-final-answer-value">${answerHtml}</div>
+            </div>
+            <details class="guided-reasoning-toggle">
+                <summary class="guided-reasoning-summary">Show Reasoning</summary>
+                <div class="guided-pane-response">${responseHtml}</div>
+            </details>
         </div>
     `;
 }
@@ -753,135 +892,147 @@ function guidedRunTraceAnimation() {
     const method = guidedDemoState.method;
     const mockData = getMockResponse(guidedDemoState.scenario, method);
     const traceContent = document.getElementById('guidedTraceContent');
-
-    // Build the staged trace visualization
-    let html = '<div class="guided-trace-animation">';
-
-    // Phase 1: Generate candidates
     const numCandidates = mockData.trace.candidates.length;
-    const phase1Explainer = method === 'self_consistency'
-        ? `The same question is sent to the same model ${numCandidates} separate times. Each call may reason differently and arrive at a different answer — this variance is what ITS exploits.`
-        : `The same question is sent to the same model ${numCandidates} separate times. Each response varies in quality, structure, and completeness.`;
-    html += `
-        <div class="guided-trace-phase" id="tracePhase1">
-            <div class="guided-trace-phase-label">
-                <span class="phase-number">1</span>
-                Generate Multiple Candidates
-            </div>
-            <div style="padding: 12px; background: var(--bg-primary); border: 1px solid var(--border-color);">
-                <p class="guided-trace-explainer">${phase1Explainer}</p>
-                <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 12px;">
-                    ${numCandidates} candidate responses generated in parallel
-                </p>
-                <div style="display: flex; flex-wrap: wrap; gap: 6px;">
-    `;
-    mockData.trace.candidates.forEach((c, i) => {
-        const isWinner = c.is_selected;
-        html += `<span style="
-            display: inline-block; padding: 4px 10px; font-size: 11px;
-            background: ${isWinner ? 'rgba(163, 190, 140, 0.15)' : 'var(--bg-secondary)'};
-            border: 1px solid ${isWinner ? 'var(--success)' : 'var(--border-color)'};
-            color: ${isWinner ? 'var(--success)' : 'var(--text-secondary)'};
-        ">Candidate ${i + 1}</span>`;
-    });
-    html += '</div></div></div>';
 
-    // Phase 2: Evaluate / Compare
-    const phase2Explainer = method === 'self_consistency'
-        ? `Each candidate's final answer is extracted and compared. Answers that appear most frequently across independent runs are more likely correct — errors tend to be random, but correct reasoning converges.`
-        : `A separate LLM judge evaluates each candidate on specific quality criteria and assigns a score. The judge sees each response independently.`;
-    html += `
-        <div class="guided-trace-phase" id="tracePhase2">
-            <div class="guided-trace-phase-label">
-                <span class="phase-number">2</span>
-                ${method === 'self_consistency' ? 'Vote on Answers' : 'Score by LLM Judge'}
-            </div>
-            <div style="padding: 12px; background: var(--bg-primary); border: 1px solid var(--border-color);">
-                <p class="guided-trace-explainer">${phase2Explainer}</p>
-    `;
+    const isSC = method === 'self_consistency';
+    const explainerText = isSC
+        ? `The same question was sent to the same model ${numCandidates} separate times. Each call may reason differently and arrive at a different answer. The most common answer wins — errors tend to be random, but correct reasoning converges.`
+        : `The same question was sent to the same model ${numCandidates} separate times. A separate LLM judge scored each response on quality criteria, and the highest-scored response was selected.`;
+    const conclusionText = isSC
+        ? 'The answer with the most votes is selected as the final output. This is the same model, with no changes — just smarter use of inference.'
+        : 'The highest-scored response becomes the final output. The model was never retrained — ITS simply chose the best of several attempts.';
 
-    if (method === 'self_consistency' && mockData.trace.vote_counts) {
-        // Render voting bars
-        const sortedVotes = Object.entries(mockData.trace.vote_counts).sort((a, b) => b[1] - a[1]);
-        const maxVotes = sortedVotes[0][1];
-        sortedVotes.forEach(([answer, count], i) => {
-            const pct = (count / maxVotes) * 100;
-            const isWinner = i === 0;
-            html += `
-                <div style="display: grid; grid-template-columns: 100px 1fr 60px; gap: 8px; align-items: center; margin-bottom: 8px;">
-                    <span style="font-size: 12px; color: ${isWinner ? 'var(--success)' : 'var(--text-secondary)'}; font-weight: ${isWinner ? '700' : '400'}; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${answer}</span>
-                    <div style="height: 20px; background: var(--bg-secondary); overflow: hidden;">
-                        <div style="height: 100%; width: ${pct}%; background: ${isWinner ? 'var(--success)' : 'var(--bg-elevated)'}; transition: width 0.6s ease;"></div>
+    // Build candidate rows with answer/score and expandable reasoning
+    let candidateRowsHtml = '';
+
+    if (isSC) {
+        // For SC: extract final answer from each candidate and show vote-style
+        const voteMap = {}; // answer → [candidate indices]
+        mockData.trace.candidates.forEach((c, i) => {
+            const extracted = guidedExtractFinalAnswer(c.content);
+            const answerText = extracted.answer.replace(/\$\$/g, '').replace(/\\boxed\{|\}/g, '').trim() || '(no answer)';
+            if (!voteMap[answerText]) voteMap[answerText] = [];
+            voteMap[answerText].push(i);
+        });
+        // Sort by vote count descending
+        const sortedAnswers = Object.entries(voteMap).sort((a, b) => b[1].length - a[1].length);
+        const maxVotes = sortedAnswers[0][1].length;
+        const winnerAnswer = sortedAnswers[0][0];
+
+        mockData.trace.candidates.forEach((c, i) => {
+            const extracted = guidedExtractFinalAnswer(c.content);
+            const answerText = extracted.answer.replace(/\$\$/g, '').replace(/\\boxed\{|\}/g, '').trim() || '(no answer)';
+            const isWinner = c.is_selected;
+            const votesForThis = voteMap[answerText] ? voteMap[answerText].length : 0;
+            const isWinningAnswer = answerText === winnerAnswer;
+
+            candidateRowsHtml += `
+                <div class="guided-trace-row${isWinner ? ' selected' : ''}${isWinningAnswer ? ' winning-answer' : ''}" data-candidate-idx="${i}">
+                    <div class="guided-trace-row-summary">
+                        <span class="guided-trace-row-label">Candidate ${i + 1}${isWinner ? ' ✓' : ''}</span>
+                        <span class="guided-trace-row-answer">${answerText}</span>
+                        <span class="guided-trace-row-metric${isWinningAnswer ? ' winner' : ''}">${votesForThis} vote${votesForThis !== 1 ? 's' : ''}</span>
                     </div>
-                    <span style="font-size: 12px; font-weight: 700; text-align: right; color: ${isWinner ? 'var(--success)' : 'var(--text-secondary)'};">${count} vote${count !== 1 ? 's' : ''}</span>
                 </div>
             `;
         });
     } else if (mockData.trace.scores) {
-        // Render score bars
-        const sorted = mockData.trace.candidates.map((c, i) => ({ ...c, score: mockData.trace.scores[i] }))
-            .sort((a, b) => b.score - a.score);
-        const maxScore = mockData.trace.max_score;
-        const minScore = mockData.trace.min_score;
-        const range = maxScore - minScore || 1;
-        sorted.forEach((c, i) => {
-            const pct = ((c.score - minScore) / range) * 100;
-            const isWinner = i === 0;
-            html += `
-                <div style="display: grid; grid-template-columns: 90px 1fr 60px; gap: 8px; align-items: center; margin-bottom: 6px;">
-                    <span style="font-size: 12px; color: ${isWinner ? 'var(--warning)' : 'var(--text-secondary)'}; font-weight: ${isWinner ? '700' : '400'};">Candidate ${c.index + 1}${isWinner ? ' ★' : ''}</span>
-                    <div style="height: 16px; background: var(--bg-secondary); overflow: hidden;">
-                        <div style="height: 100%; width: ${pct}%; background: ${isWinner ? 'var(--warning)' : 'var(--bg-elevated)'}; transition: width 0.6s ease;"></div>
+        // For BoN: show score for each candidate
+        const maxScore = Math.max(...mockData.trace.scores);
+
+        mockData.trace.candidates.forEach((c, i) => {
+            const score = mockData.trace.scores[i];
+            const isWinner = c.is_selected;
+            const isTopScore = score === maxScore;
+
+            candidateRowsHtml += `
+                <div class="guided-trace-row${isWinner ? ' selected' : ''}" data-candidate-idx="${i}">
+                    <div class="guided-trace-row-summary">
+                        <span class="guided-trace-row-label">Candidate ${i + 1}${isWinner ? ' ✓' : ''}</span>
+                        <div class="guided-trace-row-bar-container">
+                            <div class="guided-trace-row-bar${isTopScore ? ' top-score' : ''}" style="width: ${(score / 10) * 100}%"></div>
+                        </div>
+                        <span class="guided-trace-row-metric${isTopScore ? ' winner' : ''}">${score.toFixed(1)}/10</span>
                     </div>
-                    <span style="font-size: 12px; font-weight: 700; text-align: right; font-family: 'IBM Plex Mono', monospace; color: ${isWinner ? 'var(--warning)' : 'var(--text-secondary)'};">${c.score.toFixed(2)}</span>
                 </div>
             `;
         });
     }
-    html += '</div></div>';
 
-    // Phase 3: Select best
-    const phase3Text = method === 'self_consistency'
-        ? 'The answer with the most votes is selected as the final output. This is the same model, with no changes — just smarter use of inference.'
-        : 'The highest-scored response becomes the final output. The model was never retrained — ITS simply chose the best of several attempts.';
-    html += `
-        <div class="guided-trace-phase" id="tracePhase3">
-            <div class="guided-trace-phase-label">
-                <span class="phase-number">3</span>
-                Select Best Answer
-            </div>
-            <div style="padding: 16px; background: rgba(163, 190, 140, 0.08); border: 2px solid var(--success);">
-                <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
-                    <span style="font-size: 20px;">✓</span>
-                    <span style="font-size: 14px; font-weight: 700; color: var(--success); text-transform: uppercase; letter-spacing: 0.05em;">
-                        ${method === 'self_consistency' ? 'Majority Vote Winner' : 'Highest Scored Response'}
-                    </span>
+    let html = `
+        <div class="guided-trace-animation">
+            <div class="guided-trace-phase" id="tracePhase1">
+                <p class="guided-trace-explainer" style="margin-bottom: 16px;">${explainerText}</p>
+                <div class="guided-trace-candidates-list">
+                    ${candidateRowsHtml}
                 </div>
-                <p style="font-size: 13px; color: var(--text-secondary); line-height: 1.6;">
-                    ${phase3Text}
-                </p>
+                <div class="guided-trace-candidate-detail" id="traceCandidateDetail">
+                    <p style="font-size: 12px; color: var(--text-tertiary); font-style: italic; padding: 12px;">Click any candidate above to view its full reasoning</p>
+                </div>
+            </div>
+            <div class="guided-trace-phase" id="tracePhase2">
+                <div style="padding: 16px; background: rgba(163, 190, 140, 0.08); border: 2px solid #a3be8c;">
+                    <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
+                        <span style="font-size: 20px;">✓</span>
+                        <span style="font-size: 14px; font-weight: 700; color: #a3be8c; text-transform: uppercase; letter-spacing: 0.05em;">
+                            ${isSC ? 'Majority Vote Winner' : 'Highest Scored Response'}
+                        </span>
+                    </div>
+                    <p style="font-size: 13px; color: var(--text-secondary); line-height: 1.6;">${conclusionText}</p>
+                </div>
             </div>
         </div>
     `;
 
-    html += '</div>';
     traceContent.innerHTML = html;
 
-    // Animate phases sequentially
-    const phases = ['tracePhase1', 'tracePhase2', 'tracePhase3'];
+    // Candidate row click handler — show reasoning
+    traceContent.querySelectorAll('.guided-trace-row').forEach(row => {
+        row.addEventListener('click', function() {
+            const idx = parseInt(this.dataset.candidateIdx);
+            const candidate = mockData.trace.candidates[idx];
+            const detailEl = document.getElementById('traceCandidateDetail');
+            if (!candidate || !detailEl) return;
+
+            // Highlight selected row
+            traceContent.querySelectorAll('.guided-trace-row').forEach(r => r.classList.remove('active'));
+            this.classList.add('active');
+
+            // Format candidate content
+            const processed = guidedPreprocessLatex(candidate.content);
+            const candidateHtml = typeof formatAsHTML === 'function'
+                ? formatAsHTML(processed)
+                : '<p>' + processed.replace(/\n\n/g, '</p><p>').replace(/\n/g, '<br>') + '</p>';
+
+            const selectedLabel = candidate.is_selected
+                ? '<span style="color: #a3be8c; font-weight: 700; margin-left: 8px;">← Selected by ITS</span>'
+                : '';
+
+            detailEl.innerHTML = `
+                <div class="guided-trace-candidate-header">
+                    Candidate ${idx + 1} ${selectedLabel}
+                </div>
+                <div class="guided-trace-candidate-content">${candidateHtml}</div>
+            `;
+
+            if (typeof renderMath === 'function') renderMath(detailEl);
+        });
+    });
+
+    // Animate: show candidates list, then conclusion
+    const phases = ['tracePhase1', 'tracePhase2'];
     phases.forEach((id, i) => {
         setTimeout(() => {
             const phase = document.getElementById(id);
             if (phase) phase.classList.add('visible');
 
-            // After last phase, show the performance button
             if (i === phases.length - 1) {
                 setTimeout(() => {
                     const nextArea = document.getElementById('guidedNextArea');
                     setVisible(nextArea, true);
                 }, 600);
             }
-        }, (i + 1) * 800);
+        }, (i + 1) * 600);
     });
 }
 
