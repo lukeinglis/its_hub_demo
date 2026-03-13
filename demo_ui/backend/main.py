@@ -57,7 +57,10 @@ from its_hub.algorithms import (
     EntropicParticleFiltering,
     ParticleGibbs,
 )
-from its_hub.integration.reward_hub import LLMJudgeRewardModel
+try:
+    from its_hub.integration.reward_hub import LLMJudgeRewardModel
+except ImportError:
+    LLMJudgeRewardModel = None
 from its_hub.types import ChatMessage
 from its_hub.utils import extract_content_from_lm_response, QWEN_SYSTEM_PROMPT
 from its_hub.base import AbstractLanguageModel
@@ -140,15 +143,27 @@ def detect_question_type(
     if enable_tools:
         return "tool_calling"
 
-    # Check for math patterns
-    math_indicators = [
-        r'\$', r'\\frac', r'\\boxed', r'\^',
-        r'probability', r'calculate', r'solve',
-        r'find the value', r'what is the.*term'
+    # Check for math patterns using weighted scoring to reduce false positives.
+    # Strong indicators (LaTeX notation) are sufficient on their own.
+    # Weak indicators require at least 2 matches to trigger math detection.
+    strong_indicators = [
+        r'\\frac', r'\\boxed', r'\\sum', r'\\int', r'\\sqrt',
+        r'\\begin\{', r'\\mathbb', r'\\left', r'\\right',
+        r'\$[^$]+\$',  # Paired dollar signs (LaTeX inline math)
     ]
-    for pattern in math_indicators:
-        if re.search(pattern, question, re.IGNORECASE):
+    weak_indicators = [
+        r'probability', r'find the value', r'what is the.*term',
+        r'solve for [a-z]', r'evaluate the (integral|derivative|limit)',
+        r'\bx\s*[\+\-\*\/\^]\s*\d', r'\d\s*[\+\-\*\/\^]\s*x',  # algebraic expressions
+    ]
+
+    for pattern in strong_indicators:
+        if re.search(pattern, question):
             return "math"
+
+    weak_count = sum(1 for p in weak_indicators if re.search(p, question, re.IGNORECASE))
+    if weak_count >= 2:
+        return "math"
 
     return "general"
 
@@ -191,13 +206,12 @@ app = FastAPI(
     version="1.0.0",
 )
 
-# Configure CORS
+# Configure CORS — override defaults via CORS_ORIGINS env var (comma-separated)
+cors_origins_str = os.getenv("CORS_ORIGINS", "http://localhost:8000,http://127.0.0.1:8000")
+cors_origins = [origin.strip() for origin in cors_origins_str.split(",")]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:8000",
-        "http://127.0.0.1:8000",
-    ],
+    allow_origins=cors_origins,
     allow_credentials=True,
     allow_methods=["GET", "POST"],
     allow_headers=["Content-Type"],
