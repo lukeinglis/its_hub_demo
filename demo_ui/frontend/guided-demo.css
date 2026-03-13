@@ -841,6 +841,96 @@ details.guided-reasoning-toggle[open] > .guided-reasoning-summary::before {
     color: var(--primary);
 }
 
+/* ===== RAW API RESPONSE VIEWER ===== */
+
+.guided-raw-data-section {
+    text-align: left;
+}
+
+.guided-raw-data-toggle {
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.guided-raw-data-btn {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    list-style: none;
+}
+
+.guided-raw-data-btn::-webkit-details-marker {
+    display: none;
+}
+
+.guided-raw-data-btn::before {
+    content: '▶';
+    font-size: 10px;
+    transition: transform 0.2s;
+}
+
+details[open] > .guided-raw-data-btn::before {
+    transform: rotate(90deg);
+}
+
+.guided-raw-data-source {
+    font-size: 11px;
+    font-weight: 400;
+    color: var(--text-tertiary);
+    padding: 2px 8px;
+    background: var(--bg-tertiary);
+    border-radius: 4px;
+}
+
+.guided-raw-data-content {
+    border-top: 1px solid var(--border-color);
+    padding: 12px 16px;
+}
+
+.guided-raw-data-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+    font-size: 12px;
+    color: var(--text-tertiary);
+}
+
+.guided-raw-data-copy {
+    font-size: 11px;
+    padding: 4px 10px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    background: var(--bg-tertiary);
+    color: var(--text-secondary);
+    cursor: pointer;
+}
+
+.guided-raw-data-copy:hover {
+    background: var(--bg-secondary);
+}
+
+.guided-raw-data-json {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    line-height: 1.5;
+    color: var(--text-primary);
+    background: var(--bg-tertiary);
+    padding: 12px;
+    border-radius: 4px;
+    margin: 0;
+    max-height: 500px;
+    overflow: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
 .guided-tool-result {
     padding: 4px;
 }

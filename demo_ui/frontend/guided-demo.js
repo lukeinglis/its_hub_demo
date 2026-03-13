@@ -1440,15 +1440,37 @@ function guidedRenderPerformance() {
         v => v.toLocaleString()
     );
 
-    // Restart button
+    // Raw data viewer + restart buttons
+    const rawData = getMockResponse(guidedDemoState.scenario, method);
+    const rawJson = JSON.stringify(rawData, null, 2);
+    const dataSource = (GUIDED_CAPTURED_DATA && GUIDED_CAPTURED_DATA[`${guidedDemoState.scenario}_${method}`])
+        ? 'Live API Response' : 'Mock Data (no captured data available)';
+
     chartsEl.innerHTML += `
         <div class="guided-restart-area" style="grid-column: 1 / -1;">
-            <button class="btn-secondary" onclick="initGuidedWizard()" style="margin-right: 12px;">
-                ← Start New Demo
-            </button>
-            <button class="btn-secondary" onclick="returnToLanding()">
-                Back to Home
-            </button>
+            <div class="guided-raw-data-section">
+                <details class="guided-raw-data-toggle">
+                    <summary class="guided-raw-data-btn">
+                        View Raw API Response
+                        <span class="guided-raw-data-source">${dataSource}</span>
+                    </summary>
+                    <div class="guided-raw-data-content">
+                        <div class="guided-raw-data-header">
+                            <span>Scenario: <strong>${guidedDemoState.scenario}_${method}</strong></span>
+                            <button class="guided-raw-data-copy" onclick="navigator.clipboard.writeText(this.closest('.guided-raw-data-content').querySelector('pre').textContent).then(() => { this.textContent = 'Copied!'; setTimeout(() => this.textContent = 'Copy JSON', 1500); })">Copy JSON</button>
+                        </div>
+                        <pre class="guided-raw-data-json">${escapeHtml(rawJson)}</pre>
+                    </div>
+                </details>
+            </div>
+            <div style="margin-top: 24px;">
+                <button class="btn-secondary" onclick="initGuidedWizard()" style="margin-right: 12px;">
+                    ← Start New Demo
+                </button>
+                <button class="btn-secondary" onclick="returnToLanding()">
+                    Back to Home
+                </button>
+            </div>
         </div>
     `;
 }
