@@ -841,6 +841,51 @@ details.guided-reasoning-toggle[open] > .guided-reasoning-summary::before {
     color: var(--primary);
 }
 
+/* ===== BENCHMARK ATTRIBUTION CALLOUT ===== */
+
+.guided-benchmark-callout {
+    display: flex;
+    gap: 14px;
+    align-items: flex-start;
+    padding: 14px 18px;
+    background: rgba(94, 129, 172, 0.08);
+    border: 1px solid rgba(94, 129, 172, 0.25);
+    border-radius: 8px;
+    margin-bottom: 20px;
+    grid-column: 1 / -1;
+}
+
+.guided-benchmark-badge {
+    flex-shrink: 0;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    padding: 4px 10px;
+    background: rgba(94, 129, 172, 0.2);
+    border: 1px solid rgba(94, 129, 172, 0.4);
+    border-radius: 4px;
+    color: var(--primary);
+    margin-top: 1px;
+}
+
+.guided-benchmark-text {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+.guided-benchmark-text strong {
+    color: var(--text-primary);
+}
+
+.guided-benchmark-text span {
+    color: var(--text-secondary);
+    font-size: 12px;
+}
+
 /* ===== RAW API RESPONSE VIEWER ===== */
 
 .guided-raw-data-section {

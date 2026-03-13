@@ -649,6 +649,19 @@ function guidedPopulateScenarios() {
         renderScenarioCard(container, GUIDED_SCENARIOS.improve_opensource);
     } else if (goal === 'tool_calling') {
         subtitle.textContent = 'Choose a tool-calling scenario';
+
+        // Benchmark attribution callout
+        const callout = document.createElement('div');
+        callout.className = 'guided-benchmark-callout';
+        callout.innerHTML = `
+            <div class="guided-benchmark-badge">BFCL</div>
+            <div class="guided-benchmark-text">
+                <strong>Scenarios sourced from the Berkeley Function Calling Leaderboard</strong>
+                <span>BFCL is a standardised benchmark for evaluating LLM tool/function calling accuracy, maintained by UC Berkeley. These questions test whether a model selects the correct tool from multiple options — a common failure point in agentic AI pipelines.</span>
+            </div>
+        `;
+        container.appendChild(callout);
+
         renderScenarioCard(container, GUIDED_SCENARIOS.tool_stock);
         renderScenarioCard(container, GUIDED_SCENARIOS.tool_currency);
         // Back button should go to Step 1 (Step 2 was skipped)
