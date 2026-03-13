@@ -783,3 +783,78 @@ details.guided-reasoning-toggle[open] > .guided-reasoning-summary::before {
     padding-top: 24px;
     border-top: 1px solid var(--border-color);
 }
+
+/* ===== TOOL CALL DISPLAY ===== */
+
+.guided-tool-call-display {
+    padding: 16px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    margin-bottom: 12px;
+}
+
+.guided-tool-call-name {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+
+.guided-tool-label {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-tertiary);
+    white-space: nowrap;
+}
+
+.guided-tool-value {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--primary);
+}
+
+.guided-tool-call-args {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.guided-tool-args-json {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--text-primary);
+    background: var(--bg-tertiary);
+    padding: 10px 12px;
+    border-radius: 4px;
+    margin: 0;
+    overflow-x: auto;
+    white-space: pre-wrap;
+}
+
+.guided-tool-trace-name {
+    font-family: 'IBM Plex Mono', monospace;
+    color: var(--primary);
+}
+
+.guided-available-tools {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 8px;
+    align-items: center;
+}
+
+.guided-available-tool-tag {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    padding: 3px 8px;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    color: var(--text-secondary);
+}

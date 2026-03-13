@@ -82,6 +82,28 @@ const GUIDED_SCENARIOS = {
         provider: 'OpenRouter / OpenAI',
         description: 'A tiny open-source model with ITS can match expensive frontier model quality — enabling cost-effective alternatives to proprietary APIs.',
     },
+    tool_weather: {
+        id: 'tool_weather',
+        goal: 'tool_calling',
+        title: 'Weather Data Retrieval',
+        subtitle: 'Correct tool selection via consensus',
+        icon: '🌤️',
+        model: 'GPT-4.1 Nano',
+        provider: 'OpenAI',
+        description: 'Given 4 available tools, the model must pick the right one for a weather query. The baseline sometimes picks web_search instead of the structured get_data tool. ITS votes across attempts to select the correct tool.',
+        availableTools: ['web_search', 'calculate', 'get_data', 'code_executor'],
+    },
+    tool_calculation: {
+        id: 'tool_calculation',
+        goal: 'tool_calling',
+        title: 'Financial Calculation',
+        subtitle: 'Pick the right tool and arguments',
+        icon: '🔧',
+        model: 'GPT-4.1 Nano',
+        provider: 'OpenAI',
+        description: 'The model must choose the right tool and supply correct arguments for a compound interest calculation. The baseline may pick code_executor or malform the expression. ITS votes on both tool name and arguments.',
+        availableTools: ['web_search', 'calculate', 'get_data', 'code_executor'],
+    },
 };
 
 // ============================================================
@@ -98,6 +120,8 @@ const GUIDED_MOCK_QUESTIONS = {
     'match_same_family_best_of_n': 'An investment of $10,000 earns 8% annual interest compounded quarterly. After 3 years, how much total interest has been earned? Round to the nearest cent.',
     'match_cross_family_self_consistency': 'In how many ways can 5 letters be placed in 5 addressed envelopes so that no letter is in its correct envelope?',
     'match_cross_family_best_of_n': "A store buys shirts for $15 each and sells them for $25 each. Last month they sold 400 shirts. This month, they offered a 10% discount and sold 500 shirts. Calculate: (1) last month's profit, (2) this month's profit, (3) which month was more profitable and by how much.",
+    'tool_weather_self_consistency': 'What is the current weather in San Francisco?',
+    'tool_calculation_self_consistency': 'If I invest $10,000 at 5% annual interest compounded annually, how much will I have after 5 years?',
 };
 
 // ============================================================
@@ -121,6 +145,11 @@ function getMockResponse(scenarioId, method) {
             result.frontier = captured.frontier;
         }
         return result;
+    }
+
+    // --- Tool calling mock data ---
+    if (scenario.goal === 'tool_calling') {
+        return getToolCallingMockResponse(scenarioId);
     }
 
     // --- Fallback: hardcoded mocks ---
@@ -211,6 +240,127 @@ function getMockResponse(scenarioId, method) {
         };
     }
     return result;
+}
+
+// ============================================================
+// TOOL CALLING MOCK DATA
+// ============================================================
+
+function getToolCallingMockResponse(scenarioId) {
+    if (scenarioId === 'tool_weather') {
+        return {
+            baseline: {
+                response: 'Let me search for the current weather in San Francisco.',
+                latency_ms: 520,
+                input_tokens: 45,
+                output_tokens: 38,
+                cost_usd: 0.000033,
+                tool_call: {
+                    name: 'web_search',
+                    arguments: { query: 'current weather San Francisco' },
+                },
+            },
+            its: {
+                response: 'I\'ll retrieve the structured weather data for San Francisco.',
+                latency_ms: 1280,
+                input_tokens: 360,
+                output_tokens: 52,
+                cost_usd: 0.000210,
+                tool_call: {
+                    name: 'get_data',
+                    arguments: { data_type: 'weather', parameters: { location: 'San Francisco' } },
+                },
+            },
+            trace: {
+                algorithm: 'self_consistency',
+                candidates: [
+                    { index: 0, content: 'I\'ll use get_data to retrieve structured weather information.', is_selected: false,
+                      tool_calls: [{ name: 'get_data', arguments: { data_type: 'weather', parameters: { location: 'San Francisco' } } }] },
+                    { index: 1, content: 'Let me search the web for the current weather.', is_selected: false,
+                      tool_calls: [{ name: 'web_search', arguments: { query: 'San Francisco weather today' } }] },
+                    { index: 2, content: 'I\'ll retrieve weather data using the get_data tool.', is_selected: true,
+                      tool_calls: [{ name: 'get_data', arguments: { data_type: 'weather', parameters: { location: 'San Francisco' } } }] },
+                    { index: 3, content: 'I\'ll use the get_data API for weather info.', is_selected: false,
+                      tool_calls: [{ name: 'get_data', arguments: { data_type: 'weather', parameters: { location: 'San Francisco' } } }] },
+                    { index: 4, content: 'Let me search for weather information online.', is_selected: false,
+                      tool_calls: [{ name: 'web_search', arguments: { query: 'weather San Francisco current' } }] },
+                    { index: 5, content: 'I\'ll query get_data for San Francisco weather.', is_selected: false,
+                      tool_calls: [{ name: 'get_data', arguments: { data_type: 'weather', parameters: { location: 'San Francisco' } } }] },
+                    { index: 6, content: 'Using the get_data tool for weather retrieval.', is_selected: false,
+                      tool_calls: [{ name: 'get_data', arguments: { data_type: 'weather', parameters: { location: 'San Francisco' } } }] },
+                    { index: 7, content: 'I\'ll use get_data to look up weather conditions.', is_selected: false,
+                      tool_calls: [{ name: 'get_data', arguments: { data_type: 'weather', parameters: { location: 'San Francisco' } } }] },
+                ],
+                vote_counts: { 'get_data': 6, 'web_search': 2 },
+                total_votes: 8,
+                tool_voting: {
+                    tool_vote_type: 'tool_name',
+                    tool_counts: { 'get_data': 6, 'web_search': 2 },
+                    winning_tool: 'get_data',
+                    total_tool_calls: 8,
+                },
+            },
+        };
+    }
+
+    if (scenarioId === 'tool_calculation') {
+        return {
+            baseline: {
+                response: 'Let me write some code to calculate compound interest.',
+                latency_ms: 580,
+                input_tokens: 52,
+                output_tokens: 44,
+                cost_usd: 0.000038,
+                tool_call: {
+                    name: 'code_executor',
+                    arguments: { code: 'principal = 10000\nrate = 0.05\nyears = 5\nresult = principal * (1 + rate) ** years\nprint(result)', purpose: 'compound interest calculation' },
+                },
+            },
+            its: {
+                response: 'I\'ll calculate compound interest using the calculate tool with the standard formula.',
+                latency_ms: 1350,
+                input_tokens: 416,
+                output_tokens: 48,
+                cost_usd: 0.000230,
+                tool_call: {
+                    name: 'calculate',
+                    arguments: { expression: '10000 * (1 + 0.05)^5', method: 'numeric' },
+                },
+            },
+            trace: {
+                algorithm: 'self_consistency',
+                candidates: [
+                    { index: 0, content: 'I\'ll use the calculate tool for this formula.', is_selected: false,
+                      tool_calls: [{ name: 'calculate', arguments: { expression: '10000 * (1 + 0.05)^5', method: 'numeric' } }] },
+                    { index: 1, content: 'Let me write code to solve this.', is_selected: false,
+                      tool_calls: [{ name: 'code_executor', arguments: { code: 'print(10000 * 1.05 ** 5)', purpose: 'compound interest' } }] },
+                    { index: 2, content: 'I\'ll calculate this with the calculate tool.', is_selected: true,
+                      tool_calls: [{ name: 'calculate', arguments: { expression: '10000 * (1 + 0.05)^5', method: 'numeric' } }] },
+                    { index: 3, content: 'Using the calculate tool for compound interest.', is_selected: false,
+                      tool_calls: [{ name: 'calculate', arguments: { expression: '10000 * (1.05)^5', method: 'numeric' } }] },
+                    { index: 4, content: 'I\'ll run a calculation using the calculate function.', is_selected: false,
+                      tool_calls: [{ name: 'calculate', arguments: { expression: '10000 * (1 + 0.05)^5', method: 'numeric' } }] },
+                    { index: 5, content: 'Let me execute code to compute this.', is_selected: false,
+                      tool_calls: [{ name: 'code_executor', arguments: { code: 'result = 10000 * (1 + 0.05)**5\nprint(f"${result:.2f}")', purpose: 'interest calc' } }] },
+                    { index: 6, content: 'I\'ll use calculate for this arithmetic.', is_selected: false,
+                      tool_calls: [{ name: 'calculate', arguments: { expression: '10000 * (1 + 0.05)^5', method: 'numeric' } }] },
+                    { index: 7, content: 'Using calculate tool for compound interest formula.', is_selected: false,
+                      tool_calls: [{ name: 'calculate', arguments: { expression: '10000 * 1.05^5', method: 'numeric' } }] },
+                ],
+                vote_counts: { 'calculate': 6, 'code_executor': 2 },
+                total_votes: 8,
+                tool_voting: {
+                    tool_vote_type: 'tool_name',
+                    tool_counts: { 'calculate': 6, 'code_executor': 2 },
+                    winning_tool: 'calculate',
+                    total_tool_calls: 8,
+                },
+            },
+        };
+    }
+
+    // Fallback
+    return getMockResponse('improve_frontier', 'self_consistency');
 }
 
 // ============================================================
@@ -383,7 +533,8 @@ function guidedUpdateSummaryBar() {
     }
 
     let tags = '';
-    const goalLabel = goal === 'improve_performance' ? 'Improve Model Performance' : 'Match Frontier Model';
+    const goalLabels = { improve_performance: 'Improve Model Performance', match_frontier: 'Match Frontier Model', tool_calling: 'Improve Tool Calling' };
+    const goalLabel = goalLabels[goal] || goal;
     tags += `
         <span class="guided-summary-tag">
             <span class="tag-label">Goal:</span>
@@ -392,7 +543,7 @@ function guidedUpdateSummaryBar() {
     `;
 
     if (method) {
-        const methodLabel = method === 'self_consistency' ? 'Self-Consistency' : 'Best-of-N';
+        const methodLabel = goal === 'tool_calling' ? 'Self-Consistency (Tool Voting)' : (method === 'self_consistency' ? 'Self-Consistency' : 'Best-of-N');
         tags += `
             <span class="guided-summary-tag">
                 <span class="tag-label">Method:</span>
@@ -441,7 +592,17 @@ function guidedSelectGoal(goal) {
     });
 
     guidedUpdateSummaryBar();
-    setTimeout(() => guidedShowStep(2), 250);
+
+    if (goal === 'tool_calling') {
+        // Auto-select self_consistency and skip method selection
+        guidedDemoState.method = 'self_consistency';
+        setTimeout(() => {
+            guidedPopulateScenarios();
+            guidedShowStep(3);
+        }, 250);
+    } else {
+        setTimeout(() => guidedShowStep(2), 250);
+    }
 }
 
 // ============================================================
@@ -480,10 +641,20 @@ function guidedPopulateScenarios() {
         subtitle.textContent = 'Which type of model do you want to improve?';
         renderScenarioCard(container, GUIDED_SCENARIOS.improve_frontier);
         renderScenarioCard(container, GUIDED_SCENARIOS.improve_opensource);
+    } else if (goal === 'tool_calling') {
+        subtitle.textContent = 'Choose a tool-calling scenario';
+        renderScenarioCard(container, GUIDED_SCENARIOS.tool_weather);
+        renderScenarioCard(container, GUIDED_SCENARIOS.tool_calculation);
+        // Back button should go to Step 1 (Step 2 was skipped)
+        const backBtn = document.querySelector('#guidedStep3 .guided-back-btn');
+        if (backBtn) backBtn.onclick = () => guidedGoBack(1);
     } else {
         subtitle.textContent = 'Choose a model-matching scenario';
         renderScenarioCard(container, GUIDED_SCENARIOS.match_same_family);
         renderScenarioCard(container, GUIDED_SCENARIOS.match_cross_family);
+        // Ensure back button goes to Step 2 (default)
+        const backBtn = document.querySelector('#guidedStep3 .guided-back-btn');
+        if (backBtn) backBtn.onclick = () => guidedGoBack(2);
     }
 }
 
@@ -548,7 +719,9 @@ function guidedPopulatePrompt() {
     // Inference callout — explain that ITS doesn't touch the model
     const calloutEl = document.getElementById('guidedInferenceCallout');
     const modelName = scenario.model || scenario.smallModel;
-    const mechanismText = method === 'self_consistency'
+    const mechanismText = scenario.goal === 'tool_calling'
+        ? `<strong>tool consensus voting</strong> to select the most-agreed-upon tool and arguments`
+        : method === 'self_consistency'
         ? `<strong>majority voting</strong> to pick the most consistent answer`
         : `an <strong>LLM judge</strong> to score and select the highest-quality response`;
     calloutEl.innerHTML = `
@@ -604,6 +777,7 @@ function guidedRenderResponses() {
         || GUIDED_MOCK_QUESTIONS[key] || '';
 
     const container = document.getElementById('guidedResponses');
+    const isToolCalling = scenario.goal === 'tool_calling';
     container.className = 'guided-responses ' + (isMatchFrontier ? 'three-col' : 'two-col');
 
     // Build question banner (spans full width above response columns)
@@ -612,31 +786,52 @@ function guidedRenderResponses() {
         <div class="guided-question-banner" style="grid-column: 1 / -1;">
             <div class="guided-question-label">Question</div>
             <div class="guided-question-text">${question}</div>
-        </div>
     `;
+    // Show available tools for tool calling scenarios
+    if (isToolCalling && scenario.availableTools) {
+        questionHtml += `
+            <div class="guided-available-tools">
+                <span class="guided-tool-label" style="line-height: 26px;">Available tools:</span>
+                ${scenario.availableTools.map(t => `<span class="guided-available-tool-tag">${t}</span>`).join('')}
+            </div>
+        `;
+    }
+    questionHtml += '</div>';
     container.innerHTML = questionHtml;
 
-    // Baseline pane
-    const baselineLabel = isMatchFrontier
-        ? (scenario.smallModel + ' (Baseline)')
-        : ((scenario.model || scenario.smallModel) + ' (Baseline)');
-    container.innerHTML += guidedBuildResponsePane(
-        baselineLabel, 'baseline', mockData.baseline
-    );
+    const modelName = scenario.model || scenario.smallModel;
 
-    // ITS pane
-    const itsLabel = isMatchFrontier
-        ? (scenario.smallModel + ' + ITS')
-        : ((scenario.model || scenario.smallModel) + ' + ITS');
-    container.innerHTML += guidedBuildResponsePane(
-        itsLabel, 'its', mockData.its
-    );
-
-    // Frontier pane (match_frontier only)
-    if (isMatchFrontier && mockData.frontier) {
-        container.innerHTML += guidedBuildResponsePane(
-            scenario.frontierModel + ' (Frontier)', 'frontier', mockData.frontier
+    if (isToolCalling) {
+        // Tool calling: always 2-column, use tool call panes
+        container.innerHTML += guidedBuildToolCallPane(
+            modelName + ' (Baseline)', 'baseline', mockData.baseline
         );
+        container.innerHTML += guidedBuildToolCallPane(
+            modelName + ' + ITS', 'its', mockData.its
+        );
+    } else {
+        // Baseline pane
+        const baselineLabel = isMatchFrontier
+            ? (scenario.smallModel + ' (Baseline)')
+            : (modelName + ' (Baseline)');
+        container.innerHTML += guidedBuildResponsePane(
+            baselineLabel, 'baseline', mockData.baseline
+        );
+
+        // ITS pane
+        const itsLabel = isMatchFrontier
+            ? (scenario.smallModel + ' + ITS')
+            : (modelName + ' + ITS');
+        container.innerHTML += guidedBuildResponsePane(
+            itsLabel, 'its', mockData.its
+        );
+
+        // Frontier pane (match_frontier only)
+        if (isMatchFrontier && mockData.frontier) {
+            container.innerHTML += guidedBuildResponsePane(
+                scenario.frontierModel + ' (Frontier)', 'frontier', mockData.frontier
+            );
+        }
     }
 
     // Expected answer — prominent, spanning full width for easy comparison
@@ -747,6 +942,14 @@ function buildScenarioInsight(scenarioId, method) {
         'match_cross_family_best_of_n': {
             title: 'Value Proposition',
             content: 'Open-source model with ITS competing with proprietary frontier quality. Compare response comprehensiveness and accuracy. The dramatic cost difference makes this an attractive alternative for production use cases.'
+        },
+        'tool_weather_self_consistency': {
+            title: 'What to Look For',
+            content: 'Compare the tool chosen by the baseline vs ITS. The baseline picked web_search (a general-purpose search) when get_data with data_type="weather" is the precise, structured API. ITS voting across 8 candidates corrects this — 6 out of 8 chose the right tool.'
+        },
+        'tool_calculation_self_consistency': {
+            title: 'What to Look For',
+            content: 'The baseline reached for code_executor to write a script, when the simpler calculate tool with the right expression is more appropriate. ITS generates multiple tool calls and votes on both the tool name and arguments, converging on the correct calculate call.'
         }
     };
 
@@ -883,6 +1086,46 @@ function guidedBuildResponsePane(title, type, data) {
     `;
 }
 
+function guidedBuildToolCallPane(title, type, data) {
+    const indicatorClass = type === 'its' ? 'its' : 'baseline';
+    const paneClass = type === 'its' ? ' its-pane' : '';
+    const costFmt = data.cost_usd < 0.0001
+        ? '$' + data.cost_usd.toExponential(2)
+        : '$' + data.cost_usd.toFixed(4);
+
+    const tc = data.tool_call;
+    const argsJson = JSON.stringify(tc.arguments, null, 2);
+
+    return `
+        <div class="guided-response-pane${paneClass}">
+            <div class="guided-pane-header">
+                <div class="guided-pane-title">
+                    <span class="guided-pane-indicator ${indicatorClass}"></span>
+                    ${title}
+                </div>
+                <div class="guided-pane-badges">
+                    <span class="guided-pane-badge">${formatLatency(data.latency_ms)}</span>
+                    <span class="guided-pane-badge">${costFmt}</span>
+                </div>
+            </div>
+            <div class="guided-tool-call-display">
+                <div class="guided-tool-call-name">
+                    <span class="guided-tool-label">Tool Called:</span>
+                    <span class="guided-tool-value">${tc.name}</span>
+                </div>
+                <div class="guided-tool-call-args">
+                    <span class="guided-tool-label">Arguments:</span>
+                    <pre class="guided-tool-args-json">${escapeHtml(argsJson)}</pre>
+                </div>
+            </div>
+            <details class="guided-reasoning-toggle">
+                <summary class="guided-reasoning-summary">Show Response Text</summary>
+                <div class="guided-pane-response"><p>${escapeHtml(data.response)}</p></div>
+            </details>
+        </div>
+    `;
+}
+
 // ============================================================
 // TRACE ANIMATION
 // ============================================================
@@ -894,17 +1137,50 @@ function guidedRunTraceAnimation() {
     const numCandidates = mockData.trace.candidates.length;
 
     const isSC = method === 'self_consistency';
-    const explainerText = isSC
-        ? `The same question was sent to the same model ${numCandidates} separate times. Each call may reason differently and arrive at a different answer. The most common answer wins — errors tend to be random, but correct reasoning converges.`
-        : `The same question was sent to the same model ${numCandidates} separate times. A separate LLM judge scored each response on quality criteria, and the highest-scored response was selected.`;
-    const conclusionText = isSC
-        ? 'The answer with the most votes is selected as the final output. This is the same model, with no changes — just smarter use of inference.'
-        : 'The highest-scored response becomes the final output. The model was never retrained — ITS simply chose the best of several attempts.';
+    const isToolVoting = !!(mockData.trace.tool_voting);
+    const scenario = GUIDED_SCENARIOS[guidedDemoState.scenario];
+    let explainerText, conclusionText;
+
+    if (isToolVoting) {
+        const toolVoting = mockData.trace.tool_voting;
+        explainerText = `The same question was sent to the same model ${numCandidates} times with access to ${scenario.availableTools.length} tools. Each call independently chose which tool to use and what arguments to pass. The most-voted tool selection wins.`;
+        conclusionText = `Tool "${toolVoting.winning_tool}" won with ${toolVoting.tool_counts[toolVoting.winning_tool]} out of ${toolVoting.total_tool_calls} votes. By voting across multiple attempts, ITS ensures the correct tool is selected even when individual calls are unreliable.`;
+    } else if (isSC) {
+        explainerText = `The same question was sent to the same model ${numCandidates} separate times. Each call may reason differently and arrive at a different answer. The most common answer wins — errors tend to be random, but correct reasoning converges.`;
+        conclusionText = 'The answer with the most votes is selected as the final output. This is the same model, with no changes — just smarter use of inference.';
+    } else {
+        explainerText = `The same question was sent to the same model ${numCandidates} separate times. A separate LLM judge scored each response on quality criteria, and the highest-scored response was selected.`;
+        conclusionText = 'The highest-scored response becomes the final output. The model was never retrained — ITS simply chose the best of several attempts.';
+    }
 
     // Build candidate rows with answer/score and expandable reasoning
     let candidateRowsHtml = '';
 
-    if (isSC) {
+    if (isToolVoting) {
+        // Tool voting trace — show tool name votes
+        const toolVoting = mockData.trace.tool_voting;
+        const winningTool = toolVoting.winning_tool;
+
+        mockData.trace.candidates.forEach((c, i) => {
+            const toolName = c.tool_calls && c.tool_calls[0] ? c.tool_calls[0].name : '(no tool)';
+            const toolArgs = c.tool_calls && c.tool_calls[0]
+                ? JSON.stringify(c.tool_calls[0].arguments) : '';
+            const isWinner = c.is_selected;
+            const isWinningTool = toolName === winningTool;
+            const votesForTool = toolVoting.tool_counts[toolName] || 0;
+            const argsPreview = toolArgs.length > 50 ? toolArgs.substring(0, 50) + '...' : toolArgs;
+
+            candidateRowsHtml += `
+                <div class="guided-trace-row${isWinner ? ' selected' : ''}${isWinningTool ? ' winning-answer' : ''}" data-candidate-idx="${i}">
+                    <div class="guided-trace-row-summary">
+                        <span class="guided-trace-row-label">Candidate ${i + 1}${isWinner ? ' ✓' : ''}</span>
+                        <span class="guided-trace-row-answer guided-tool-trace-name">${toolName}</span>
+                        <span class="guided-trace-row-metric${isWinningTool ? ' winner' : ''}">${votesForTool} vote${votesForTool !== 1 ? 's' : ''}</span>
+                    </div>
+                </div>
+            `;
+        });
+    } else if (isSC) {
         // For SC: extract final answer from each candidate and show vote-style
         const voteMap = {}; // answer → [candidate indices]
         mockData.trace.candidates.forEach((c, i) => {
@@ -974,7 +1250,7 @@ function guidedRunTraceAnimation() {
                     <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
                         <span style="font-size: 20px;">✓</span>
                         <span style="font-size: 14px; font-weight: 700; color: #a3be8c; text-transform: uppercase; letter-spacing: 0.05em;">
-                            ${isSC ? 'Majority Vote Winner' : 'Highest Scored Response'}
+                            ${isToolVoting ? 'Tool Consensus Winner' : (isSC ? 'Majority Vote Winner' : 'Highest Scored Response')}
                         </span>
                     </div>
                     <p style="font-size: 13px; color: var(--text-secondary); line-height: 1.6;">${conclusionText}</p>
@@ -1049,7 +1325,7 @@ function guidedRenderPerformance() {
     const method = guidedDemoState.method;
     const perf = getMockPerformance(guidedDemoState.scenario, method);
     const isMatchFrontier = scenario.goal === 'match_frontier';
-    const methodLabel = method === 'self_consistency' ? 'Self-Consistency' : 'Best-of-N';
+    const methodLabel = scenario.goal === 'tool_calling' ? 'Self-Consistency (Tool Voting)' : (method === 'self_consistency' ? 'Self-Consistency' : 'Best-of-N');
 
     // --- Summary bar ---
     const summaryEl = document.getElementById('guidedPerfSummary');
