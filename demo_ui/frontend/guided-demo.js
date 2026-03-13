@@ -900,18 +900,18 @@ function guidedRenderResponses() {
                 </div>
                 <pre class="guided-tool-args-json guided-tool-expected-args">${escapeHtml(expectedJson)}</pre>
                 <div class="guided-tool-verdict">
-                    <div class="guided-tool-verdict-item ${baselineCorrect ? 'correct' : 'incorrect'}">
-                        <span class="guided-tool-verdict-icon">${baselineCorrect ? '✓' : '✗'}</span>
-                        <div>
-                            <strong>Baseline: ${baselineTool}</strong>
-                            <p>${scenario.baselineExplanation}</p>
-                        </div>
-                    </div>
                     <div class="guided-tool-verdict-item ${itsCorrect ? 'correct' : 'incorrect'}">
                         <span class="guided-tool-verdict-icon">${itsCorrect ? '✓' : '✗'}</span>
                         <div>
                             <strong>ITS: ${itsTool}</strong>
                             <p>${scenario.correctExplanation}</p>
+                        </div>
+                    </div>
+                    <div class="guided-tool-verdict-item ${baselineCorrect ? 'correct' : 'incorrect'}">
+                        <span class="guided-tool-verdict-icon">${baselineCorrect ? '✓' : '✗'}</span>
+                        <div>
+                            <strong>Baseline: ${baselineTool}</strong>
+                            <p>${scenario.baselineExplanation}</p>
                         </div>
                     </div>
                 </div>
