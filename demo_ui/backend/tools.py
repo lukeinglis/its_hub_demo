@@ -12,7 +12,6 @@ import ast
 import json
 import math
 import operator
-import random
 from datetime import datetime
 
 
@@ -319,9 +318,9 @@ def _mock_get_data(args: dict) -> str:
         return json.dumps({
             "symbol": symbol.upper(),
             "price": price,
-            "change": round(random.uniform(-5, 5), 2),
-            "change_percent": round(random.uniform(-3, 3), 2),
-            "volume": random.randint(50000000, 100000000),
+            "change": 2.34,
+            "change_percent": 1.32,
+            "volume": 75_000_000,
             "timestamp": datetime.now().isoformat()
         })
 
