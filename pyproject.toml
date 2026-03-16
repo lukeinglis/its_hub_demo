@@ -25,8 +25,8 @@ dependencies = [
     "openai>=1.68.2",
     "tqdm>=4.65.0",
     "typing-extensions>=4.12.2",
-    "reward-hub>=0.1.8",
-    "transformers>=4.53.2",
+    # "reward-hub>=0.1.8",  # temporarily commented - requires vllm/CUDA
+    # "transformers>=4.53.2",  # temporarily commented - pulled by reward-hub
     "backoff>=2.2.0",
     "click>=8.1.0",
     "fastapi>=0.115.5",
@@ -62,7 +62,6 @@ dev = [
     "ruff>=0.10.0",
     "jupytext>=1.15.0",
     "jupyter>=1.0.0",
-    "reward-hub[vllm]>=0.1.8",
 ]
 
 prm = [
