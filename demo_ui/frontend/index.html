@@ -115,7 +115,7 @@
                 <p class="section-description">Select what you want to demonstrate with ITS</p>
             </div>
 
-            <div style="display: grid; gap: 16px; grid-template-columns: 1fr 1fr 1fr;">
+            <div class="use-case-grid">
                 <label class="use-case-card" data-use-case="improve_model">
                     <input type="radio" name="useCase" value="improve_model" checked onchange="onUseCaseChange()">
                     <div class="use-case-content">
@@ -322,8 +322,8 @@
 
                 <div class="iw-info-banner">
                     <strong>Setup:</strong> Copy the example env file and add at least one API key, then restart the backend:
-                    <code style="display:block; margin:8px 0 4px; padding:8px 10px; background:var(--bg-tertiary); font-size:12px;">cp demo_ui/.env.example demo_ui/.env  # then add your key</code>
-                    <code style="display:block; margin:0 0 8px; padding:8px 10px; background:var(--bg-tertiary); font-size:12px;">uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload</code>
+                    <code class="setup-code">cp demo_ui/.env.example demo_ui/.env  # then add your key</code>
+                    <code class="setup-code">uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload</code>
                     You only need <strong>one provider</strong> to get started. Click a card below to copy its env variable.
                 </div>
 
@@ -457,9 +457,9 @@ gcloud auth application-default login</div>
                     </div>
                 </div>
 
-                <div style="border-top: 1px solid var(--border-color); margin-top: 24px; padding-top: 24px;">
+                <div class="form-separator">
                     <div class="iw-prompt-section">
-                        <label style="display:block; margin-bottom:8px; font-weight:600; font-size:13px; color:var(--text-primary); text-transform:uppercase; letter-spacing:0.03em;">Question</label>
+                        <label class="form-section-label">Question</label>
                         <select id="iwCuratedSelect" class="iw-curated-select" onchange="iwCuratedChanged(this)">
                             <option value="">Select a curated question...</option>
                         </select>
@@ -503,7 +503,7 @@ gcloud auth application-default login</div>
 
                 <!-- Restart -->
                 <div class="iw-restart-area">
-                    <button class="btn-secondary" onclick="iwGoBack(4)" style="margin-right:12px;">
+                    <button class="btn-secondary" onclick="iwGoBack(4)">
                         Run Another Question
                     </button>
                     <button class="btn-secondary" onclick="iwInit()">
@@ -576,16 +576,16 @@ gcloud auth application-default login</div>
             <!-- Algorithm Info (Dynamic) -->
             <div id="algorithmInfo"></div>
 
-            <div class="form-group" style="margin-top: 20px;">
+            <div class="form-group form-group--spaced">
                 <label for="budget">
                     Budget
                     <span class="label-helper">– Computational resources allocated</span>
                 </label>
                 <div class="slider-container">
                     <div class="slider-header">
-                        <span style="font-size: 13px; color: var(--text-secondary);">Lower</span>
+                        <span class="slider-hint">Lower</span>
                         <span class="budget-value" id="budgetValue">4</span>
-                        <span style="font-size: 13px; color: var(--text-secondary);">Higher</span>
+                        <span class="slider-hint">Higher</span>
                     </div>
                     <input type="range" id="budget" min="1" max="32" value="4" step="1">
                 </div>
@@ -652,7 +652,7 @@ gcloud auth application-default login</div>
                         <span id="smallBaselineTitle">Small Model</span>
                         <span class="size-badge small hidden" id="smallBaselineSize">Small</span>
                     </div>
-                    <div style="display: flex; align-items: center; gap: 12px;">
+                    <div class="pane-header-actions">
                         <div class="cost-badge hidden" id="smallBaselineCost">-</div>
                         <div class="latency-badge hidden" id="smallBaselineLatency">-</div>
                         <div class="result-actions hidden" id="smallBaselineActions">
@@ -676,7 +676,7 @@ gcloud auth application-default login</div>
                         <span id="middlePaneTitle">Baseline</span>
                         <span class="size-badge hidden" id="middlePaneSize">-</span>
                     </div>
-                    <div style="display: flex; align-items: center; gap: 12px;">
+                    <div class="pane-header-actions">
                         <div class="cost-badge hidden" id="middlePaneCost">-</div>
                         <div class="latency-badge hidden" id="middlePaneLatency">-</div>
                         <div class="result-actions hidden" id="middlePaneActions">
@@ -700,7 +700,7 @@ gcloud auth application-default login</div>
                         <span id="rightPaneTitle">ITS Result</span>
                         <span class="size-badge hidden" id="rightPaneSize">-</span>
                     </div>
-                    <div style="display: flex; align-items: center; gap: 12px;">
+                    <div class="pane-header-actions">
                         <div class="cost-badge hidden" id="rightPaneCost">-</div>
                         <div class="latency-badge hidden" id="rightPaneLatency">-</div>
                         <div class="result-actions hidden" id="rightPaneActions">
@@ -718,12 +718,13 @@ gcloud auth application-default login</div>
         </div>
 
         <!-- Enhanced Performance Visualization -->
-        <div class="hidden" id="performance-visualization-container" style="margin-top: 48px;">
+        <div class="hidden performance-viz-wrapper" id="performance-visualization-container">
             <div id="performance-visualization"></div>
         </div>
     </div>
     </div><!-- End demoContainer -->
 
+    <script src="utils.js"></script>
     <script src="app.js"></script>
 
     <!-- Performance Visualization V2 JS -->

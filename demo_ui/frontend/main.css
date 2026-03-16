@@ -3342,6 +3342,66 @@ button:disabled {
     --success-glow: rgba(163, 190, 140, 0.6);
 }
 
+/* ===== UTILITY CLASSES (replacing inline styles) ===== */
+
+.use-case-grid {
+    display: grid;
+    gap: 16px;
+    grid-template-columns: 1fr 1fr 1fr;
+}
+
+.setup-code {
+    display: block;
+    margin: 8px 0 4px;
+    padding: 8px 10px;
+    background: var(--bg-tertiary);
+    font-size: 12px;
+}
+
+.setup-code + .setup-code {
+    margin-top: 0;
+    margin-bottom: 8px;
+}
+
+.form-separator {
+    border-top: 1px solid var(--border-color);
+    margin-top: 24px;
+    padding-top: 24px;
+}
+
+.form-section-label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 600;
+    font-size: 13px;
+    color: var(--text-primary);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+.pane-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.slider-hint {
+    font-size: 13px;
+    color: var(--text-secondary);
+}
+
+.form-group--spaced {
+    margin-top: 20px;
+}
+
+.btn-secondary + .btn-secondary {
+    margin-left: 12px;
+}
+
+.performance-viz-wrapper {
+    margin-top: 48px;
+}
+
 /* Utility class to replace inline display:none */
 /* !important is required — compound selectors like .foo.bar .baz { display:block }
    have higher specificity than a single class and would override .hidden without it. */

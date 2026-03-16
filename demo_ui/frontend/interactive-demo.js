@@ -12,10 +12,8 @@
  * 5. iwRenderPerformance()  — Add real quality/judge scores
  */
 
-// iwEscapeHtml delegates to the global escapeHtml() in app.js
-function iwEscapeHtml(text) { return escapeHtml(text); }
-
-// iwFormatLatency removed — use global formatLatency() from app.js directly
+// iwEscapeHtml and iwFormatLatency removed — use escapeHtml() and
+// formatLatency() from utils.js directly.
 
 // ============================================================
 // STATE
@@ -261,7 +259,7 @@ async function iwCheckProviders() {
                 <strong>Could not connect to the backend.</strong><br>
                 Make sure the backend server is running:<br>
                 <code style="display:block;margin-top:8px;padding:8px;background:var(--bg-tertiary);font-size:12px;">cd demo_ui && uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload</code>
-                <div style="margin-top:8px;font-size:12px;color:var(--text-tertiary);">Error: ${iwEscapeHtml(err.message)}</div>
+                <div style="margin-top:8px;font-size:12px;color:var(--text-tertiary);">Error: ${escapeHtml(err.message)}</div>
             `;
             setVisible(step1Err, true);
         }
@@ -293,7 +291,7 @@ async function iwCheckProviders() {
             statusHtml += `
                 <div class="iw-status-item">
                     <span class="iw-status-icon" style="color: var(--${prov.enabled ? 'success' : 'text-tertiary'})">${icon}</span>
-                    <span>${iwEscapeHtml(prov.name)}</span>
+                    <span>${escapeHtml(prov.name)}</span>
                     <span class="iw-provider-badge ${cls}">${prov.enabled ? 'Active' : 'Not configured'}</span>
                 </div>
             `;
@@ -312,10 +310,10 @@ async function iwCheckProviders() {
                 const reasoningBadge = m.is_reasoning ? '<span class="iw-model-chip-reasoning">Reasoning</span>' : '';
                 modelsHtml += `
                     <div class="iw-model-chip">
-                        <span class="iw-model-chip-provider">${iwEscapeHtml(pLabel)}</span>
-                        <span class="iw-model-chip-name">${iwEscapeHtml(m.description)}</span>
+                        <span class="iw-model-chip-provider">${escapeHtml(pLabel)}</span>
+                        <span class="iw-model-chip-name">${escapeHtml(m.description)}</span>
                         ${reasoningBadge}
-                        <span class="iw-model-chip-size">${iwEscapeHtml(m.size)}</span>
+                        <span class="iw-model-chip-size">${escapeHtml(m.size)}</span>
                     </div>
                 `;
             });
@@ -330,7 +328,7 @@ async function iwCheckProviders() {
         statusEl.innerHTML = `
             <div class="iw-error">
                 <strong>Error fetching provider data.</strong><br>
-                Error: ${iwEscapeHtml(err.message)}
+                Error: ${escapeHtml(err.message)}
             </div>
         `;
         modelListEl.innerHTML = '';
@@ -376,9 +374,9 @@ function iwPopulateConfig() {
     for (const [group, models] of Object.entries(grouped)) {
         modelHtml += `<optgroup label="${group}">`;
         models.forEach(m => {
-            const sizeLabel = m.size ? ` [${iwEscapeHtml(m.size)}]` : '';
+            const sizeLabel = m.size ? ` [${escapeHtml(m.size)}]` : '';
             const reasoningLabel = m.is_reasoning ? ' [Reasoning]' : '';
-            modelHtml += `<option value="${iwEscapeHtml(m.id)}">${iwEscapeHtml(m.description)}${sizeLabel}${reasoningLabel}</option>`;
+            modelHtml += `<option value="${escapeHtml(m.id)}">${escapeHtml(m.description)}${sizeLabel}${reasoningLabel}</option>`;
         });
         modelHtml += '</optgroup>';
     }
@@ -546,7 +544,7 @@ async function iwSubmit() {
         iwRenderResults(data);
 
     } catch (err) {
-        resultsEl.innerHTML = `<div class="iw-error"><strong>Error:</strong> ${iwEscapeHtml(err.message)}</div>`;
+        resultsEl.innerHTML = `<div class="iw-error"><strong>Error:</strong> ${escapeHtml(err.message)}</div>`;
     } finally {
         btn.disabled = false;
         btn.innerHTML = '<span>▶</span><span>Run Comparison</span>';
@@ -592,11 +590,11 @@ function iwRenderResults(data) {
             questionHtml = `
                 <div class="iw-question-display">
                     <div class="iw-question-label">Question</div>
-                    <div class="iw-question-text">${iwEscapeHtml(iwState.question)}</div>
+                    <div class="iw-question-text">${escapeHtml(iwState.question)}</div>
                     ${iwState.expectedAnswer ? `
                         <div class="iw-expected-inline">
                             <span class="iw-expected-label">Expected Answer:</span>
-                            <span class="iw-expected-value">${iwEscapeHtml(iwState.expectedAnswer)}</span>
+                            <span class="iw-expected-value">${escapeHtml(iwState.expectedAnswer)}</span>
                         </div>
                     ` : ''}
                 </div>
@@ -698,7 +696,7 @@ function iwBuildResultPane(data, type, title, minCost, minLatency) {
             ? finalAnswer
             : (finalAnswer.includes('=') || /^[-+]?\d/.test(finalAnswer))
                 ? '$' + finalAnswer + '$'
-                : iwEscapeHtml(finalAnswer);
+                : escapeHtml(finalAnswer);
         finalAnswerHtml = `
             <div class="iw-final-answer">
                 <div class="iw-final-answer-label">Final Answer</div>
@@ -804,7 +802,7 @@ function iwBuildResultPane(data, type, title, minCost, minLatency) {
                         <span style="color:var(--text-tertiary)">Cost${isEstimated ? ' (est.)' : ''}</span><span style="font-family:'IBM Plex Mono',monospace">${costFmt}</span>
                         <span style="color:var(--text-tertiary)">Input Tokens${isEstimated ? ' (est.)' : ''}</span><span style="font-family:'IBM Plex Mono',monospace">${isEstimated ? '~' : ''}${(data.input_tokens || 0).toLocaleString()}</span>
                         <span style="color:var(--text-tertiary)">Output Tokens${isEstimated ? ' (est.)' : ''}</span><span style="font-family:'IBM Plex Mono',monospace">${isEstimated ? '~' : ''}${(data.output_tokens || 0).toLocaleString()}</span>
-                        ${data.model_size ? `<span style="color:var(--text-tertiary)">Model Size</span><span>${iwEscapeHtml(data.model_size)}</span>` : ''}
+                        ${data.model_size ? `<span style="color:var(--text-tertiary)">Model Size</span><span>${escapeHtml(data.model_size)}</span>` : ''}
                     </div>
                     ${isEstimated ? `<div class="iw-estimate-note">Token counts and cost are estimates. ITS algorithms make multiple internal LLM calls whose usage is not individually tracked. Latency is actual wall-clock time.</div>` : ''}
                 </div>
