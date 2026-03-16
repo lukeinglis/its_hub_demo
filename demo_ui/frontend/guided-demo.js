@@ -989,39 +989,30 @@ function guidedPreprocessLatex(text) {
  */
 function buildScenarioInsight(scenarioId, method) {
     const key = `${scenarioId}_${method}`;
-    const insights = {
-        'improve_frontier_self_consistency': {
-            title: 'What to Look For',
-            content: 'Compare the final answers and reasoning. ITS uses majority voting across multiple candidates to catch errors and improve reliability. Look for cases where the baseline makes calculation mistakes that ITS corrects through consensus.'
-        },
-        'improve_opensource_self_consistency': {
-            title: 'What to Look For',
-            content: 'Small models often make mistakes on complex reasoning. ITS generates multiple attempts and votes on the most common answer. Check if the baseline got the wrong answer and ITS corrected it — this shows how ITS can improve accuracy without upgrading to a larger model.'
-        },
-        'improve_frontier_best_of_n': {
-            title: 'What to Look For',
-            content: 'Best-of-N generates multiple responses and uses an LLM judge to select the highest quality. Compare response completeness, clarity, and usefulness. The ITS answer should be more comprehensive and better structured than the baseline.'
-        },
-        'improve_opensource_best_of_n': {
-            title: 'What to Look For',
-            content: 'Look for differences in completeness and accuracy. The baseline may give incomplete or incorrect information, while ITS selects the best response from multiple attempts. This shows how quality improves with inference-time scaling.'
-        },
-        'match_same_family_self_consistency': {
-            title: 'Value Proposition',
-            content: 'The goal is to show that a small model + ITS can match the quality of its larger sibling at lower cost. Compare the small baseline vs small+ITS vs frontier. Check if small+ITS gets the same answer as frontier while maintaining cost savings.'
-        },
-        'match_cross_family_self_consistency': {
-            title: 'Value Proposition',
-            content: 'Demonstrates that a tiny open-source model with ITS can match expensive proprietary model quality. Compare costs: the open-source model with ITS should be dramatically cheaper while achieving similar correctness.'
-        },
-        'match_same_family_best_of_n': {
-            title: 'Value Proposition',
-            content: 'Small model + ITS should produce responses comparable in quality to the larger frontier model. Look at response depth, completeness, and accuracy. The cost should still favor the small model even with ITS overhead.'
-        },
-        'match_cross_family_best_of_n': {
-            title: 'Value Proposition',
-            content: 'Open-source model with ITS competing with proprietary frontier quality. Compare response comprehensiveness and accuracy. The dramatic cost difference makes this an attractive alternative for production use cases.'
-        },
+    const scenario = GUIDED_SCENARIOS[scenarioId];
+    const captured = GUIDED_CAPTURED_DATA && GUIDED_CAPTURED_DATA[key];
+    const trace = captured && captured.trace;
+
+    // Try to build data-aware insight from captured data
+    if (captured && trace) {
+        const content = _buildDataAwareInsight(scenarioId, method, scenario, captured, trace);
+        if (content) {
+            const isMatch = scenario.goal === 'match_frontier';
+            const title = isMatch ? 'Value Proposition' : 'What to Look For';
+            return `
+                <div class="guided-insight-box" style="grid-column: 1 / -1; margin-top: 16px;">
+                    <div class="guided-insight-header">
+                        <span class="guided-insight-icon">💡</span>
+                        <span class="guided-insight-title">${title}</span>
+                    </div>
+                    <div class="guided-insight-content">${content}</div>
+                </div>
+            `;
+        }
+    }
+
+    // Fallback: static insights for tool calling scenarios or when no captured data
+    const fallbacks = {
         'tool_stock_self_consistency': {
             title: 'What to Look For (BFCL multiple_56)',
             content: 'Compare the tool chosen by the baseline vs ITS. The baseline picked web_search (a general-purpose search) when get_data with data_type="stock_price" returns precise, structured data. ITS voting across 8 candidates corrects this by reaching consensus on the right tool.'
@@ -1032,18 +1023,101 @@ function buildScenarioInsight(scenarioId, method) {
         }
     };
 
-    if (!insights[key]) return null;
+    if (!fallbacks[key]) return null;
 
-    const insight = insights[key];
+    const fallback = fallbacks[key];
     return `
         <div class="guided-insight-box" style="grid-column: 1 / -1; margin-top: 16px;">
             <div class="guided-insight-header">
                 <span class="guided-insight-icon">💡</span>
-                <span class="guided-insight-title">${insight.title}</span>
+                <span class="guided-insight-title">${fallback.title}</span>
             </div>
-            <div class="guided-insight-content">${insight.content}</div>
+            <div class="guided-insight-content">${fallback.content}</div>
         </div>
     `;
+}
+
+function _buildDataAwareInsight(scenarioId, method, scenario, captured, trace) {
+    const isMatch = scenario.goal === 'match_frontier';
+    const isTool = scenario.goal === 'tool_calling';
+    const isSC = method === 'self_consistency';
+    const isBon = method === 'best_of_n';
+
+    // Tool calling scenarios with vote data
+    if (isTool && trace.vote_counts) {
+        const vc = trace.vote_counts;
+        const total = trace.total_votes || Object.values(vc).reduce((a, b) => a + b, 0);
+        const winner = Object.entries(vc).sort((a, b) => b[1] - a[1])[0];
+        const baselineTool = captured.baseline.tool_call ? captured.baseline.tool_call.name : 'unknown';
+        const parts = [];
+        parts.push(`ITS generated ${total} candidates and reached consensus: <strong>${winner[0]}</strong> was selected by ${winner[1]}/${total} candidates.`);
+        if (baselineTool !== winner[0]) {
+            parts.push(`The baseline chose <strong>${baselineTool}</strong> instead — ITS corrected this through majority voting.`);
+        }
+        const voteSummary = Object.entries(vc).map(([tool, count]) => `${tool}: ${count}`).join(', ');
+        parts.push(`<em>Vote distribution: ${voteSummary}</em>`);
+        return parts.join(' ');
+    }
+
+    // Self-Consistency scenarios with vote data
+    if (isSC && trace.vote_counts) {
+        const vc = trace.vote_counts;
+        const total = trace.total_votes || Object.values(vc).reduce((a, b) => a + b, 0);
+        const sorted = Object.entries(vc).sort((a, b) => b[1] - a[1]);
+        const winner = sorted[0];
+        const parts = [];
+
+        parts.push(`ITS generated ${total} candidates. <strong>${winner[1]}/${total}</strong> agreed on answer <strong>${winner[0]}</strong> through majority voting.`);
+
+        if (sorted.length > 1) {
+            const others = sorted.slice(1).map(([ans, cnt]) => `${ans} (${cnt})`).join(', ');
+            parts.push(`Other answers: ${others}.`);
+        }
+
+        if (isMatch && captured.frontier) {
+            const itsCost = captured.its.cost_usd;
+            const frontierCost = captured.frontier.cost_usd;
+            if (itsCost && frontierCost && frontierCost > 0) {
+                const savings = ((1 - itsCost / frontierCost) * 100).toFixed(0);
+                parts.push(`Small model + ITS cost $${itsCost.toFixed(4)} vs frontier's $${frontierCost.toFixed(4)} (<strong>${savings}% savings</strong>).`);
+            }
+        }
+
+        return parts.join(' ');
+    }
+
+    // Best-of-N scenarios
+    if (isBon && trace.candidates) {
+        const candidates = trace.candidates;
+        const numCandidates = candidates.length;
+        const selected = candidates.find(c => c.is_selected);
+        const parts = [];
+
+        parts.push(`Best-of-N generated ${numCandidates} candidates and an LLM judge selected the highest quality response.`);
+
+        if (selected && selected.score != null) {
+            const otherScores = candidates.filter(c => !c.is_selected && c.score != null).map(c => c.score);
+            if (otherScores.length > 0) {
+                const avgOther = (otherScores.reduce((a, b) => a + b, 0) / otherScores.length).toFixed(1);
+                parts.push(`The selected response scored <strong>${selected.score}</strong> vs an average of ${avgOther} for other candidates.`);
+            }
+        } else {
+            parts.push(`The judge evaluated all ${numCandidates} responses and picked the most complete and accurate one.`);
+        }
+
+        if (isMatch && captured.frontier) {
+            const itsCost = captured.its.cost_usd;
+            const frontierCost = captured.frontier.cost_usd;
+            if (itsCost && frontierCost && frontierCost > 0) {
+                const savings = ((1 - itsCost / frontierCost) * 100).toFixed(0);
+                parts.push(`Small model + ITS cost $${itsCost.toFixed(4)} vs frontier's $${frontierCost.toFixed(4)} (<strong>${savings}% savings</strong>).`);
+            }
+        }
+
+        return parts.join(' ');
+    }
+
+    return null;
 }
 
 /**
