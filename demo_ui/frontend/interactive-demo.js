@@ -37,72 +37,36 @@ const iwState = {
 };
 
 // ============================================================
-// CURATED PROMPTS — Replace with real curated questions later
-// Key format: `${scenario}_${algorithm}`
+// CURATED PROMPTS — Fetched from backend /examples endpoint
+// Cached per algorithm to avoid redundant requests.
 // ============================================================
 
-const IW_CURATED_PROMPTS = {
-    'improve_performance_self_consistency': [
-        { q: 'What is 144 / 12 + 7 * 3 - 5?', a: '28' },
-        { q: 'If a train travels 120 km in 1.5 hours, what is its average speed in km/h?', a: '80 km/h' },
-        { q: 'What is the probability of rolling a sum of 7 with two standard dice?', a: '6/36 = 1/6' },
-    ],
-    'improve_performance_best_of_n': [
-        { q: 'Explain the key differences between TCP and UDP protocols.', a: null },
-        { q: 'What are the three laws of thermodynamics? Explain each briefly.', a: null },
-        { q: 'Compare and contrast REST and GraphQL APIs.', a: null },
-    ],
-    'match_frontier_self_consistency': [
-        { q: 'A store has a 20% off sale. If an item costs $85, what is the sale price?', a: '$68' },
-        { q: 'What is the sum of the first 10 prime numbers?', a: '129' },
-        { q: 'Solve for x: 3x + 7 = 22', a: 'x = 5' },
-    ],
-    'match_frontier_best_of_n': [
-        { q: 'Explain why the sky is blue using Rayleigh scattering.', a: null },
-        { q: 'Compare supervised and unsupervised machine learning with examples.', a: null },
-        { q: 'What is the difference between a stack and a queue? Give a real-world analogy for each.', a: null },
-    ],
-    'improve_performance_beam_search': [
-        { q: 'Find all integer solutions to the equation x² + y² = 25.', a: '(0,±5), (±3,±4), (±4,±3), (±5,0)' },
-        { q: 'A sequence is defined by a₁ = 2 and aₙ = 3aₙ₋₁ - 1. What is a₄?', a: '41' },
-        { q: 'How many distinct ways can you partition the number 7 into positive integers?', a: '15' },
-    ],
-    'improve_performance_particle_filtering': [
-        { q: 'Compute the derivative of f(x) = x³ ln(x) and evaluate it at x = 1.', a: '1' },
-        { q: 'What is the remainder when 2⁵⁰ is divided by 7?', a: '4' },
-        { q: 'Solve the system: 2x + 3y = 12 and 4x - y = 5.', a: 'x = 27/14, y = 25/7' },
-    ],
-    'improve_performance_entropic_particle_filtering': [
-        { q: 'How many 4-digit numbers have digits that sum to 9?', a: '165' },
-        { q: 'If log₂(x) + log₂(x-2) = 3, find x.', a: '4' },
-        { q: 'What is the sum of all even numbers between 1 and 100 inclusive?', a: '2550' },
-    ],
-    'improve_performance_particle_gibbs': [
-        { q: 'Find the area enclosed by y = x² and y = 2x + 3.', a: '32/3' },
-        { q: 'A bag has 5 red and 3 blue balls. Two are drawn without replacement. What is P(both red)?', a: '5/14' },
-        { q: 'What is the greatest common divisor of 252 and 198?', a: '18' },
-    ],
-    'match_frontier_beam_search': [
-        { q: 'Evaluate the integral ∫₀¹ x·eˣ dx.', a: '1' },
-        { q: 'How many trailing zeros does 50! have?', a: '12' },
-        { q: 'Solve for x: |2x - 5| = 3.', a: 'x = 1 or x = 4' },
-    ],
-    'match_frontier_particle_filtering': [
-        { q: 'What is the determinant of the matrix [[1,2,3],[4,5,6],[7,8,9]]?', a: '0' },
-        { q: 'Find the coefficient of x³ in the expansion of (2x + 1)⁵.', a: '80' },
-        { q: 'If f(x) = sin(x)/x, what is the limit as x → 0?', a: '1' },
-    ],
-    'match_frontier_entropic_particle_filtering': [
-        { q: 'How many non-negative integer solutions are there to x + y + z = 10?', a: '66' },
-        { q: 'What is the sum of the infinite geometric series 1 + 1/3 + 1/9 + 1/27 + ...?', a: '3/2' },
-        { q: 'Find the inverse of the function f(x) = (2x + 1)/(x - 3).', a: 'f⁻¹(x) = (3x + 1)/(x - 2)' },
-    ],
-    'match_frontier_particle_gibbs': [
-        { q: 'Compute 15 choose 4.', a: '1365' },
-        { q: 'What is the radius of convergence of the power series Σ xⁿ/n! ?', a: '∞' },
-        { q: 'Solve the recurrence relation T(n) = 2T(n/2) + n with T(1) = 1 for n = 8.', a: '24' },
-    ],
-};
+const _iwExamplesCache = {};
+
+async function iwFetchExamples(algorithm, useCase) {
+    const cacheKey = `${algorithm}_${useCase || 'default'}`;
+    if (_iwExamplesCache[cacheKey]) return _iwExamplesCache[cacheKey];
+
+    try {
+        const params = new URLSearchParams();
+        if (algorithm) params.set('algorithm', algorithm);
+        if (useCase) params.set('use_case', useCase);
+        const resp = await fetch(`/examples?${params}`);
+        if (!resp.ok) return [];
+        const data = await resp.json();
+        const examples = (data.examples || []).map(e => ({
+            q: e.question,
+            a: e.expected_answer || null,
+            source: e.source || 'unknown',
+            why: e.why || '',
+        }));
+        _iwExamplesCache[cacheKey] = examples;
+        return examples;
+    } catch (err) {
+        console.warn('Failed to fetch examples:', err);
+        return [];
+    }
+}
 
 // ============================================================
 // LIFECYCLE EVENT LISTENERS — replaces function patching
@@ -461,15 +425,23 @@ function iwAlgorithmChanged() {
 
 
 
-function iwPopulatePrompts() {
+async function iwPopulatePrompts() {
     const select = document.getElementById('iwCuratedSelect');
-    const key = `${iwState.scenario}_${iwState.algorithm}`;
-    const prompts = IW_CURATED_PROMPTS[key] || [];
+    const useCase = iwState.scenario === 'tool_consensus' ? 'tool_consensus' : null;
+    const algorithm = iwState.algorithm;
+
+    // Show loading state
+    select.innerHTML = '<option value="">Loading questions...</option>';
+
+    const prompts = await iwFetchExamples(algorithm, useCase);
+    iwState._curatedPrompts = prompts;
 
     let html = '<option value="">Select a curated question...</option>';
     prompts.forEach((p, i) => {
         const preview = p.q.length > 80 ? p.q.substring(0, 80) + '...' : p.q;
-        html += `<option value="${i}">${preview}</option>`;
+        const badge = p.source && p.source !== 'curated' && p.source !== 'unknown'
+            ? ` [${p.source}]` : '';
+        html += `<option value="${i}">${preview}${badge}</option>`;
     });
     select.innerHTML = html;
 
@@ -485,8 +457,7 @@ function iwPopulatePrompts() {
 }
 
 function iwCuratedChanged(select) {
-    const key = `${iwState.scenario}_${iwState.algorithm}`;
-    const prompts = IW_CURATED_PROMPTS[key] || [];
+    const prompts = iwState._curatedPrompts || [];
     const idx = parseInt(select.value);
 
     if (!isNaN(idx) && prompts[idx]) {
