@@ -1,8 +1,8 @@
-"""Tests for pure functions in backend/main.py."""
+"""Tests for pure functions in backend/inference.py."""
 
 import pytest
 
-from backend.main import calculate_cost, detect_question_type
+from backend.inference import calculate_cost, detect_question_type
 
 
 # ── detect_question_type ──────────────────────────────────────────────
