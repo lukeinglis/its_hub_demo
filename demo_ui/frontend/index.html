@@ -513,25 +513,6 @@ gcloud auth application-default login</div>
             </div>
         </div>
 
-        <!-- Scenario Selector (Guided Mode Only) -->
-        <div class="section" id="scenarioSection">
-            <div id="scenarioSelectorContainer" class="scenario-selector-container">
-                <div class="scenario-selector-header">
-                    <span class="scenario-selector-label">Choose a Demo Scenario</span>
-                    <div class="scenario-navigation">
-                        <button class="scenario-nav-btn" id="prevScenarioBtn" onclick="navigateScenario(-1)">← Prev</button>
-                        <select id="scenarioDropdown" class="scenario-dropdown" onchange="loadScenario(parseInt(this.value))">
-                            <!-- Options populated dynamically -->
-                        </select>
-                        <button class="scenario-nav-btn" id="nextScenarioBtn" onclick="navigateScenario(1)">Next →</button>
-                    </div>
-                </div>
-                <div id="scenarioInfo" class="scenario-info">
-                    <!-- Scenario metadata populated dynamically -->
-                </div>
-            </div>
-        </div>
-
         <!-- Configuration Section -->
         <div class="section" id="configSection">
             <div class="section-header">
