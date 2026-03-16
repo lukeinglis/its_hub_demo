@@ -35,7 +35,8 @@ class ModelConfig(TypedDict, total=False):
 #   🧠 Reasoning         — chain-of-thought / thinking models (is_reasoning=True)
 #   🏢 IBM Granite       — enterprise open-source
 #
-# NOTE: OpenRouter model availability changes over time. If a model fails with
+# NOTE: OpenRouter models are available when the user has OPENROUTER_API_KEY set.
+# OpenRouter model availability changes over time. If a model fails with
 # "No endpoints found", check https://openrouter.ai/models for current list.
 # Pricing last verified: March 2026.
 

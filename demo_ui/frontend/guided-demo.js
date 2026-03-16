@@ -57,7 +57,7 @@ const GUIDED_SCENARIOS = {
         subtitle: 'Correct errors at lower cost than upgrading',
         icon: '🔓',
         model: 'Llama 3.2 3B',
-        provider: 'OpenRouter',
+        provider: 'Open Source',
         description: 'Small open-source models make mistakes on complex reasoning. ITS corrects errors through consensus voting — achieving better accuracy without switching to a larger model.',
     },
     match_same_family: {
@@ -79,7 +79,7 @@ const GUIDED_SCENARIOS = {
         icon: '🔀',
         smallModel: 'Llama 3.2 3B',
         frontierModel: 'GPT-4o',
-        provider: 'OpenRouter / OpenAI',
+        provider: 'Open Source / OpenAI',
         description: 'A tiny open-source model with ITS can match expensive frontier model quality — enabling cost-effective alternatives to proprietary APIs.',
     },
     tool_stock: {

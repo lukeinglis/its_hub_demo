@@ -146,7 +146,7 @@ Use **Match Frontier** with the algebra question above. It shows cost savings + 
 - **Budget 6-8** is ideal for demos — clear consensus, fast enough
 - **Medium difficulty** math questions work best (easy = no improvement to show; hard = risk of timeout)
 - **Avoid GPT-4o** for "Improve Model" — it's too good, no improvement to demonstrate
-- **Avoid OpenRouter models** for Tool Consensus — they don't support function calling
+- **Avoid OpenRouter models** for Tool Consensus (if using them) — they don't support function calling
 - Self-Consistency is best for demos; Best-of-N requires the LLM judge and is slower
 
 ---

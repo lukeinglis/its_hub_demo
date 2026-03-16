@@ -272,7 +272,6 @@ def _get_provider_group(config: dict) -> str:
 async def check_providers():
     """Check which model providers have credentials configured."""
     openai_key = os.getenv("OPENAI_API_KEY")
-    openrouter_key = os.getenv("OPENROUTER_API_KEY")
     vertex_project = os.getenv("VERTEX_PROJECT")
     vllm_url = os.getenv("VLLM_BASE_URL")
 
@@ -289,13 +288,6 @@ async def check_providers():
             "description": "GPT-4o, GPT-4.1, GPT-4.1 Mini/Nano, GPT-3.5 Turbo",
             "env_var": "OPENAI_API_KEY",
             "setup": "export OPENAI_API_KEY=sk-...",
-        },
-        "openrouter": {
-            "enabled": bool(openrouter_key),
-            "name": "OpenRouter",
-            "description": "Llama 4/3, Qwen 3/2.5, Gemma 3, DeepSeek R1, Granite 4.0 (15+ open-source models)",
-            "env_var": "OPENROUTER_API_KEY",
-            "setup": "export OPENROUTER_API_KEY=sk-or-...",
         },
         "vertex_ai": {
             "enabled": bool(vertex_project),
@@ -333,6 +325,10 @@ async def list_models(use_case: str | None = None):
             supports_tools = config.get("supports_tools", False)
             if not supports_tools:
                 continue
+
+        # Only show OpenRouter models if the user has an API key configured
+        if config.get("api_key_env_var") == "OPENROUTER_API_KEY" and not os.getenv("OPENROUTER_API_KEY"):
+            continue
 
         # Check if model requires external server (has non-standard base_url)
         base_url = config.get("base_url", "")
