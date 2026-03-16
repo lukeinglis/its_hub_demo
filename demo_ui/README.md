@@ -175,88 +175,105 @@ demo_ui/
 ### Prerequisites
 
 - Python 3.10+
-- [`uv`](https://docs.astral.sh/uv/) (recommended) or `pip`
 
-### Quick Start (Guided Demo only — no API keys needed)
+> **Important:** Do NOT use `uv sync` — it resolves all optional extras including vLLM, which requires CUDA. Use `pip install -e .` or `uv pip install -e .` instead.
 
-The **Guided Demo** uses pre-captured data and needs no API keys. Works on any machine including macOS (no GPU/CUDA required).
+---
+
+### Scenario 1: Guided Demo (no API keys, no GPU — works on any laptop)
+
+The **Guided Demo** uses pre-captured data and runs entirely offline. No API keys, no GPU, no CUDA — just Python on any machine (macOS, Linux, Windows).
+
+**Steps:**
 
 ```bash
-# From the repository root (its_hub_demo/)
-python3 -m venv .venv         # Create virtual environment (or: uv venv)
-source .venv/bin/activate     # Activate it (Windows: .venv\Scripts\activate)
-pip install -e .              # Install its_hub + core dependencies
+# 1. Clone and enter the repo
+git clone https://github.com/lukeinglis/its_hub_demo.git
+cd its_hub_demo
+
+# 2. Create and activate a virtual environment
+python3 -m venv .venv
+source .venv/bin/activate     # Windows: .venv\Scripts\activate
+
+# 3. Install core dependencies (no heavy packages)
+pip install -e .
+
+# 4. Start the server
 cd demo_ui
 uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-Open `http://localhost:8000` → click **Guided Demo**.
+**5. Open your browser** → `http://localhost:8000` → click **Guided Demo**
 
-> **Note:** Do NOT use `uv sync` — it resolves all optional extras including vLLM, which requires CUDA. Use `pip install -e .` or `uv pip install -e .` instead.
+That's it. The guided demo walks through all ITS scenarios using pre-captured real API responses — no live API calls are made.
 
-### Full Setup (Interactive Demo — requires API keys)
+---
 
-The **Interactive Demo** makes live API calls and requires at least one provider key.
+### Scenario 2: Interactive Demo (requires API keys — live model calls)
 
-#### 1. Install dependencies
+The **Interactive Demo** makes live API calls against real models. You need everything from Scenario 1 plus at least one API key.
 
-From the repository root:
+**Step 1 — Install** (same as Scenario 1 if not already done):
 
 ```bash
-python3 -m venv .venv         # Create virtual environment (or: uv venv)
-source .venv/bin/activate     # On Windows: .venv\Scripts\activate
-pip install -e .              # Core install — works on any machine
+cd its_hub_demo
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -e .
 ```
 
-This installs `its_hub` and all backend dependencies (FastAPI, litellm, etc.). No GPU or CUDA required.
-
-**Optional extras** (only if you need specific providers):
-```bash
-# For Vertex AI (Claude/Gemini via Google Cloud):
-pip install anthropic[vertex] google-cloud-aiplatform
-```
-
-#### 2. Configure environment variables
+**Step 2 — Configure API keys:**
 
 ```bash
 cd demo_ui
 cp .env.example .env
 ```
 
-Edit `.env` and add your credentials:
+Edit `.env` and add at least one provider:
 
 ```bash
 # Required: OpenAI API (for GPT models + LLM judge)
 OPENAI_API_KEY=your-openai-api-key-here
 
-# Optional: Google Cloud Vertex AI (for Claude Sonnet 4.6 and Haiku 4.5)
-# Setup: gcloud auth application-default login
-VERTEX_PROJECT=your-gcp-project-id
-VERTEX_LOCATION=us-east5
+# Optional: Google Cloud Vertex AI (for Claude and Gemini)
+# Also requires: pip install anthropic[vertex] google-cloud-aiplatform
+# VERTEX_PROJECT=your-gcp-project-id
+# VERTEX_LOCATION=us-east5
+
+# Optional: OpenRouter (for 15+ open-source models)
+# OPENROUTER_API_KEY=sk-or-v1-your-key-here
 ```
 
-**Provider Notes**:
-- **OpenAI**: Most reliable, best for production demos. Required for Tool Consensus demos.
-- **Vertex AI**: Claude and Gemini models via Google Cloud.
-- **OpenRouter** (optional): If you have an OpenRouter API key, set `OPENROUTER_API_KEY` in `.env` to access 15+ open-source models. Does NOT support function/tool calling.
-
-#### 3. Start the backend server
-
-From the `demo_ui` directory:
+**Step 3 — Install optional provider packages** (only if needed):
 
 ```bash
+# For Vertex AI (Claude/Gemini via Google Cloud):
+pip install anthropic[vertex] google-cloud-aiplatform
+```
+
+> Skip this step if you're only using OpenAI or OpenRouter — they work with the core install.
+
+**Step 4 — Start the server:**
+
+```bash
+cd demo_ui    # if not already there
 uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-> **Note:** Make sure your virtual environment is activated (you should see `(.venv)` in your terminal prompt).
+**Step 5 — Open your browser** → `http://localhost:8000` → click **Interactive Demo**
 
-#### 4. Open the frontend
+The interactive demo auto-detects which providers have valid API keys and shows available models accordingly.
 
-The frontend is served automatically by the backend. Open your browser to:
+---
 
-```
-http://localhost:8000
-```
+### Provider Summary
+
+| Provider | API Key | Extra Packages | Tool Calling |
+|---|---|---|---|
+| **OpenAI** | `OPENAI_API_KEY` | None (core install) | Yes |
+| **OpenRouter** | `OPENROUTER_API_KEY` | None (core install) | No |
+| **Vertex AI** | `VERTEX_PROJECT` + gcloud auth | `anthropic[vertex]` `google-cloud-aiplatform` | Yes |
+| **Self-hosted** | `VLLM_BASE_URL` | vLLM server running separately | Depends on model |
 
 You will see the landing page with two options: **Guided Demo** and **Interactive Demo**.
 
