@@ -6,8 +6,8 @@ A simple web interface for comparing baseline LLM inference vs Inference-Time Sc
 
 This demo provides two entry points from the landing page:
 
-1. **Guided Demo** — A step-by-step walkthrough that walks the user through the ITS experience with pre-populated scenarios and mock data (no backend required)
-2. **Interactive Demo** — Full live experience with real API calls, model selection, and custom questions (requires backend)
+1. **Guided Demo** — A step-by-step walkthrough using pre-captured real API responses. No API keys required — works on any machine.
+2. **Interactive Demo** — Full live experience with real API calls, model selection, and custom questions. Requires at least one provider API key.
 
 ### Guided Demo Flow
 
@@ -128,11 +128,12 @@ All 6 ITS algorithms tested and working:
 
 ### 📚 Example Questions Library
 
-16 curated questions inspired by MATH500 and AIME-2024:
+30 curated questions from multiple sources (MATH500, AIME, AMC, and hand-curated):
+- 22 math questions + 8 tool calling questions
 - Easy, Medium, and Hard difficulty levels
-- Organized by category (Algebra, Calculus, Logic, etc.)
-- Each includes expected answer and algorithm recommendations
-- Auto-filter by selected algorithm
+- Organized by category (Algebra, Number Theory, Probability, Competition Math, etc.)
+- Each includes expected answer, algorithm recommendations, and source attribution
+- Auto-filtered by selected algorithm via the `/examples` endpoint
 
 ## Project Structure
 
@@ -141,14 +142,18 @@ demo_ui/
 ├── README.md                                    # This file
 ├── DEMO_GUIDE.md                               # Presenter's guide with configurations and talking points
 ├── .env.example                                # Environment variables template
+├── pyproject.toml                              # Pytest configuration
 ├── backend/
 │   ├── __init__.py
-│   ├── main.py                                 # FastAPI app (/compare, /models, /providers, /examples)
-│   ├── config.py                               # Model registry (22 models across 7 families)
+│   ├── main.py                                 # FastAPI app, routes, CORS, static serving
+│   ├── inference.py                            # LLM creation, baseline/ITS execution, cost calculation
+│   ├── traces.py                               # Algorithm trace building for visualization
+│   ├── config.py                               # Model registry (24 models)
 │   ├── models.py                               # Pydantic request/response models
+│   ├── evaluation.py                           # Answer correctness checking (math + LLM judge)
 │   ├── tools.py                                # Tool definitions for agent demos
-│   ├── example_questions.py                    # Curated example questions library
-│   ├── vertex_lm.py                            # Vertex AI model implementations
+│   ├── example_questions.py                    # 30 curated questions (MATH500, AIME, AMC, hand-curated)
+│   ├── vertex_lm.py                            # Vertex AI model implementations (lazy-loaded)
 │   ├── llm_prm.py                              # LLM-based process reward model
 │   └── requirements.txt                        # Backend dependencies
 ├── tests/
@@ -157,14 +162,21 @@ demo_ui/
 │   ├── test_models.py                          # Pydantic model validation tests
 │   ├── test_main_functions.py                  # detect_question_type, calculate_cost tests
 │   ├── test_example_questions.py               # Example question query tests
-│   └── test_tools.py                           # Safe expression evaluator and tool tests
+│   ├── test_tools.py                           # Safe expression evaluator and tool tests
+│   └── test_compare_endpoint.py                # Integration tests for /compare endpoint
+├── scripts/
+│   └── capture_guided_scenarios.py             # Generate guided-demo-data.json from live API
 └── frontend/
-    ├── index.html                              # Landing page, wizard HTML shells, inline shared utilities
-    ├── guided-demo.js                          # Guided Demo: 6-step flow, mock data, trace animation
+    ├── index.html                              # Landing page and wizard HTML shells
+    ├── utils.js                                # Shared formatting/rendering utilities
+    ├── app.js                                  # Core state management and UI logic
+    ├── main.css                                # Global styles
+    ├── guided-demo.js                          # Guided Demo: 6-step flow with captured data
     ├── guided-demo.css                         # Guided Demo styles
-    ├── interactive-demo.js                     # Interactive Demo: 5-step flow, provider detection, live execution
+    ├── guided-demo-data.json                   # Pre-captured real API responses
+    ├── interactive-demo.js                     # Interactive Demo: 5-step flow with live API calls
     ├── interactive-demo.css                    # Interactive Demo styles
-    ├── performance-viz-v2.js                   # Performance visualization bar charts
+    ├── performance-viz-v2.js                   # Performance visualization and savings cards
     └── performance-viz-v2.css                  # Performance visualization styles
 ```
 
@@ -285,7 +297,7 @@ For recommended configurations, talking points, and a 5-minute demo flow, see **
 
 Open `http://localhost:8000` to see the landing page with two options:
 
-- **Guided Demo** — Walks through pre-built scenarios with mock data. No backend API keys required. Good for presentations.
+- **Guided Demo** — Walks through pre-built scenarios with pre-captured real API responses. No API keys required. Good for presentations.
 - **Interactive Demo** — Runs live API calls against real models. Requires at least one provider configured.
 
 ### Guided Demo Walkthrough
@@ -427,7 +439,7 @@ Compare baseline vs ITS inference.
 ```json
 {
   "question": "What is the derivative of x^3 + 2x^2?",
-  "model_id": "gpt-4o-mini",
+  "model_id": "gpt-4.1-nano",
   "algorithm": "best_of_n",
   "budget": 4,
   "use_case": "improve_model"
@@ -438,7 +450,7 @@ Compare baseline vs ITS inference.
 ```json
 {
   "question": "What is the derivative of x^3 + 2x^2?",
-  "model_id": "gpt-4o-mini",
+  "model_id": "gpt-4.1-nano",
   "frontier_model_id": "gpt-4o",
   "algorithm": "best_of_n",
   "budget": 4,
@@ -450,7 +462,7 @@ Compare baseline vs ITS inference.
 ```json
 {
   "question": "What's the compound annual growth rate if I invest $1000 and it grows to $2000 in 5 years?",
-  "model_id": "gpt-4o-mini",
+  "model_id": "gpt-4.1-nano",
   "algorithm": "self_consistency",
   "budget": 6,
   "use_case": "tool_consensus",
@@ -477,27 +489,34 @@ Compare baseline vs ITS inference.
   "baseline": {
     "answer": "...",
     "latency_ms": 1234,
-    "log_preview": "",
     "model_size": "Small",
     "cost_usd": 0.000007,
     "input_tokens": 15,
-    "output_tokens": 50
+    "output_tokens": 50,
+    "tokens_estimated": false,
+    "is_correct": true,
+    "eval_method": "exact_match"
   },
   "its": {
     "answer": "...",
     "latency_ms": 2345,
-    "log_preview": "",
     "model_size": "Small",
     "cost_usd": 0.000021,
     "input_tokens": 45,
-    "output_tokens": 150
+    "output_tokens": 150,
+    "tokens_estimated": true,
+    "is_correct": true,
+    "eval_method": "exact_match",
+    "trace": { "algorithm": "best_of_n", "candidates": [...], "scores": [...] }
   },
   "meta": {
-    "model_id": "gpt-4o-mini",
+    "model_id": "gpt-4.1-nano",
     "algorithm": "best_of_n",
     "budget": 4,
     "run_id": "uuid-here",
-    "use_case": "improve_model"
+    "use_case": "improve_model",
+    "question_type": "math",
+    "infrastructure": { "model": { "self_hostable": false }, "frontier": null }
   },
   "small_baseline": null
 }
@@ -512,7 +531,8 @@ Compare baseline vs ITS inference.
     "model_size": "Large",
     "cost_usd": 0.000117,
     "input_tokens": 15,
-    "output_tokens": 50
+    "output_tokens": 50,
+    "tokens_estimated": false
   },
   "its": {
     "answer": "...",
@@ -520,7 +540,8 @@ Compare baseline vs ITS inference.
     "model_size": "Small",
     "cost_usd": 0.000021,
     "input_tokens": 45,
-    "output_tokens": 150
+    "output_tokens": 150,
+    "tokens_estimated": true
   },
   "small_baseline": {
     "answer": "...",
@@ -528,15 +549,21 @@ Compare baseline vs ITS inference.
     "model_size": "Small",
     "cost_usd": 0.000007,
     "input_tokens": 15,
-    "output_tokens": 50
+    "output_tokens": 50,
+    "tokens_estimated": false
   },
   "meta": {
-    "model_id": "gpt-4o-mini",
+    "model_id": "gpt-4.1-nano",
     "frontier_model_id": "gpt-4o",
     "algorithm": "best_of_n",
     "budget": 4,
     "run_id": "uuid-here",
-    "use_case": "match_frontier"
+    "use_case": "match_frontier",
+    "question_type": "math",
+    "infrastructure": {
+      "model": { "self_hostable": false },
+      "frontier": { "self_hostable": false }
+    }
   }
 }
 ```
@@ -725,8 +752,10 @@ The frontend uses:
 - Fetch API for HTTP requests
 
 Frontend file responsibilities:
-- `index.html` — Landing page, wizard HTML shells, inline styles/scripts, shared utility functions
-- `guided-demo.js` — Guided Demo flow: state management, step navigation, mock data, trace animation, performance charts
+- `index.html` — Landing page and wizard HTML shells
+- `utils.js` — Shared formatting/rendering utilities (escapeHtml, formatLatency, renderMath, buildSavingsCard, etc.)
+- `app.js` — Core state management, offline scenario support, algorithm trace rendering
+- `guided-demo.js` — Guided Demo flow: state management, step navigation, captured data rendering, trace animation, performance charts
 - `guided-demo.css` — Guided Demo styles
 - `interactive-demo.js` — Interactive Demo flow: provider detection, live execution, results rendering, performance visualization
 - `interactive-demo.css` — Interactive Demo styles

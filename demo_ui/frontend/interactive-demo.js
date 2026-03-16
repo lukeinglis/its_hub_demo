@@ -3,13 +3,11 @@
  *
  * Flow: Provider Access → Detection → Scenario → Configure & Run → Results
  *
- * WHERE TO PLUG IN REAL DATA LATER:
- * ──────────────────────────────────
- * 1. IW_PROVIDER_DOCS       — Update setup instructions per provider
- * 2. IW_CURATED_PROMPTS     — Replace placeholder questions with real curated ones
- * 3. iwBuildRequest()       — Adjust request body for new use cases or parameters
- * 4. iwRenderResultPane()   — Customize answer presentation / judge integration
- * 5. iwRenderPerformance()  — Add real quality/judge scores
+ * Key integration points:
+ *   - Curated questions fetched from backend /examples endpoint (iwFetchExamples)
+ *   - Provider detection via /providers endpoint (iwCheckProviders)
+ *   - Live comparisons via /compare endpoint (iwSubmit)
+ *   - Performance visualization via PerformanceVizV2 with savings cards
  */
 
 // iwEscapeHtml and iwFormatLatency removed — use escapeHtml() and
