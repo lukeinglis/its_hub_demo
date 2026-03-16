@@ -366,13 +366,25 @@ async def run_its(
 
     # Create algorithm instance
     if algorithm == "best_of_n":
+        if LLMJudgeRewardModel is None:
+            raise ValueError(
+                "Best-of-N algorithm requires the reward_hub library. "
+                "Install with: pip install 'its_hub[prm]'"
+            )
+
         # Resolve judge criterion: built-in or custom
         built_in_criteria = {"overall_quality", "multi_step_tool_judge"}
         if judge_criterion in built_in_criteria:
             criterion_to_use = judge_criterion
         else:
             # Custom criterion — register with CriterionRegistry
-            from reward_hub.llm_judge.prompts import Criterion, CriterionRegistry
+            try:
+                from reward_hub.llm_judge.prompts import Criterion, CriterionRegistry
+            except ImportError:
+                raise ValueError(
+                    "Custom judge criteria require the reward_hub library. "
+                    "Install with: pip install 'its_hub[prm]'"
+                )
             criterion_name = f"custom_{hash(judge_criterion) & 0xFFFFFFFF:08x}"
             logger.info(f"Registering custom judge criterion as: {criterion_name}")
             custom_criterion = Criterion(

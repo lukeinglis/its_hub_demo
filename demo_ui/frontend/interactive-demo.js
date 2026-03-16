@@ -344,9 +344,9 @@ function iwSelectScenario(scenario) {
     document.querySelectorAll('#iwStep3 .iw-card').forEach(c => {
         c.classList.toggle('selected', c.dataset.scenario === scenario);
     });
-    setTimeout(() => {
+    setTimeout(async () => {
         iwPopulateConfig();
-        iwPopulatePrompts();
+        await iwPopulatePrompts();
         iwShowStep(4);
     }, 250);
 }
@@ -409,7 +409,7 @@ function iwBudgetChanged(slider) {
 }
 
 // Re-populate curated prompts when algorithm changes; show/hide criterion selector
-function iwAlgorithmChanged() {
+async function iwAlgorithmChanged() {
     iwState.algorithm = document.getElementById('iwAlgorithm').value;
 
     // Show judge criterion selector only for best_of_n
@@ -418,7 +418,7 @@ function iwAlgorithmChanged() {
         setVisible(criterionGroup, iwState.algorithm === 'best_of_n');
     }
 
-    iwPopulatePrompts();
+    await iwPopulatePrompts();
 }
 
 
