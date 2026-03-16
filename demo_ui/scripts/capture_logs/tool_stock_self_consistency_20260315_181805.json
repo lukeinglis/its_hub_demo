@@ -1,0 +1,160 @@
+{
+  "baseline": {
+    "response": "[Tool call: web_search Tool args: \"{\\\"query\\\":\\\"current stock price of Apple (AAPL)\\\"}\"]\n\n**Tool Used:** web_search\n**Result:** {\"results\": [{\"title\": \"Apple Inc. (AAPL) Stock Price Today\", \"snippet\": \"AAPL stock is trading at $178.42, up 2.3% today. Market cap: $2.8T\", \"url\": \"https://finance.example.com/aapl\"}, {\"title\": \"Apple Reports Q4 Earnings Beat\", \"snippet\": \"Apple reported earnings of $1.46 per share, beating estimates of $1.39\", \"url\": \"https://news.example.com/apple-earnings\"}], \"total_found\": 2}",
+    "latency_ms": 1641,
+    "input_tokens": 281,
+    "output_tokens": 22,
+    "cost_usd": 3.7e-05,
+    "tool_call": {
+      "name": "web_search",
+      "arguments": {
+        "query": "current stock price of Apple (AAPL)"
+      }
+    }
+  },
+  "its": {
+    "response": "[Tool call: get_data Tool args: \"{\\\"data_type\\\":\\\"stock_price\\\"}\"]\n\n**Tool Used:** get_data\n**Result:** {\"symbol\": \"UNKNOWN\", \"price\": 100.0, \"change\": -0.72, \"change_percent\": -2.24, \"volume\": 54448250, \"timestamp\": \"2026-03-15T18:18:05.992393\"}",
+    "latency_ms": 1216,
+    "input_tokens": 2248,
+    "output_tokens": 176,
+    "cost_usd": 0.000295,
+    "tool_call": {
+      "name": "get_data",
+      "arguments": {
+        "data_type": "stock_price"
+      }
+    }
+  },
+  "trace": {
+    "algorithm": "self_consistency",
+    "candidates": [
+      {
+        "index": 0,
+        "content": "[Tool call: get_data Tool args: \"{\\\"data_type\\\":\\\"stock_price\\\"}\"]",
+        "is_selected": false,
+        "tool_calls": [
+          {
+            "name": "get_data",
+            "arguments": {
+              "data_type": "stock_price"
+            },
+            "result": null
+          }
+        ]
+      },
+      {
+        "index": 1,
+        "content": "[Tool call: get_data Tool args: \"{\\\"data_type\\\":\\\"stock_price\\\"}\"]",
+        "is_selected": true,
+        "tool_calls": [
+          {
+            "name": "get_data",
+            "arguments": {
+              "data_type": "stock_price"
+            },
+            "result": null
+          }
+        ]
+      },
+      {
+        "index": 2,
+        "content": "[Tool call: get_data Tool args: \"{\\\"data_type\\\":\\\"stock_price\\\"}\"]",
+        "is_selected": false,
+        "tool_calls": [
+          {
+            "name": "get_data",
+            "arguments": {
+              "data_type": "stock_price"
+            },
+            "result": null
+          }
+        ]
+      },
+      {
+        "index": 3,
+        "content": "[Tool call: web_search Tool args: \"{\\\"query\\\":\\\"current stock price of Apple (AAPL)\\\"}\"]",
+        "is_selected": false,
+        "tool_calls": [
+          {
+            "name": "web_search",
+            "arguments": {
+              "query": "current stock price of Apple (AAPL)"
+            },
+            "result": null
+          }
+        ]
+      },
+      {
+        "index": 4,
+        "content": "[Tool call: get_data Tool args: \"{\\\"data_type\\\":\\\"stock_price\\\"}\"]",
+        "is_selected": false,
+        "tool_calls": [
+          {
+            "name": "get_data",
+            "arguments": {
+              "data_type": "stock_price"
+            },
+            "result": null
+          }
+        ]
+      },
+      {
+        "index": 5,
+        "content": "[Tool call: get_data Tool args: \"{\\\"data_type\\\":\\\"stock_price\\\"}\"]",
+        "is_selected": false,
+        "tool_calls": [
+          {
+            "name": "get_data",
+            "arguments": {
+              "data_type": "stock_price"
+            },
+            "result": null
+          }
+        ]
+      },
+      {
+        "index": 6,
+        "content": "[Tool call: get_data Tool args: \"{\\\"data_type\\\":\\\"stock_price\\\"}\"]",
+        "is_selected": false,
+        "tool_calls": [
+          {
+            "name": "get_data",
+            "arguments": {
+              "data_type": "stock_price"
+            },
+            "result": null
+          }
+        ]
+      },
+      {
+        "index": 7,
+        "content": "[Tool call: web_search Tool args: \"{\\\"query\\\":\\\"current stock price of Apple (AAPL)\\\"}\"]",
+        "is_selected": false,
+        "tool_calls": [
+          {
+            "name": "web_search",
+            "arguments": {
+              "query": "current stock price of Apple (AAPL)"
+            },
+            "result": null
+          }
+        ]
+      }
+    ],
+    "vote_counts": {
+      "get_data": 6,
+      "web_search": 2
+    },
+    "total_votes": 8,
+    "tool_voting": {
+      "tool_vote_type": "tool_name",
+      "tool_counts": {
+        "get_data": 6,
+        "web_search": 2
+      },
+      "winning_tool": "get_data",
+      "total_tool_calls": 8
+    }
+  },
+  "question": "What is the current stock price of Apple (AAPL)?"
+}

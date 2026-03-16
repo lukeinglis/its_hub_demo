@@ -9,7 +9,7 @@ Quick reference for presenting the ITS demo. For setup, architecture, and API de
 1. Backend running: `cd demo_ui && uvicorn backend.main:app --port 8000`
 2. Open `http://localhost:8000`
 3. Hard refresh: `Cmd+Shift+R` (Mac) or `Ctrl+Shift+R` (Windows)
-4. Quick test: Improve Model tab → GPT-4o Mini → "What is 2+2?" → Run
+4. Quick test: Improve Model tab → GPT-3.5 Turbo → "What is 2+2?" → Run
 
 ---
 
@@ -22,9 +22,9 @@ Quick reference for presenting the ITS demo. For setup, architecture, and API de
 | Setting | Value |
 |---------|-------|
 | Tab | Agent Tool Consensus |
-| Model | GPT-4o Mini |
+| Model | GPT-4.1 Nano |
 | Algorithm | Self-Consistency |
-| Budget | 6 |
+| Budget | 8 |
 
 **Question:**
 > What's the compound annual growth rate if I invest $1000 and it grows to $2000 in 5 years?
@@ -42,7 +42,7 @@ Quick reference for presenting the ITS demo. For setup, architecture, and API de
 | Setting | Value |
 |---------|-------|
 | Tab | Match Frontier with Smaller Model |
-| Small Model | GPT-4o Mini |
+| Small Model | GPT-3.5 Turbo |
 | Frontier Model | GPT-4o |
 | Algorithm | Self-Consistency |
 | Budget | 6 |
@@ -50,9 +50,9 @@ Quick reference for presenting the ITS demo. For setup, architecture, and API de
 **Question:**
 > Let $x$ and $y$ be positive real numbers such that $x + y = 10$ and $x^2 + y^2 = 60$. Find the value of $x^3 + y^3$.
 
-**Expected:** Auto-detected as `math`. All three outputs use `\boxed{400}`. Cost: ~$0.000042 vs ~$0.000117 (**64% savings**).
+**Expected:** Auto-detected as `math`. All three outputs use `\boxed{400}`. Small + ITS costs less than frontier.
 
-**Talking point:** "The small model with ITS matches the frontier at 64% lower cost — same quality, structured answer extraction ensures fair comparison."
+**Talking point:** "The small model with ITS matches the frontier at lower cost — same quality, structured answer extraction ensures fair comparison."
 
 ---
 
@@ -80,8 +80,8 @@ Quick reference for presenting the ITS demo. For setup, architecture, and API de
 
 | Use Case | Model | Algorithm | Budget | Expected Improvement |
 |----------|-------|-----------|--------|---------------------|
-| Tool Consensus | GPT-4o Mini | Self-Consistency | 6 | Auto-detect + reliable consensus |
-| Match Frontier | GPT-4o Mini → GPT-4o | Self-Consistency | 6 | 64% cost savings |
+| Tool Consensus | GPT-4.1 Nano | Self-Consistency | 8 | Auto-detect + reliable consensus |
+| Match Frontier | GPT-3.5 Turbo → GPT-4o | Self-Consistency | 6 | 14-44% cost savings |
 | Improve Model | GPT-3.5 Turbo | Self-Consistency | 8 | 30-60% accuracy gain |
 
 ---
@@ -90,16 +90,16 @@ Quick reference for presenting the ITS demo. For setup, architecture, and API de
 
 ### Demo 1: Tool Consensus (1.5 min)
 1. Click "Agent Tool Consensus" tab
-2. Select GPT-4o Mini, Self-Consistency, Budget 6
+2. Select GPT-4.1 Nano, Self-Consistency, Budget 8
 3. Paste the CAGR question → Run
 4. Click "Algorithm Trace" to show tool voting
 5. Highlight: auto-detection, consensus distribution, correct result
 
 ### Demo 2: Match Frontier (2 min)
 1. Click "Match Frontier" tab
-2. Select GPT-4o Mini / GPT-4o, Self-Consistency, Budget 6
+2. Select GPT-3.5 Turbo / GPT-4o, Self-Consistency, Budget 6
 3. Paste the algebra question → Run
-4. Highlight: all three use `\boxed{400}`, 64% cost savings
+4. Highlight: all three use `\boxed{400}`, cost savings vs frontier
 
 ### Demo 3: Improve Model (1.5 min)
 1. Click "Improve Model Performance" tab
@@ -136,7 +136,7 @@ Use **Match Frontier** with the algebra question above. It shows cost savings + 
 | Audience | Order | Focus |
 |----------|-------|-------|
 | **Technical** (engineers) | Tool Consensus → Improve Model → Match Frontier | Auto-detection, answer extraction, algorithm traces |
-| **Business** (executives) | Match Frontier → Improve Model → Tool Consensus | ROI (64% savings), quality gains, reliability |
+| **Business** (executives) | Match Frontier → Improve Model → Tool Consensus | ROI (cost savings), quality gains, reliability |
 | **Research** (ML/academic) | Improve Model → Tool Consensus → Match Frontier | Voting methodology, hierarchical tool voting, fair evaluation |
 
 ---
@@ -155,7 +155,7 @@ Use **Match Frontier** with the algebra question above. It shows cost savings + 
 
 | Error | Fix |
 |-------|-----|
-| "No endpoints found for tool use" | Wrong model for Tool Consensus — use GPT-4o Mini or GPT-3.5 Turbo |
-| Model timeout / connection error | Switch to an OpenAI model (GPT-4o Mini recommended) |
+| "No endpoints found for tool use" | Wrong model for Tool Consensus — use GPT-4.1 Nano or GPT-3.5 Turbo |
+| Model timeout / connection error | Switch to an OpenAI model (GPT-4.1 Nano recommended) |
 | Empty dropdowns | Hard refresh (`Cmd+Shift+R`) |
 | Backend not reachable | Run `uvicorn backend.main:app --port 8000` from `demo_ui/` |

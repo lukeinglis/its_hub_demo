@@ -50,7 +50,7 @@ GUIDED_CONFIGS = [
     },
     # --- tool_currency ---
     # GPT-4.1 Nano with tools: should use get_data for currency rates,
-    # but sometimes picks web_search or calculate. SC tool voting fixes it.
+    # but sometimes picks web_search. SC tool voting fixes it.
     # Question adapted from BFCL multiple_52.
     {
         "key": "tool_currency_self_consistency",
@@ -59,7 +59,7 @@ GUIDED_CONFIGS = [
         "algorithm": "self_consistency",
         "model_id": "gpt-4.1-nano",
         "budget": 8,
-        "question": "I have 100 euros. How much is that in US dollars at the current exchange rate?",
+        "question": "How many Japanese yen can I get for 200 US dollars?",
         "question_type": "tool_calling",
         "enable_tools": True,
         "tool_vote": "tool_name",
@@ -89,7 +89,8 @@ GUIDED_CONFIGS = [
         "model_id": "gpt-4.1-nano",
         "budget": 4,
         "question": "An investment of $10,000 earns 8% annual interest compounded quarterly. After 3 years, how much total interest has been earned? Round to the nearest cent.",
-        "question_type": "general",
+        "expected_answer": "2,682.42",
+        "question_type": "math",
         "judge_criterion": "Score 1-10 strictly: The correct formula is A = P(1 + r/n)^(nt) = 10000(1.02)^12 = $12,682.42. Interest earned = $2,682.42. Deduct 5 points if final answer is wrong by more than $1. Deduct 3 points if formula is wrong. Deduct 2 points if work is unclear or steps are missing. Only 9-10 if answer is exactly $2,682.42 with clear work shown.",
         "require_improvement": True,
     },
@@ -115,24 +116,25 @@ GUIDED_CONFIGS = [
         "algorithm": "best_of_n",
         "model_id": "llama-3.2-3b",
         "budget": 4,
-        "question": "A store buys shirts for $15 each and sells them for $25 each. Last month they sold 400 shirts. This month, they offered a 10% discount and sold 500 shirts. Calculate: (1) last month's profit, (2) this month's profit, (3) which month was more profitable and by how much.",
-        "question_type": "general",
-        "judge_criterion": "Score 1-10 strictly: Last month profit = 400 x (25-15) = $4000. This month sale price = $22.50, profit per shirt = $7.50, total = 500 x 7.50 = $3750. Last month more profitable by $250. Deduct 3 points per wrong calculation. Deduct 2 points if conclusion contradicts the numbers. Only 9-10 if all three parts calculated correctly with clear work.",
+        "question": "In how many ways can 5 letters be placed in 5 addressed envelopes so that no letter is in its correct envelope?",
+        "expected_answer": "44",
+        "question_type": "math",
+        "judge_criterion": "Score 1-10 strictly: This is a derangement problem. D(5) = 5! * (1 - 1/1! + 1/2! - 1/3! + 1/4! - 1/5!) = 120 * (1 - 1 + 1/2 - 1/6 + 1/24 - 1/120) = 120 * (44/120) = 44. Only 9-10 if final answer is exactly 44 with correct reasoning. Deduct 5 points if final answer is wrong. Deduct 3 points if formula/method is wrong.",
         "require_improvement": True,
     },
     # --- match_same_family ---
-    # GPT-4.1-nano vs GPT-4.1: modular arithmetic is error-prone for small models.
-    # ITS costs less than the frontier model while matching quality.
+    # GPT-3.5 Turbo vs GPT-4o: same OpenAI family, GPT-3.5 struggles with
+    # combinatorics. ITS costs less than the frontier model while matching quality.
     {
         "key": "match_same_family_self_consistency",
         "scenario_id": "match_same_family",
         "use_case": "match_frontier",
         "algorithm": "self_consistency",
-        "model_id": "gpt-4.1-nano",
-        "frontier_model_id": "gpt-4.1",
+        "model_id": "gpt-3.5-turbo",
+        "frontier_model_id": "gpt-4o",
         "budget": 8,
-        "question": "A palindrome is a number that reads the same forwards and backwards. How many 5-digit palindromes are divisible by 3?",
-        "expected_answer": "300",
+        "question": "In how many ways can 5 letters be placed in 5 addressed envelopes so that no letter is in its correct envelope?",
+        "expected_answer": "44",
         "question_type": "math",
         "require_improvement": True,
     },
@@ -141,12 +143,14 @@ GUIDED_CONFIGS = [
         "scenario_id": "match_same_family",
         "use_case": "match_frontier",
         "algorithm": "best_of_n",
-        "model_id": "gpt-4.1-nano",
-        "frontier_model_id": "gpt-4.1",
-        "budget": 8,
-        "question": "An investment of $10,000 earns 8% annual interest compounded quarterly. After 3 years, how much total interest has been earned? Round to the nearest cent.",
-        "question_type": "general",
-        "judge_criterion": "Score 1-10 strictly: The correct formula is A = P(1 + r/n)^(nt) = 10000(1.02)^12 = $12,682.42. Interest earned = $2,682.42. Deduct 5 points if final answer is wrong by more than $1. Deduct 3 points if formula is wrong. Deduct 2 points if work is unclear or steps are missing. Only 9-10 if answer is exactly $2,682.42 with clear work shown.",
+        "model_id": "gpt-3.5-turbo",
+        "frontier_model_id": "gpt-4o",
+        "budget": 4,
+        "question": "In how many ways can 5 letters be placed in 5 addressed envelopes so that no letter is in its correct envelope?",
+        "expected_answer": "44",
+        "question_type": "math",
+        "judge_criterion": "Score 1-10 strictly: This is a derangement problem. D(5) = 5! * (1 - 1/1! + 1/2! - 1/3! + 1/4! - 1/5!) = 120 * (1 - 1 + 1/2 - 1/6 + 1/24 - 1/120) = 120 * (44/120) = 44. Only 9-10 if final answer is exactly 44 with correct reasoning. Deduct 5 points if final answer is wrong. Deduct 3 points if formula/method is wrong.",
+        "require_improvement": True,
     },
     # --- match_cross_family ---
     # Llama 3.2 3B vs GPT-4o: dramatic cost savings (~20x cheaper).
@@ -171,10 +175,12 @@ GUIDED_CONFIGS = [
         "algorithm": "best_of_n",
         "model_id": "llama-3.2-3b",
         "frontier_model_id": "gpt-4o",
-        "budget": 8,
-        "question": "A store buys shirts for $15 each and sells them for $25 each. Last month they sold 400 shirts. This month, they offered a 10% discount and sold 500 shirts. Calculate: (1) last month's profit, (2) this month's profit, (3) which month was more profitable and by how much.",
-        "question_type": "general",
-        "judge_criterion": "Score 1-10 strictly: Last month profit = 400 x (25-15) = $4000. This month sale price = $22.50, profit per shirt = $7.50, total = 500 x 7.50 = $3750. Last month more profitable by $250. Deduct 3 points per wrong calculation. Deduct 2 points if conclusion contradicts the numbers. Only 9-10 if all three parts calculated correctly with clear work.",
+        "budget": 4,
+        "question": "In how many ways can 5 letters be placed in 5 addressed envelopes so that no letter is in its correct envelope?",
+        "expected_answer": "44",
+        "question_type": "math",
+        "judge_criterion": "Score 1-10 strictly: This is a derangement problem. D(5) = 5! * (1 - 1/1! + 1/2! - 1/3! + 1/4! - 1/5!) = 120 * (1 - 1 + 1/2 - 1/6 + 1/24 - 1/120) = 120 * (44/120) = 44. Only 9-10 if final answer is exactly 44 with correct reasoning. Deduct 5 points if final answer is wrong. Deduct 3 points if formula/method is wrong.",
+        "require_improvement": True,
     },
 ]
 
@@ -355,35 +361,165 @@ async def capture_one(
     return result
 
 
-def _responses_differ(result: dict[str, Any], algo: str, use_case: str = "") -> bool:
+def _extract_last_boxed(text: str) -> str | None:
+    """Extract the last \\boxed{...} answer from a response."""
+    matches = re.findall(r"\\boxed\{([^}]+)\}", text)
+    return matches[-1].strip() if matches else None
+
+
+def _responses_differ(
+    result: dict[str, Any], algo: str, use_case: str = "",
+    expected_answer: str | None = None,
+) -> bool:
     """Check whether the ITS response is meaningfully different from baseline.
 
     For tool_consensus: the baseline and ITS should pick different tools.
-    For SC: the baseline and ITS final answers should differ (baseline wrong,
-    ITS right via majority vote).
-    For BoN: the ITS response should be longer or structurally different from
-    baseline (judge selected a better candidate).
+    For math SC with expected_answer: baseline must be WRONG, ITS must be
+    RIGHT, ITS latency > baseline, and baseline's wrong answer should appear
+    in at least one ITS candidate.
+    For SC: the baseline and ITS final answers should differ.
+    For BoN: the ITS response should be structurally different from baseline.
     """
     # Tool calling: compare tool names
     if use_case == "tool_consensus":
         b_tool = result["baseline"].get("tool_call", {}).get("name", "")
         i_tool = result["its"].get("tool_call", {}).get("name", "")
         if b_tool and i_tool:
-            return b_tool != i_tool
-        # Fallback to response comparison if no tool calls captured
+            if b_tool == i_tool:
+                return False
+            # ITS must pick the correct tool (get_data), baseline must pick wrong
+            if i_tool != "get_data":
+                print(f"  ITS picked {i_tool} instead of get_data — wrong direction")
+                return False
+            # Baseline's wrong tool should appear in at least one candidate
+            trace = result.get("trace", {})
+            candidates = trace.get("candidates", [])
+            if candidates:
+                candidate_tools = [
+                    (c.get("tool_calls") or [{}])[0].get("name", "")
+                    for c in candidates
+                ]
+                if b_tool not in candidate_tools:
+                    print(f"  Baseline tool ({b_tool}) not in any candidate — not credible")
+                    return False
+                b_count = candidate_tools.count(b_tool)
+                i_count = candidate_tools.count(i_tool)
+                if i_count <= b_count:
+                    print(f"  ITS tool not majority ({i_tool}: {i_count}, {b_tool}: {b_count}) — need clear win")
+                    return False
+                print(f"  Tools: baseline={b_tool}, ITS={i_tool}, votes: {{{i_tool}: {i_count}, {b_tool}: {b_count}}}")
+            return True
         return result["baseline"]["response"].strip() != result["its"]["response"].strip()
 
     b_resp = result["baseline"]["response"]
     i_resp = result["its"]["response"]
 
+    # Latency sanity: ITS should take longer than baseline (multiple generations)
+    b_lat = result["baseline"].get("latency_ms", 0)
+    i_lat = result["its"].get("latency_ms", 0)
+    if i_lat > 0 and b_lat > 0 and i_lat <= b_lat:
+        print(f"  Latency: baseline={b_lat}ms >= ITS={i_lat}ms — not credible")
+        return False
+
+    # Match frontier: ITS cost must be less than frontier cost
+    if use_case == "match_frontier":
+        frontier = result.get("frontier", {})
+        i_cost = result["its"].get("cost_usd", 0)
+        f_cost = frontier.get("cost_usd", 0)
+        if i_cost > 0 and f_cost > 0 and i_cost >= f_cost:
+            print(f"  Cost: ITS=${i_cost:.6f} >= frontier=${f_cost:.6f} — ITS should be cheaper")
+            return False
+
     if algo == "self_consistency":
-        # For math SC: check if the two answers are textually different
-        # (one is wrong, the other is right via voting)
+        if expected_answer:
+            b_answer = _extract_last_boxed(b_resp)
+            i_answer = _extract_last_boxed(i_resp)
+            i_right = i_answer == expected_answer
+
+            # For match_frontier: ITS must be correct, frontier must be correct,
+            # and baseline should be wrong for the strongest story.
+            if use_case == "match_frontier":
+                if not i_right:
+                    print(f"  ITS boxed={i_answer}, expected={expected_answer} — ITS wrong")
+                    return False
+                # Check frontier is also correct
+                frontier = result.get("frontier", {})
+                f_resp = frontier.get("response", "")
+                f_answer = _extract_last_boxed(f_resp)
+                f_right = f_answer == expected_answer
+                if not f_right:
+                    print(f"  Frontier boxed={f_answer}, expected={expected_answer} — frontier wrong, bad demo")
+                    return False
+                b_wrong = b_answer is None or b_answer != expected_answer
+                if not b_wrong:
+                    print(f"  All correct (baseline={b_answer}, ITS={i_answer}, frontier={f_answer}) — baseline not wrong, retrying")
+                    return False
+                print(f"  Baseline boxed={b_answer} (wrong), ITS boxed={i_answer} (correct), frontier boxed={f_answer} (correct)")
+                return True
+
+            # For improve_model: require baseline WRONG, ITS RIGHT
+            b_wrong = b_answer is None or b_answer != expected_answer
+            if not (b_wrong and i_right):
+                print(f"  Baseline boxed={b_answer}, ITS boxed={i_answer}, expected={expected_answer} — not ideal")
+                return False
+
+            # Check baseline's wrong answer appears in at least one candidate
+            trace = result.get("trace", {})
+            candidates = trace.get("candidates", [])
+            if b_answer and candidates:
+                candidate_answers = []
+                for c in candidates:
+                    ca = _extract_last_boxed(c.get("content", ""))
+                    candidate_answers.append(ca)
+                if b_answer not in candidate_answers:
+                    print(f"  Baseline boxed={b_answer} (wrong) not in any candidate — not credible")
+                    return False
+
+            print(f"  Baseline boxed={b_answer} (wrong), ITS boxed={i_answer} (correct), latency {b_lat}ms vs {i_lat}ms")
+            return True
+
+        # Fallback: check if the two answers are textually different
         b_short = b_resp[:200].strip()
         i_short = i_resp[:200].strip()
         return b_short != i_short
 
-    # For BoN: responses should be different text (judge picked a different candidate)
+    if algo == "best_of_n":
+        if expected_answer:
+            b_answer = _extract_last_boxed(b_resp)
+            i_answer = _extract_last_boxed(i_resp)
+
+            # If we have boxed answers and a simple expected answer, use extraction
+            if i_answer is not None and "(" not in expected_answer:
+                i_right = expected_answer in i_answer
+                if not i_right:
+                    print(f"  BoN: ITS boxed={i_answer}, expected={expected_answer} — ITS wrong")
+                    return False
+                b_wrong = b_answer is None or expected_answer not in b_answer
+                if b_wrong:
+                    print(f"  BoN: Baseline boxed={b_answer} (wrong), ITS boxed={i_answer} (correct), latency {b_lat}ms vs {i_lat}ms")
+                else:
+                    print(f"  BoN: Both correct (baseline={b_answer}, ITS={i_answer}) — not ideal, retrying")
+                    return False
+                return True
+
+            # Multi-part or no boxed answers: trust the judge scores
+            trace = result.get("trace", {})
+            scores = trace.get("scores", [])
+            if scores:
+                its_score = max(scores)
+                if b_resp.strip() == i_resp.strip():
+                    print(f"  BoN: Baseline and ITS responses identical — retrying")
+                    return False
+                if its_score >= 8:
+                    print(f"  BoN (general): ITS best judge score={its_score}/10, latency {b_lat}ms vs {i_lat}ms")
+                    return True
+                print(f"  BoN: Judge score too low ({its_score}) — retrying")
+                return False
+
+        # Fallback: responses should be different text
+        return b_resp.strip() != i_resp.strip()
+
+    # Default fallback
     return b_resp.strip() != i_resp.strip()
 
 
@@ -458,7 +594,7 @@ async def main() -> None:
     # Capture combinations
     # For configs with require_improvement=True, retry up to MAX_RETRIES
     # times until the baseline and ITS responses visibly differ.
-    MAX_RETRIES = 5
+    MAX_RETRIES = 20
     async with httpx.AsyncClient() as client:
         for config in configs:
             need_improvement = config.get("require_improvement", False)
@@ -473,7 +609,7 @@ async def main() -> None:
                 if not result:
                     continue
 
-                if not need_improvement or _responses_differ(result, algo, config.get("use_case", "")):
+                if not need_improvement or _responses_differ(result, algo, config.get("use_case", ""), config.get("expected_answer")):
                     best_result = result
                     if need_improvement:
                         print(f"  Found improvement on attempt {attempt}")

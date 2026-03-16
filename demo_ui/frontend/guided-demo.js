@@ -66,10 +66,10 @@ const GUIDED_SCENARIOS = {
         title: 'Same Model Family',
         subtitle: 'Match quality while reducing costs',
         icon: '👨‍👦',
-        smallModel: 'GPT-4.1 Nano',
-        frontierModel: 'GPT-4.1',
+        smallModel: 'GPT-3.5 Turbo',
+        frontierModel: 'GPT-4o',
         provider: 'OpenAI',
-        description: 'GPT-4.1 Nano costs 85% less per token than GPT-4.1. With ITS, the small model matches frontier quality while maintaining significant cost savings.',
+        description: 'GPT-3.5 Turbo costs 97% less per token than GPT-4o. With ITS, the small model matches frontier quality while maintaining significant cost savings.',
     },
     match_cross_family: {
         id: 'match_cross_family',
@@ -113,10 +113,10 @@ const GUIDED_SCENARIOS = {
         source: 'Adapted from BFCL multiple_52 (Berkeley Function Calling Leaderboard)',
         expectedTool: {
             name: 'get_data',
-            arguments: { data_type: 'currency_rate', parameters: { from: 'EUR', to: 'USD' } },
+            arguments: { data_type: 'currency_rate', parameters: { from: 'USD', to: 'JPY' } },
         },
-        correctExplanation: 'The get_data tool with data_type="currency_rate" returns the precise, current exchange rate as structured data. This can be directly used for calculation (100 × rate) without any text parsing. In agentic workflows, using the structured API ensures reliable, programmatic access to the data.',
-        baselineExplanation: 'The baseline picked web_search, which returns search snippets like "1 USD = 0.92 EUR". The rate is buried in free text, may be in the wrong direction (USD→EUR vs EUR→USD), and requires regex or LLM extraction to use programmatically.',
+        correctExplanation: 'The get_data tool with data_type="currency_rate" returns the precise, current exchange rate as structured data. This can be directly used for calculation (200 × rate) without any text parsing. In agentic workflows, using the structured API ensures reliable, programmatic access to the data.',
+        baselineExplanation: 'The baseline picked web_search, which returns search snippets like "1 USD = 149.50 JPY". The rate is buried in free text, may be stale, and requires regex or LLM extraction to use programmatically.',
     },
 };
 
@@ -129,13 +129,13 @@ const GUIDED_MOCK_QUESTIONS = {
     'improve_frontier_self_consistency': 'A palindrome is a number that reads the same forwards and backwards. How many 5-digit palindromes are divisible by 3?',
     'improve_frontier_best_of_n': 'An investment of $10,000 earns 8% annual interest compounded quarterly. After 3 years, how much total interest has been earned? Round to the nearest cent.',
     'improve_opensource_self_consistency': 'In how many ways can 5 letters be placed in 5 addressed envelopes so that no letter is in its correct envelope?',
-    'improve_opensource_best_of_n': "A store buys shirts for $15 each and sells them for $25 each. Last month they sold 400 shirts. This month, they offered a 10% discount and sold 500 shirts. Calculate: (1) last month's profit, (2) this month's profit, (3) which month was more profitable and by how much.",
-    'match_same_family_self_consistency': 'A palindrome is a number that reads the same forwards and backwards. How many 5-digit palindromes are divisible by 3?',
-    'match_same_family_best_of_n': 'An investment of $10,000 earns 8% annual interest compounded quarterly. After 3 years, how much total interest has been earned? Round to the nearest cent.',
+    'improve_opensource_best_of_n': 'In how many ways can 5 letters be placed in 5 addressed envelopes so that no letter is in its correct envelope?',
+    'match_same_family_self_consistency': 'In how many ways can 5 letters be placed in 5 addressed envelopes so that no letter is in its correct envelope?',
+    'match_same_family_best_of_n': 'In how many ways can 5 letters be placed in 5 addressed envelopes so that no letter is in its correct envelope?',
     'match_cross_family_self_consistency': 'In how many ways can 5 letters be placed in 5 addressed envelopes so that no letter is in its correct envelope?',
-    'match_cross_family_best_of_n': "A store buys shirts for $15 each and sells them for $25 each. Last month they sold 400 shirts. This month, they offered a 10% discount and sold 500 shirts. Calculate: (1) last month's profit, (2) this month's profit, (3) which month was more profitable and by how much.",
+    'match_cross_family_best_of_n': 'In how many ways can 5 letters be placed in 5 addressed envelopes so that no letter is in its correct envelope?',
     'tool_stock_self_consistency': 'What is the current stock price of Apple (AAPL)?',
-    'tool_currency_self_consistency': 'I have 100 euros. How much is that in US dollars at the current exchange rate?',
+    'tool_currency_self_consistency': 'How many Japanese yen can I get for 200 US dollars?',
 };
 
 // ============================================================
@@ -324,52 +324,52 @@ function getToolCallingMockResponse(scenarioId) {
     if (scenarioId === 'tool_currency') {
         return {
             baseline: {
-                response: 'Let me search the web for the current EUR to USD exchange rate.',
+                response: 'Let me search the web for the current USD to JPY exchange rate.',
                 latency_ms: 540,
                 input_tokens: 48,
                 output_tokens: 42,
                 cost_usd: 0.000035,
                 tool_call: {
                     name: 'web_search',
-                    arguments: { query: '100 euros to USD exchange rate today' },
+                    arguments: { query: 'current USD to JPY exchange rate' },
                 },
             },
             its: {
-                response: 'I\'ll retrieve the current EUR to USD exchange rate using the structured data API.',
+                response: 'I\'ll retrieve the current USD to JPY exchange rate using the structured data API.',
                 latency_ms: 1320,
                 input_tokens: 384,
                 output_tokens: 50,
                 cost_usd: 0.000220,
                 tool_call: {
                     name: 'get_data',
-                    arguments: { data_type: 'currency_rate', parameters: { from: 'EUR', to: 'USD' } },
+                    arguments: { data_type: 'currency_rate', parameters: { from: 'USD', to: 'JPY' } },
                 },
             },
             trace: {
                 algorithm: 'self_consistency',
                 candidates: [
-                    { index: 0, content: 'I\'ll use get_data to retrieve the EUR/USD exchange rate.', is_selected: false,
-                      tool_calls: [{ name: 'get_data', arguments: { data_type: 'currency_rate', parameters: { from: 'EUR', to: 'USD' } } }] },
+                    { index: 0, content: 'I\'ll use get_data to retrieve the USD/JPY exchange rate.', is_selected: false,
+                      tool_calls: [{ name: 'get_data', arguments: { data_type: 'currency_rate', parameters: { from: 'USD', to: 'JPY' } } }] },
                     { index: 1, content: 'Let me search for the current exchange rate online.', is_selected: false,
-                      tool_calls: [{ name: 'web_search', arguments: { query: 'EUR to USD exchange rate today' } }] },
+                      tool_calls: [{ name: 'web_search', arguments: { query: 'USD to JPY exchange rate today' } }] },
                     { index: 2, content: 'I\'ll query the currency rate data source.', is_selected: true,
-                      tool_calls: [{ name: 'get_data', arguments: { data_type: 'currency_rate', parameters: { from: 'EUR', to: 'USD' } } }] },
-                    { index: 3, content: 'I\'ll calculate 100 * the exchange rate.', is_selected: false,
-                      tool_calls: [{ name: 'calculate', arguments: { expression: '100 * 1.09', method: 'numeric' } }] },
+                      tool_calls: [{ name: 'get_data', arguments: { data_type: 'currency_rate', parameters: { from: 'USD', to: 'JPY' } } }] },
+                    { index: 3, content: 'Let me search for USD to yen conversion.', is_selected: false,
+                      tool_calls: [{ name: 'web_search', arguments: { query: 'US dollar to Japanese yen conversion rate' } }] },
                     { index: 4, content: 'Using the get_data tool for currency conversion.', is_selected: false,
-                      tool_calls: [{ name: 'get_data', arguments: { data_type: 'currency_rate', parameters: { from: 'EUR', to: 'USD' } } }] },
+                      tool_calls: [{ name: 'get_data', arguments: { data_type: 'currency_rate', parameters: { from: 'USD', to: 'JPY' } } }] },
                     { index: 5, content: 'I\'ll look up the currency rate via get_data.', is_selected: false,
-                      tool_calls: [{ name: 'get_data', arguments: { data_type: 'currency_rate', parameters: { from: 'EUR', to: 'USD' } } }] },
-                    { index: 6, content: 'Let me search for EUR to USD conversion.', is_selected: false,
-                      tool_calls: [{ name: 'web_search', arguments: { query: 'euro to dollar conversion rate' } }] },
+                      tool_calls: [{ name: 'get_data', arguments: { data_type: 'currency_rate', parameters: { from: 'USD', to: 'JPY' } } }] },
+                    { index: 6, content: 'I\'ll use get_data for the exchange rate.', is_selected: false,
+                      tool_calls: [{ name: 'get_data', arguments: { data_type: 'currency_rate', parameters: { from: 'USD', to: 'JPY' } } }] },
                     { index: 7, content: 'I\'ll retrieve the exchange rate from the data API.', is_selected: false,
-                      tool_calls: [{ name: 'get_data', arguments: { data_type: 'currency_rate', parameters: { from: 'EUR', to: 'USD' } } }] },
+                      tool_calls: [{ name: 'get_data', arguments: { data_type: 'currency_rate', parameters: { from: 'USD', to: 'JPY' } } }] },
                 ],
-                vote_counts: { 'get_data': 5, 'web_search': 2, 'calculate': 1 },
+                vote_counts: { 'get_data': 6, 'web_search': 2 },
                 total_votes: 8,
                 tool_voting: {
                     tool_vote_type: 'tool_name',
-                    tool_counts: { 'get_data': 5, 'web_search': 2, 'calculate': 1 },
+                    tool_counts: { 'get_data': 6, 'web_search': 2 },
                     winning_tool: 'get_data',
                     total_tool_calls: 8,
                 },
@@ -1169,7 +1169,7 @@ const TOOL_RESULT_MOCKS = {
         change_percent: 1.32, volume: 75000000,
     },
     'get_data:currency_rate': {
-        from: 'EUR', to: 'USD', rate: 1.09,
+        from: 'USD', to: 'JPY', rate: 149.50,
     },
     'get_data:weather': {
         location: 'Hanoi', temperature_f: 72, temperature_c: 22,
@@ -1509,6 +1509,9 @@ function guidedRenderPerformance() {
         v => v.toLocaleString()
     );
 
+    // Takeaway statement
+    chartsEl.innerHTML += guidedBuildTakeaway(guidedDemoState.scenario, method);
+
     // Raw data viewer + restart buttons
     const rawData = getMockResponse(guidedDemoState.scenario, method);
     const rawJson = JSON.stringify(rawData, null, 2);
@@ -1569,6 +1572,52 @@ function guidedBuildChart(title, columns, values, betterWhen, formatter) {
         <div class="guided-perf-chart">
             <div class="guided-chart-title">${title}</div>
             <div class="guided-chart-bars">${barsHtml}</div>
+        </div>
+    `;
+}
+
+// ============================================================
+// PERFORMANCE TAKEAWAY
+// ============================================================
+
+function guidedBuildTakeaway(scenarioId, method) {
+    const scenario = GUIDED_SCENARIOS[scenarioId];
+    const mockResp = getMockResponse(scenarioId, method);
+    const goal = scenario.goal;
+
+    let message = '';
+
+    if (goal === 'tool_calling') {
+        const bTool = mockResp.baseline.tool_call?.name || 'unknown';
+        const iTool = mockResp.its.tool_call?.name || 'unknown';
+        if (bTool !== iTool) {
+            message = `The baseline selected <strong>${bTool}</strong>, a general-purpose tool that returns unstructured results. ITS consensus voting corrected this to <strong>${iTool}</strong>, the structured API that returns reliable, machine-readable data. This demonstrates how ITS improves agent reliability in tool selection.`;
+        } else {
+            message = `Both baseline and ITS selected <strong>${iTool}</strong>. ITS consensus voting confirmed the correct tool choice with high confidence.`;
+        }
+    } else if (goal === 'match_frontier') {
+        const itsCost = mockResp.its.cost_usd;
+        const frontierCost = mockResp.frontier.cost_usd;
+        const savings = Math.round((1 - itsCost / frontierCost) * 100);
+        const smallModel = scenario.smallModel;
+        const frontierModel = scenario.frontierModel;
+
+        message = `<strong>${smallModel} + ITS</strong> matched <strong>${frontierModel}</strong> quality while costing <strong>${savings}% less</strong>. `;
+        message += `This shows you can achieve frontier-level results using a smaller, cheaper model enhanced with inference-time scaling — without upgrading to a more expensive model.`;
+    } else {
+        // improve_performance
+        const model = scenario.model;
+        const costRatio = (mockResp.its.cost_usd / mockResp.baseline.cost_usd).toFixed(1);
+        const methodName = method === 'self_consistency' ? 'Self-Consistency voting' : 'Best-of-N selection';
+
+        message = `ITS corrected <strong>${model}</strong>'s wrong answer using ${methodName} at <strong>${costRatio}x</strong> the baseline cost. `;
+        message += `The baseline produced an incorrect result in a single pass, but generating multiple candidates and selecting the best one recovered the correct answer — a small cost increase for a significant accuracy improvement.`;
+    }
+
+    return `
+        <div class="guided-takeaway" style="grid-column: 1 / -1;">
+            <div class="guided-takeaway-label">KEY TAKEAWAY</div>
+            <p class="guided-takeaway-text">${message}</p>
         </div>
     `;
 }

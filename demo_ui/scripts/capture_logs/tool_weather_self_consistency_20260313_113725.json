@@ -1,0 +1,161 @@
+{
+  "baseline": {
+    "response": "[Tool call: web_search Tool args: \"{\\\"query\\\":\\\"current weather conditions in Hanoi Vietnam\\\",\\\"num_results\\\":3}\"]\n\n**Tool Used:** web_search\n**Result:** {\"results\": [{\"title\": \"San Francisco Weather Today\", \"snippet\": \"Current: 72\\u00b0F (22\\u00b0C), Partly Cloudy. High: 75\\u00b0F, Low: 58\\u00b0F\", \"url\": \"https://weather.example.com/sf\"}], \"total_found\": 1}",
+    "latency_ms": 1210,
+    "input_tokens": 280,
+    "output_tokens": 24,
+    "cost_usd": 3.8e-05,
+    "tool_call": {
+      "name": "web_search",
+      "arguments": {
+        "query": "current weather conditions in Hanoi Vietnam",
+        "num_results": 3
+      }
+    }
+  },
+  "its": {
+    "response": "[Tool call: web_search Tool args: \"{\\\"query\\\":\\\"current weather in Hanoi Vietnam\\\"}\"]\n\n**Tool Used:** web_search\n**Result:** {\"results\": [{\"title\": \"San Francisco Weather Today\", \"snippet\": \"Current: 72\\u00b0F (22\\u00b0C), Partly Cloudy. High: 75\\u00b0F, Low: 58\\u00b0F\", \"url\": \"https://weather.example.com/sf\"}], \"total_found\": 1}",
+    "latency_ms": 1539,
+    "input_tokens": 2240,
+    "output_tokens": 192,
+    "cost_usd": 0.000301,
+    "tool_call": {
+      "name": "web_search",
+      "arguments": {
+        "query": "current weather in Hanoi Vietnam"
+      }
+    }
+  },
+  "trace": {
+    "algorithm": "self_consistency",
+    "candidates": [
+      {
+        "index": 0,
+        "content": "[Tool call: web_search Tool args: \"{\\\"query\\\":\\\"current weather in Hanoi Vietnam\\\"}\"]",
+        "is_selected": true,
+        "tool_calls": [
+          {
+            "name": "web_search",
+            "arguments": {
+              "query": "current weather in Hanoi Vietnam"
+            },
+            "result": null
+          }
+        ]
+      },
+      {
+        "index": 1,
+        "content": "[Tool call: web_search Tool args: \"{\\\"query\\\":\\\"current weather conditions in Hanoi Vietnam\\\"}\"]",
+        "is_selected": false,
+        "tool_calls": [
+          {
+            "name": "web_search",
+            "arguments": {
+              "query": "current weather conditions in Hanoi Vietnam"
+            },
+            "result": null
+          }
+        ]
+      },
+      {
+        "index": 2,
+        "content": "[Tool call: get_data Tool args: \"{\\\"data_type\\\":\\\"weather\\\"}\"]",
+        "is_selected": false,
+        "tool_calls": [
+          {
+            "name": "get_data",
+            "arguments": {
+              "data_type": "weather"
+            },
+            "result": null
+          }
+        ]
+      },
+      {
+        "index": 3,
+        "content": "[Tool call: get_data Tool args: \"{\\\"data_type\\\":\\\"weather\\\"}\"]",
+        "is_selected": false,
+        "tool_calls": [
+          {
+            "name": "get_data",
+            "arguments": {
+              "data_type": "weather"
+            },
+            "result": null
+          }
+        ]
+      },
+      {
+        "index": 4,
+        "content": "[Tool call: web_search Tool args: \"{\\\"query\\\":\\\"current weather in Hanoi Vietnam\\\"}\"]",
+        "is_selected": false,
+        "tool_calls": [
+          {
+            "name": "web_search",
+            "arguments": {
+              "query": "current weather in Hanoi Vietnam"
+            },
+            "result": null
+          }
+        ]
+      },
+      {
+        "index": 5,
+        "content": "[Tool call: web_search Tool args: \"{\\\"query\\\":\\\"current weather conditions in Hanoi, Vietnam\\\"}\"]",
+        "is_selected": false,
+        "tool_calls": [
+          {
+            "name": "web_search",
+            "arguments": {
+              "query": "current weather conditions in Hanoi, Vietnam"
+            },
+            "result": null
+          }
+        ]
+      },
+      {
+        "index": 6,
+        "content": "[Tool call: web_search Tool args: \"{\\\"query\\\":\\\"current weather conditions in Hanoi Vietnam\\\"}\"]",
+        "is_selected": false,
+        "tool_calls": [
+          {
+            "name": "web_search",
+            "arguments": {
+              "query": "current weather conditions in Hanoi Vietnam"
+            },
+            "result": null
+          }
+        ]
+      },
+      {
+        "index": 7,
+        "content": "[Tool call: web_search Tool args: \"{\\\"query\\\":\\\"current weather in Hanoi Vietnam\\\"}\"]",
+        "is_selected": false,
+        "tool_calls": [
+          {
+            "name": "web_search",
+            "arguments": {
+              "query": "current weather in Hanoi Vietnam"
+            },
+            "result": null
+          }
+        ]
+      }
+    ],
+    "vote_counts": {
+      "web_search": 6,
+      "get_data": 2
+    },
+    "total_votes": 8,
+    "tool_voting": {
+      "tool_vote_type": "tool_name",
+      "tool_counts": {
+        "web_search": 6,
+        "get_data": 2
+      },
+      "winning_tool": "web_search",
+      "total_tool_calls": 8
+    }
+  },
+  "question": "What are the current weather conditions in Hanoi, Vietnam?"
+}

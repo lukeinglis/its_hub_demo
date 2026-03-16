@@ -24,7 +24,7 @@ The Guided Demo follows a 6-step progressive disclosure:
 
 **Branching logic in Step 3:**
 - If goal = "Improve Model Performance" → Frontier Model or Open Source Model
-- If goal = "Match Frontier" → Same Family (e.g. GPT-4o mini → GPT-4o) or Cross-Family (e.g. Llama 3 8B → GPT-4o)
+- If goal = "Match Frontier" → Same Family (e.g. GPT-3.5 Turbo → GPT-4o) or Cross-Family (e.g. Llama 3.2 3B → GPT-4o)
 
 All guided demo data uses placeholders. See [Plugging in Real Data](#plugging-in-real-data-guided-demo) below for where to replace them.
 
@@ -83,8 +83,8 @@ The model dropdowns in step 4 are dynamically populated based on which providers
 2. **Match Frontier at Lower Cost**
    - Show small model + ITS matching large frontier model
    - 3-column comparison: Small, Small+ITS, Frontier
-   - **Cost savings: 64-73%** while maintaining quality
-   - Example: GPT-4o Mini + ITS saves 64% vs GPT-4o with same accuracy
+   - **Cost savings: 14-97%** while maintaining quality
+   - Example: GPT-3.5 Turbo + ITS saves 14-44% vs GPT-4o; Llama 3.2 3B + ITS saves 97% vs GPT-4o
 
 3. **Tool Consensus for Agent Reliability** 🆕
    - Demonstrate reliable agent decision-making through tool voting

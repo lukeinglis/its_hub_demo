@@ -1,0 +1,55 @@
+{
+  "baseline": {
+    "response": "## Step 1: Calculate the cost of producing 80 widgets\nThe cost of producing 80 widgets is the fixed cost plus the cost per widget multiplied by the number of widgets. So, the cost is $500 + (8 * 80) = $500 + $640 = $1140.\n\n## Step 2: Calculate the revenue from selling 80 widgets\nThe revenue from selling 80 widgets at $20 each is 80 * $20 = $1600.\n\n## Step 3: Calculate last week's profit\nLast week's profit is the revenue minus the cost, which is $1600 - $1140 = $460.\n\n## Step 4: Calculate the cost of producing 150 widgets\nThe cost of producing 150 widgets is the fixed cost plus the cost per widget multiplied by the number of widgets. So, the cost is $500 + (8 * 150) = $500 + $1200 = $1700.\n\n## Step 5: Calculate the revenue from selling 150 widgets with the volume discount\nSince the volume discount is 15% off orders over 100 units, the price per widget is $20 - ($20 * 0.15) = $20 - $3 = $17. The revenue from selling 150 widgets is 150 * $17 = $2550.\n\n## Step 6: Calculate this week's profit\nThis week's profit is the revenue minus the cost, which is $2550 - $1700 = $850.\n\n## Step 7: Calculate the total profit across both weeks\nThe total profit is the sum of last week's profit and this week's profit, which is $460 + $850 = $1310.\n\nThe final answer is: $\\boxed{1310}$",
+    "latency_ms": 2894,
+    "input_tokens": 116,
+    "output_tokens": 362,
+    "cost_usd": 2.9e-05
+  },
+  "its": {
+    "response": "## Step 1: Calculate the cost of producing 80 widgets\nThe cost of producing 80 widgets is the fixed cost plus the cost per widget multiplied by the number of widgets. So, the cost is $500 + (8 * 80) = $500 + $640 = $1140.\n\n## Step 2: Calculate the revenue from selling 80 widgets\nThe revenue from selling 80 widgets at $20 each is 80 * $20 = $1600.\n\n## Step 3: Calculate last week's profit\nLast week's profit is the revenue minus the cost, which is $1600 - $1140 = $460.\n\n## Step 4: Calculate the cost of producing 150 widgets\nThe cost of producing 150 widgets is the fixed cost plus the cost per widget multiplied by the number of widgets. So, the cost is $500 + (8 * 150) = $500 + $1200 = $1700.\n\n## Step 5: Calculate the revenue from selling 150 widgets with the volume discount\nSince the volume discount is 15% off orders over 100 units, the price per widget is $20 - ($20 * 0.15) = $20 - $3 = $17. The revenue from selling 150 widgets is 150 * $17 = $2550.\n\n## Step 6: Calculate this week's profit\nThis week's profit is the revenue minus the cost, which is $2550 - $1700 = $850.\n\n## Step 7: Calculate the total profit across both weeks\nThe total profit is the sum of last week's profit and this week's profit, which is $460 + $850 = $1310.\n\nThe final answer is: $\\boxed{1310}$",
+    "latency_ms": 7919,
+    "input_tokens": 2712,
+    "output_tokens": 1648,
+    "cost_usd": 0.000262
+  },
+  "trace": {
+    "algorithm": "best_of_n",
+    "candidates": [
+      {
+        "index": 0,
+        "content": "## Step 1: Calculate the cost of producing 80 widgets\nThe cost of producing 80 widgets is the fixed cost plus the cost per widget multiplied by the number of widgets. So, the cost is $500 + (8 * 80) = $500 + $640 = $1140.\n\n## Step 2: Calculate the revenue from selling 80 widgets\nThe revenue from selling 80 widgets at $20 each is 80 * $20 = $1600.\n\n## Step 3: Calculate last week's profit\nLast week's profit is the revenue minus the cost, which is $1600 - $1140 = $460.\n\n## Step 4: Calculate the cost of producing 150 widgets\nThe cost of producing 150 widgets is the fixed cost plus the cost per widget multiplied by the number of widgets. So, the cost is $500 + (8 * 150) = $500 + $1200 = $1700.\n\n## Step 5: Calculate the revenue from selling 150 widgets with the volume discount\nSince the volume discount is 15% off orders over 100 units, the price per widget is $20 - ($20 * 0.15) = $20 - $3 = $17. The revenue from selling 150 widgets is 150 * $17 = $2550.\n\n## Step 6: Calculate this week's profit\nThis week's profit is the revenue minus the cost, which is $2550 - $1700 = $850.\n\n## Step 7: Calculate the total profit across both weeks\nThe total profit is the sum of last week's profit and this week's profit, which is $460 + $850 = $1310.\n\nThe final answer is: $\\boxed{1310}$",
+        "is_selected": true,
+        "tool_calls": null
+      },
+      {
+        "index": 1,
+        "content": "## Step 1: Calculate the cost of producing 80 widgets\nThe cost of producing 80 widgets is the fixed cost plus the cost per widget multiplied by the number of widgets. So, the cost is $500 + (8 * 80) = $500 + $640 = $1140.\n\n## Step 2: Calculate the revenue from selling 80 widgets\nThe revenue from selling 80 widgets at $20 each is 80 * $20 = $1600.\n\n## Step 3: Calculate last week's profit\nLast week's profit is the revenue minus the cost. So, last week's profit is $1600 - $1140 = $460.\n\n## Step 4: Calculate the cost of producing 150 widgets\nThe cost of producing 150 widgets is the fixed cost plus the cost per widget multiplied by the number of widgets. So, the cost is $500 + (8 * 150) = $500 + $1200 = $1700.\n\n## Step 5: Calculate the revenue from selling 150 widgets with the volume discount\nSince the volume discount is 15% off orders over 100 units, the price per widget is $20 - ($20 * 0.15) = $20 - $3 = $17. The revenue from selling 150 widgets is 150 * $17 = $2550.\n\n## Step 6: Calculate this week's profit\nThis week's profit is the revenue minus the cost. So, this week's profit is $2550 - $1700 = $850.\n\n## Step 7: Calculate the total profit across both weeks\nThe total profit is the sum of last week's profit and this week's profit. So, the total profit is $460 + $850 = $1310.\n\nThe final answer is: $\\boxed{1310}$",
+        "is_selected": false,
+        "tool_calls": null
+      },
+      {
+        "index": 2,
+        "content": "## Step 1: Calculate the cost of producing 80 widgets\nThe cost of producing 80 widgets is the fixed cost plus the cost per widget multiplied by the number of widgets. So, the cost is $500 + (8 * 80) = $500 + $640 = $1140.\n\n## Step 2: Calculate the revenue from selling 80 widgets\nThe revenue from selling 80 widgets at $20 each is 80 * $20 = $1600.\n\n## Step 3: Calculate last week's profit\nLast week's profit is the revenue minus the cost, which is $1600 - $1140 = $460.\n\n## Step 4: Calculate the cost of producing 150 widgets\nThe cost of producing 150 widgets is the fixed cost plus the cost per widget multiplied by the number of widgets. So, the cost is $500 + (8 * 150) = $500 + $1200 = $1700.\n\n## Step 5: Calculate the revenue from selling 150 widgets with the volume discount\nSince the volume discount is 15% off orders over 100 units, the selling price per widget is $20 - ($20 * 0.15) = $20 - $3 = $17. The revenue from selling 150 widgets is 150 * $17 = $2550.\n\n## Step 6: Calculate this week's profit\nThis week's profit is the revenue minus the cost, which is $2550 - $1700 = $850.\n\n## Step 7: Calculate the total profit across both weeks\nThe total profit is the sum of last week's profit and this week's profit, which is $460 + $850 = $1310.\n\nThe final answer is: $\\boxed{1310}$",
+        "is_selected": false,
+        "tool_calls": null
+      },
+      {
+        "index": 3,
+        "content": "## Step 1: Calculate the cost of producing 80 widgets\nThe cost of producing 80 widgets is the fixed cost plus the cost per widget multiplied by the number of widgets. So, the cost is $500 + (8 * 80) = $500 + $640 = $1140.\n\n## Step 2: Calculate the revenue from selling 80 widgets\nThe revenue from selling 80 widgets at $20 each is 80 * $20 = $1600.\n\n## Step 3: Calculate last week's profit\nLast week's profit is the revenue minus the cost, which is $1600 - $1140 = $460.\n\n## Step 4: Calculate the cost of producing 150 widgets\nThe cost of producing 150 widgets is the fixed cost plus the cost per widget multiplied by the number of widgets. So, the cost is $500 + (8 * 150) = $500 + $1200 = $1700.\n\n## Step 5: Calculate the revenue from selling 150 widgets with the volume discount\nSince the volume discount is 15% off orders over 100 units, the price per widget is $20 - ($20 * 0.15) = $20 - $3 = $17. The revenue from selling 150 widgets is 150 * $17 = $2550.\n\n## Step 6: Calculate this week's profit\nThis week's profit is the revenue minus the cost, which is $2550 - $1700 = $850.\n\n## Step 7: Calculate the total profit across both weeks\nThe total profit is the sum of last week's profit and this week's profit, which is $460 + $850 = $1310.\n\nThe final answer is: $\\boxed{1310}$",
+        "is_selected": false,
+        "tool_calls": null
+      }
+    ],
+    "scores": [
+      10.0,
+      10.0,
+      10.0,
+      10.0
+    ],
+    "max_score": 10.0,
+    "min_score": 10.0
+  },
+  "question": "A factory produces widgets in batches. Each batch costs $500 fixed plus $8 per widget. They sell widgets for $20 each but give a 15% volume discount on orders over 100 units. Last week they produced 80 widgets in one batch and sold all 80. This week they produced 150 widgets in one batch and sold all 150 (with the volume discount). Calculate: (1) last week's profit, (2) this week's profit, (3) total profit across both weeks.",
+  "expected_answer": "(1) $460 (2) $850 (3) $1,310"
+}

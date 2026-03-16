@@ -1,0 +1,160 @@
+{
+  "baseline": {
+    "response": "[Tool call: web_search Tool args: \"{\\\"query\\\":\\\"current USD to JPY exchange rate\\\"}\"]\n\n**Tool Used:** web_search\n**Result:** {\"results\": [{\"title\": \"USD to EUR Exchange Rate\", \"snippet\": \"1 USD = 0.92 EUR. Updated 5 minutes ago.\", \"url\": \"https://currency.example.com\"}], \"total_found\": 1}",
+    "latency_ms": 629,
+    "input_tokens": 282,
+    "output_tokens": 20,
+    "cost_usd": 3.6e-05,
+    "tool_call": {
+      "name": "web_search",
+      "arguments": {
+        "query": "current USD to JPY exchange rate"
+      }
+    }
+  },
+  "its": {
+    "response": "[Tool call: get_data Tool args: \"{\\\"data_type\\\":\\\"currency_rate\\\"}\"]\n\n**Tool Used:** get_data\n**Result:** {\"from\": \"USD\", \"to\": \"EUR\", \"rate\": 0.92, \"timestamp\": \"2026-03-15T20:33:58.061212\"}",
+    "latency_ms": 892,
+    "input_tokens": 2256,
+    "output_tokens": 160,
+    "cost_usd": 0.00029,
+    "tool_call": {
+      "name": "get_data",
+      "arguments": {
+        "data_type": "currency_rate"
+      }
+    }
+  },
+  "trace": {
+    "algorithm": "self_consistency",
+    "candidates": [
+      {
+        "index": 0,
+        "content": "[Tool call: get_data Tool args: \"{\\\"data_type\\\":\\\"currency_rate\\\"}\"]",
+        "is_selected": false,
+        "tool_calls": [
+          {
+            "name": "get_data",
+            "arguments": {
+              "data_type": "currency_rate"
+            },
+            "result": null
+          }
+        ]
+      },
+      {
+        "index": 1,
+        "content": "[Tool call: get_data Tool args: \"{\\\"data_type\\\":\\\"currency_rate\\\"}\"]",
+        "is_selected": true,
+        "tool_calls": [
+          {
+            "name": "get_data",
+            "arguments": {
+              "data_type": "currency_rate"
+            },
+            "result": null
+          }
+        ]
+      },
+      {
+        "index": 2,
+        "content": "[Tool call: get_data Tool args: \"{\\\"data_type\\\":\\\"currency_rate\\\"}\"]",
+        "is_selected": false,
+        "tool_calls": [
+          {
+            "name": "get_data",
+            "arguments": {
+              "data_type": "currency_rate"
+            },
+            "result": null
+          }
+        ]
+      },
+      {
+        "index": 3,
+        "content": "[Tool call: get_data Tool args: \"{\\\"data_type\\\":\\\"currency_rate\\\"}\"]",
+        "is_selected": false,
+        "tool_calls": [
+          {
+            "name": "get_data",
+            "arguments": {
+              "data_type": "currency_rate"
+            },
+            "result": null
+          }
+        ]
+      },
+      {
+        "index": 4,
+        "content": "[Tool call: get_data Tool args: \"{\\\"data_type\\\":\\\"currency_rate\\\"}\"]",
+        "is_selected": false,
+        "tool_calls": [
+          {
+            "name": "get_data",
+            "arguments": {
+              "data_type": "currency_rate"
+            },
+            "result": null
+          }
+        ]
+      },
+      {
+        "index": 5,
+        "content": "[Tool call: get_data Tool args: \"{\\\"data_type\\\":\\\"currency_rate\\\"}\"]",
+        "is_selected": false,
+        "tool_calls": [
+          {
+            "name": "get_data",
+            "arguments": {
+              "data_type": "currency_rate"
+            },
+            "result": null
+          }
+        ]
+      },
+      {
+        "index": 6,
+        "content": "[Tool call: web_search Tool args: \"{\\\"query\\\":\\\"current exchange rate for USD to JPY\\\"}\"]",
+        "is_selected": false,
+        "tool_calls": [
+          {
+            "name": "web_search",
+            "arguments": {
+              "query": "current exchange rate for USD to JPY"
+            },
+            "result": null
+          }
+        ]
+      },
+      {
+        "index": 7,
+        "content": "[Tool call: web_search Tool args: \"{\\\"query\\\":\\\"current exchange rate for USD to JPY\\\"}\"]",
+        "is_selected": false,
+        "tool_calls": [
+          {
+            "name": "web_search",
+            "arguments": {
+              "query": "current exchange rate for USD to JPY"
+            },
+            "result": null
+          }
+        ]
+      }
+    ],
+    "vote_counts": {
+      "get_data": 6,
+      "web_search": 2
+    },
+    "total_votes": 8,
+    "tool_voting": {
+      "tool_vote_type": "tool_name",
+      "tool_counts": {
+        "get_data": 6,
+        "web_search": 2
+      },
+      "winning_tool": "get_data",
+      "total_tool_calls": 8
+    }
+  },
+  "question": "How many Japanese yen can I get for 200 US dollars?"
+}
