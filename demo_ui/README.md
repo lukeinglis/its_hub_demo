@@ -179,30 +179,41 @@ demo_ui/
 ### Prerequisites
 
 - Python 3.10+
-- `its_hub` library installed (from parent directory)
-- API keys for your chosen model provider
+- [`uv`](https://docs.astral.sh/uv/) (recommended) or `pip`
 
-### 1. Install its_hub
+### Quick Start (Guided Demo only — no API keys needed)
+
+The **Guided Demo** uses pre-captured data and needs no API keys. Just start the server:
+
+```bash
+# From the repository root (its_hub_demo/)
+uv sync --extra dev          # Install its_hub + all dependencies
+cd demo_ui
+uv run uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload
+```
+
+Open `http://localhost:8000` → click **Guided Demo**.
+
+### Full Setup (Interactive Demo — requires API keys)
+
+The **Interactive Demo** makes live API calls and requires at least one provider key.
+
+#### 1. Install dependencies
 
 From the repository root:
 
 ```bash
-cd ..  # Go to repo root if you're in demo_ui/
 uv sync --extra dev
 # OR using pip:
-# pip install -e .
+# pip install -e ".[dev]"
 ```
 
-### 2. Install backend dependencies
+This installs `its_hub` and all backend dependencies (FastAPI, litellm, etc.).
+
+#### 2. Configure environment variables
 
 ```bash
 cd demo_ui
-pip install -r backend/requirements.txt
-```
-
-### 3. Configure environment variables
-
-```bash
 cp .env.example .env
 ```
 
@@ -214,49 +225,30 @@ OPENAI_API_KEY=your-openai-api-key-here
 
 # Optional: OpenRouter (for Llama 4, Qwen 3, Gemma 3, DeepSeek R1, Granite 4.0 Micro)
 # Get your key from: https://openrouter.ai/keys
-# Provides access to 15+ open-source and specialized models
 OPENROUTER_API_KEY=your-openrouter-api-key-here
 
 # Optional: Google Cloud Vertex AI (for Claude Sonnet 4.6 and Haiku 4.5)
 # Setup: gcloud auth application-default login
 VERTEX_PROJECT=your-gcp-project-id
 VERTEX_LOCATION=us-east5
-
-# Optional: Self-hosted IBM Granite via vLLM (see "Self-Hosting IBM Granite" below)
-# GRANITE_BASE_URL=http://localhost:8100/v1
-# GRANITE_API_KEY=NO_API_KEY
-
-# Optional: Local vLLM server (any model)
-# VLLM_BASE_URL=http://localhost:8100/v1
-# VLLM_API_KEY=NO_API_KEY
-# VLLM_MODEL_NAME=your-model-name
 ```
 
-> **Quick Start:** The **Guided Demo** works immediately with no API keys. The **Interactive Demo** requires at least one provider key configured in `demo_ui/.env`. Add a key, restart the backend, and the Interactive Demo will auto-detect it.
-
 **Provider Notes**:
-- **OpenAI**: Native OpenAI API - most reliable, best for production demos
-- **OpenRouter**: Unified API for open-source models - great for cost-effective demos and model diversity
-  - **Note**: OpenRouter does NOT support function/tool calling - use OpenAI models for Tool Consensus demos
-- **Vertex AI**: Claude and Gemini models via Google Cloud - requires `gcloud auth application-default login`
+- **OpenAI**: Most reliable, best for production demos. Required for Tool Consensus demos.
+- **OpenRouter**: Access to 15+ open-source models. Does NOT support function/tool calling.
+- **Vertex AI**: Claude and Gemini models via Google Cloud.
 
-## Running the Demo
-
-### Start the backend server
+#### 3. Start the backend server
 
 From the `demo_ui` directory:
 
 ```bash
-# Using uvicorn directly
-uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload
-
-# OR using python
-python -m uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload
+uv run uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-The backend will be available at `http://localhost:8000`
+> **Note:** If not using `uv`, activate your virtual environment first, then run `uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload` directly.
 
-### Open the frontend
+#### 4. Open the frontend
 
 The frontend is served automatically by the backend. Open your browser to:
 

@@ -6,7 +6,7 @@ Quick reference for presenting the ITS demo. For setup, architecture, and API de
 
 ## Pre-Demo Checklist
 
-1. Backend running: `cd demo_ui && uvicorn backend.main:app --port 8000`
+1. Backend running: `cd demo_ui && uv run uvicorn backend.main:app --host 0.0.0.0 --port 8000`
 2. Open `http://localhost:8000`
 3. Hard refresh: `Cmd+Shift+R` (Mac) or `Ctrl+Shift+R` (Windows)
 4. Quick test: Improve Model tab → GPT-3.5 Turbo → "What is 2+2?" → Run
