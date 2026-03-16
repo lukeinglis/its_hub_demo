@@ -187,7 +187,7 @@ The **Guided Demo** uses pre-captured data and needs no API keys. Just start the
 
 ```bash
 # From the repository root (its_hub_demo/)
-uv sync                      # Install its_hub + all dependencies (no GPU required)
+uv sync --no-dev             # Install its_hub + all dependencies (no GPU required)
 cd demo_ui
 uv run uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload
 ```
@@ -203,14 +203,14 @@ The **Interactive Demo** makes live API calls and requires at least one provider
 From the repository root:
 
 ```bash
-uv sync
+uv sync --no-dev
 # OR using pip:
 # pip install -e .
 ```
 
 This installs `its_hub` and all backend dependencies (FastAPI, litellm, etc.). No GPU or CUDA required.
 
-> **Note:** Do NOT use `uv sync --extra dev` unless you have a CUDA-capable GPU — the dev extras include vLLM which requires CUDA.
+> **Note:** Do NOT use `uv sync` without `--no-dev` unless you have a CUDA-capable GPU — the dev extras include vLLM which requires CUDA.
 
 #### 2. Configure environment variables
 
