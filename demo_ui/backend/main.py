@@ -522,6 +522,18 @@ async def compare(request: CompareRequest):
                 "use_case": request.use_case,
                 "question_type": question_type,
                 "expected_answer": request.expected_answer,
+                "infrastructure": {
+                    "model": {
+                        "self_hostable": model_config.get("self_hostable", False),
+                        "min_gpu": model_config.get("min_gpu"),
+                        "gpu_cloud_cost_hr": model_config.get("gpu_cloud_cost_hr"),
+                    },
+                    "frontier": {
+                        "self_hostable": frontier_model_config.get("self_hostable", False) if frontier_model_config else False,
+                        "min_gpu": frontier_model_config.get("min_gpu") if frontier_model_config else None,
+                        "gpu_cloud_cost_hr": frontier_model_config.get("gpu_cloud_cost_hr") if frontier_model_config else None,
+                    } if frontier_model_config else None,
+                },
             }
         }
 

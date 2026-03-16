@@ -59,6 +59,7 @@ const GUIDED_SCENARIOS = {
         model: 'Llama 3.2 3B',
         provider: 'Open Source',
         description: 'Small open-source models make mistakes on complex reasoning. ITS corrects errors through consensus voting — achieving better accuracy without switching to a larger model.',
+        infrastructure: { model: { self_hostable: true, min_gpu: '1x RTX 4090 / A10 (24GB)', gpu_cloud_cost_hr: 0.50 } },
     },
     match_same_family: {
         id: 'match_same_family',
@@ -81,6 +82,10 @@ const GUIDED_SCENARIOS = {
         frontierModel: 'GPT-4o',
         provider: 'Open Source / OpenAI',
         description: 'A tiny open-source model with ITS can match expensive frontier model quality — enabling cost-effective alternatives to proprietary APIs.',
+        infrastructure: {
+            model: { self_hostable: true, min_gpu: '1x RTX 4090 / A10 (24GB)', gpu_cloud_cost_hr: 0.50 },
+            frontier: { self_hostable: false },
+        },
     },
     tool_stock: {
         id: 'tool_stock',
@@ -1568,9 +1573,22 @@ function guidedRenderPerformance() {
     `;
     summaryEl.innerHTML = summaryItems;
 
-    // --- Charts ---
+    // --- Savings card ---
     const chartsEl = document.getElementById('guidedPerfCharts');
     chartsEl.innerHTML = '';
+
+    const mockResp2 = getMockResponse(guidedDemoState.scenario, method);
+    const savingsCard = buildSavingsCard({
+        itsCost: mockResp2.its?.cost_usd,
+        baselineCost: isMatchFrontier ? mockResp2.frontier?.cost_usd : mockResp2.baseline?.cost_usd,
+        itsCorrect: mockResp2.its?.is_correct ?? null,
+        baselineCorrect: isMatchFrontier ? mockResp2.frontier?.is_correct ?? null : mockResp2.baseline?.is_correct ?? null,
+        infrastructure: scenario.infrastructure || null,
+        useCase: isMatchFrontier ? 'match_frontier' : (scenario.goal === 'tool_calling' ? 'tool_consensus' : 'improve_model'),
+    });
+    if (savingsCard) {
+        chartsEl.innerHTML += savingsCard;
+    }
 
     // Cost chart
     chartsEl.innerHTML += guidedBuildChart('Cost', perf.columns, perf.cost, 'lower',

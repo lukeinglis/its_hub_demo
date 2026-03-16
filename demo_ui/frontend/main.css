@@ -3402,6 +3402,70 @@ button:disabled {
     margin-top: 48px;
 }
 
+/* ===== SAVINGS SUMMARY CARD ===== */
+
+.savings-card {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 20px 24px;
+    margin-bottom: 24px;
+}
+
+.savings-card-header {
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-tertiary);
+    margin-bottom: 16px;
+}
+
+.savings-card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px;
+}
+
+.savings-card-item {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+}
+
+.savings-card-icon {
+    font-size: 24px;
+    line-height: 1;
+    flex-shrink: 0;
+}
+
+.savings-card-body {
+    min-width: 0;
+}
+
+.savings-card-label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--text-tertiary);
+    margin-bottom: 2px;
+}
+
+.savings-card-value {
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--text-primary);
+    line-height: 1.2;
+    margin-bottom: 4px;
+}
+
+.savings-card-detail {
+    font-size: 12px;
+    color: var(--text-secondary);
+    line-height: 1.4;
+}
+
 /* Utility class to replace inline display:none */
 /* !important is required — compound selectors like .foo.bar .baz { display:block }
    have higher specificity than a single class and would override .hidden without it. */

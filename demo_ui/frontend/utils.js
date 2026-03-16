@@ -365,3 +365,120 @@ function toggleCandidateContent(btn) {
     content.classList.toggle('expanded-candidate');
     btn.textContent = content.classList.contains('expanded-candidate') ? 'Show less' : 'Show more';
 }
+
+// ============================================================
+// SAVINGS SUMMARY CARD
+// ============================================================
+
+/**
+ * Build a savings summary card comparing ITS cost/infra vs baseline/frontier.
+ *
+ * @param {object} opts
+ * @param {number} opts.itsCost - ITS result cost in USD
+ * @param {number} opts.baselineCost - Baseline/frontier cost in USD
+ * @param {boolean|null} opts.itsCorrect - Whether ITS got the correct answer
+ * @param {boolean|null} opts.baselineCorrect - Whether baseline got the correct answer
+ * @param {object|null} opts.infrastructure - Infrastructure metadata from meta.infrastructure
+ * @param {string} opts.useCase - Use case ('improve_model', 'match_frontier', 'tool_consensus')
+ * @returns {string} HTML string for the savings card
+ */
+function buildSavingsCard(opts) {
+    const { itsCost, baselineCost, itsCorrect, baselineCorrect, infrastructure, useCase } = opts;
+
+    const cards = [];
+
+    // Cost savings (most relevant for match_frontier)
+    if (itsCost != null && baselineCost != null && baselineCost > 0 && itsCost < baselineCost) {
+        const pct = Math.round((1 - itsCost / baselineCost) * 100);
+        cards.push({
+            icon: '💰',
+            label: 'Cost Savings',
+            value: `${pct}%`,
+            detail: `${formatCost(itsCost)} vs ${formatCost(baselineCost)} per request`,
+        });
+    } else if (itsCost != null && baselineCost != null && baselineCost > 0) {
+        const ratio = (itsCost / baselineCost).toFixed(1);
+        cards.push({
+            icon: '💰',
+            label: 'Cost Multiplier',
+            value: `${ratio}x`,
+            detail: `${formatCost(itsCost)} vs ${formatCost(baselineCost)} — small increase for better accuracy`,
+        });
+    }
+
+    // Quality comparison
+    if (itsCorrect != null || baselineCorrect != null) {
+        if (itsCorrect && !baselineCorrect) {
+            cards.push({
+                icon: '✅',
+                label: 'Quality',
+                value: 'Corrected',
+                detail: 'ITS fixed the baseline\'s incorrect answer',
+            });
+        } else if (itsCorrect && baselineCorrect) {
+            cards.push({
+                icon: '✅',
+                label: 'Quality',
+                value: 'Matched',
+                detail: 'Both produced correct answers',
+            });
+        }
+    }
+
+    // Infrastructure / deployment story
+    const infra = infrastructure || {};
+    const modelInfra = infra.model || {};
+    const frontierInfra = infra.frontier || {};
+
+    if (modelInfra.self_hostable && modelInfra.min_gpu) {
+        let detail = `Self-host on ${modelInfra.min_gpu}`;
+        if (modelInfra.gpu_cloud_cost_hr) {
+            detail += ` (~$${modelInfra.gpu_cloud_cost_hr.toFixed(2)}/hr)`;
+        }
+        if (useCase === 'match_frontier' && !frontierInfra.self_hostable) {
+            cards.push({
+                icon: '🖥️',
+                label: 'Hardware',
+                value: 'Single GPU',
+                detail: `${detail} — frontier requires API subscription`,
+            });
+        } else if (modelInfra.self_hostable) {
+            cards.push({
+                icon: '🖥️',
+                label: 'Deployable',
+                value: modelInfra.min_gpu.split('(')[0].trim(),
+                detail: detail,
+            });
+        }
+    }
+
+    // Deployment flexibility for self-hostable models
+    if (modelInfra.self_hostable && useCase === 'match_frontier') {
+        cards.push({
+            icon: '🔒',
+            label: 'Flexibility',
+            value: 'Self-hosted',
+            detail: 'Run on-premise, at the edge, or in air-gapped environments',
+        });
+    }
+
+    if (cards.length === 0) return '';
+
+    let html = '<div class="savings-card">';
+    html += '<div class="savings-card-header">Savings Summary</div>';
+    html += '<div class="savings-card-grid">';
+    cards.forEach(card => {
+        html += `
+            <div class="savings-card-item">
+                <div class="savings-card-icon">${card.icon}</div>
+                <div class="savings-card-body">
+                    <div class="savings-card-label">${card.label}</div>
+                    <div class="savings-card-value">${card.value}</div>
+                    <div class="savings-card-detail">${card.detail}</div>
+                </div>
+            </div>
+        `;
+    });
+    html += '</div></div>';
+    return html;
+}

@@ -22,6 +22,10 @@ class ModelConfig(TypedDict, total=False):
     output_cost_per_1m: float  # Optional: Cost per 1M output tokens in USD
     supports_tools: bool  # Optional: Whether model supports function/tool calling (defaults to True for OpenAI)
     is_reasoning: bool  # Optional: Whether model is a reasoning/thinking model (defaults to False)
+    # Infrastructure metadata for savings story
+    self_hostable: bool  # Optional: Whether model can be self-hosted (defaults to False for API models)
+    min_gpu: str  # Optional: Minimum GPU for self-hosting (e.g., "1x A10 24GB")
+    gpu_cloud_cost_hr: float  # Optional: Approximate cloud GPU cost per hour in USD
 
 
 # Model registry
@@ -57,6 +61,7 @@ MODEL_REGISTRY: Dict[str, ModelConfig] = {
         "input_cost_per_1m": 2.50,
         "output_cost_per_1m": 10.00,
         "supports_tools": True,
+        "self_hostable": False,
     },
     "gpt-4.1": {
         "base_url": "https://api.openai.com/v1",
@@ -133,6 +138,9 @@ MODEL_REGISTRY: Dict[str, ModelConfig] = {
         "size": "3B",
         "input_cost_per_1m": 0.06,
         "output_cost_per_1m": 0.06,
+        "self_hostable": True,
+        "min_gpu": "1x RTX 4090 / A10 (24GB)",
+        "gpu_cloud_cost_hr": 0.50,
     },
     "granite-4.0-micro": {
         "base_url": "https://openrouter.ai/api/v1",
@@ -143,6 +151,9 @@ MODEL_REGISTRY: Dict[str, ModelConfig] = {
         "size": "3B",
         "input_cost_per_1m": 0.017,
         "output_cost_per_1m": 0.11,
+        "self_hostable": True,
+        "min_gpu": "1x RTX 4090 / A10 (24GB)",
+        "gpu_cloud_cost_hr": 0.50,
     },
     "gemma-3-4b": {
         "base_url": "https://openrouter.ai/api/v1",
@@ -163,6 +174,9 @@ MODEL_REGISTRY: Dict[str, ModelConfig] = {
         "size": "7B",
         "input_cost_per_1m": 0.15,
         "output_cost_per_1m": 0.15,
+        "self_hostable": True,
+        "min_gpu": "1x A100 40GB",
+        "gpu_cloud_cost_hr": 1.50,
     },
     "deepseek-r1-distill-qwen-7b": {
         "base_url": "https://openrouter.ai/api/v1",
@@ -196,6 +210,9 @@ MODEL_REGISTRY: Dict[str, ModelConfig] = {
         "size": "70B",
         "input_cost_per_1m": 0.35,
         "output_cost_per_1m": 0.40,
+        "self_hostable": True,
+        "min_gpu": "4x A100 80GB",
+        "gpu_cloud_cost_hr": 12.00,
     },
     "qwen-2.5-72b": {
         "base_url": "https://openrouter.ai/api/v1",
@@ -327,6 +344,9 @@ MODEL_REGISTRY: Dict[str, ModelConfig] = {
         "size": "8B",
         "input_cost_per_1m": 0.0,  # Free if self-hosted
         "output_cost_per_1m": 0.0,
+        "self_hostable": True,
+        "min_gpu": "1x A10 24GB / RTX 4090",
+        "gpu_cloud_cost_hr": 0.50,
     },
 
     # ========================================================================

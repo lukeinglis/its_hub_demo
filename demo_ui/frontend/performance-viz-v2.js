@@ -121,6 +121,20 @@ class PerformanceVizV2 {
 
         html += '</div>'; // Close metrics
 
+        // Savings summary card (from utils.js)
+        if (typeof buildSavingsCard === 'function') {
+            const useCase = isThreeColumn ? 'match_frontier' : (data.meta?.use_case || 'improve_model');
+            const savingsHtml = buildSavingsCard({
+                itsCost: data.its?.cost_usd,
+                baselineCost: isThreeColumn ? data.baseline?.cost_usd : data.baseline?.cost_usd,
+                itsCorrect: data.its?.is_correct ?? null,
+                baselineCorrect: data.baseline?.is_correct ?? null,
+                infrastructure: data.meta?.infrastructure || null,
+                useCase: useCase,
+            });
+            if (savingsHtml) html += savingsHtml;
+        }
+
         // Detailed breakdown table
         html += this.renderDetailTable(data, isThreeColumn);
 
