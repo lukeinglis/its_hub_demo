@@ -33,11 +33,14 @@ from its_hub.base import AbstractLanguageModel
 from its_hub.algorithms.self_consistency import create_regex_projection_function
 
 from .config import get_model_config, get_api_key, ModelConfig
-from .vertex_lm import VertexAIClaudeModel, VertexAIGeminiModel
 from .llm_prm import LLMProcessRewardModel
 from .models import ToolCall
 from .tools import get_tool_schemas, execute_tool
 from .traces import build_trace
+
+# Vertex AI models are imported lazily in create_language_model() to avoid
+# requiring anthropic and google-cloud-aiplatform for basic usage (e.g.
+# guided demo on a MacBook with only OpenAI configured).
 
 logger = logging.getLogger(__name__)
 
@@ -162,6 +165,15 @@ def create_language_model(
 
     if provider == "vertex_ai":
         # Use native Vertex AI SDK for Claude and Gemini models (NOT OpenAI-compatible)
+        # Lazy import to avoid requiring anthropic/google-cloud-aiplatform for basic usage
+        try:
+            from .vertex_lm import VertexAIClaudeModel, VertexAIGeminiModel
+        except ImportError:
+            raise ValueError(
+                "Vertex AI models require additional packages. "
+                "Install with: pip install anthropic[vertex] google-cloud-aiplatform"
+            )
+
         vertex_project = model_config.get("vertex_project")
         vertex_location = model_config.get("vertex_location")
 

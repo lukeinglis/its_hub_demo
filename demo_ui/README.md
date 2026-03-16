@@ -179,18 +179,20 @@ demo_ui/
 
 ### Quick Start (Guided Demo only — no API keys needed)
 
-The **Guided Demo** uses pre-captured data and needs no API keys. Just start the server:
+The **Guided Demo** uses pre-captured data and needs no API keys. Works on any machine including macOS (no GPU/CUDA required).
 
 ```bash
 # From the repository root (its_hub_demo/)
-uv venv                      # Create virtual environment
-source .venv/bin/activate     # Activate it
-uv pip install -e .           # Install its_hub + all dependencies (no GPU required)
+python3 -m venv .venv         # Create virtual environment (or: uv venv)
+source .venv/bin/activate     # Activate it (Windows: .venv\Scripts\activate)
+pip install -e .              # Install its_hub + core dependencies
 cd demo_ui
 uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
 Open `http://localhost:8000` → click **Guided Demo**.
+
+> **Note:** Do NOT use `uv sync` — it resolves all optional extras including vLLM, which requires CUDA. Use `pip install -e .` or `uv pip install -e .` instead.
 
 ### Full Setup (Interactive Demo — requires API keys)
 
@@ -201,14 +203,18 @@ The **Interactive Demo** makes live API calls and requires at least one provider
 From the repository root:
 
 ```bash
-uv venv
+python3 -m venv .venv         # Create virtual environment (or: uv venv)
 source .venv/bin/activate     # On Windows: .venv\Scripts\activate
-uv pip install -e .
+pip install -e .              # Core install — works on any machine
 ```
 
 This installs `its_hub` and all backend dependencies (FastAPI, litellm, etc.). No GPU or CUDA required.
 
-> **Note:** Do NOT use `uv sync` — it resolves all optional extras including vLLM, which requires CUDA. Use `uv pip install -e .` instead.
+**Optional extras** (only if you need specific providers):
+```bash
+# For Vertex AI (Claude/Gemini via Google Cloud):
+pip install anthropic[vertex] google-cloud-aiplatform
+```
 
 #### 2. Configure environment variables
 
