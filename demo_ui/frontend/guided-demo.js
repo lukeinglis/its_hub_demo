@@ -822,9 +822,13 @@ function guidedRenderResponses() {
 
     // Build question banner (spans full width above response columns)
     const expectedAnswer = capturedEntry && capturedEntry.expected_answer;
+    const dataSourceBadge = capturedEntry
+        ? '<span class="guided-data-source guided-data-source--captured" title="Results from real API calls captured via capture_guided_scenarios.py">Using captured results</span>'
+        : '<span class="guided-data-source guided-data-source--mock" title="Pre-captured data not available — showing example data">Using example data</span>';
+
     let questionHtml = `
         <div class="guided-question-banner" style="grid-column: 1 / -1;">
-            <div class="guided-question-label">Question</div>
+            <div class="guided-question-label">Question ${dataSourceBadge}</div>
             <div class="guided-question-text">${question}</div>
     `;
     // Show available tools for tool calling scenarios
