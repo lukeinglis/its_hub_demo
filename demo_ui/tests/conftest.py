@@ -1,12 +1,6 @@
 """Shared fixtures for demo_ui backend tests."""
 
-import os
-import sys
-
 import pytest
-
-# Ensure demo_ui package is importable
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 
 @pytest.fixture
