@@ -187,9 +187,11 @@ The **Guided Demo** uses pre-captured data and needs no API keys. Just start the
 
 ```bash
 # From the repository root (its_hub_demo/)
-uv sync --no-dev             # Install its_hub + all dependencies (no GPU required)
+uv venv                      # Create virtual environment
+source .venv/bin/activate     # Activate it
+uv pip install -e .           # Install its_hub + all dependencies (no GPU required)
 cd demo_ui
-uv run uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload
+uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
 Open `http://localhost:8000` → click **Guided Demo**.
@@ -203,14 +205,14 @@ The **Interactive Demo** makes live API calls and requires at least one provider
 From the repository root:
 
 ```bash
-uv sync --no-dev
-# OR using pip:
-# pip install -e .
+uv venv
+source .venv/bin/activate     # On Windows: .venv\Scripts\activate
+uv pip install -e .
 ```
 
 This installs `its_hub` and all backend dependencies (FastAPI, litellm, etc.). No GPU or CUDA required.
 
-> **Note:** Do NOT use `uv sync` without `--no-dev` unless you have a CUDA-capable GPU — the dev extras include vLLM which requires CUDA.
+> **Note:** Do NOT use `uv sync` — it resolves all optional extras including vLLM, which requires CUDA. Use `uv pip install -e .` instead.
 
 #### 2. Configure environment variables
 
@@ -245,10 +247,10 @@ VERTEX_LOCATION=us-east5
 From the `demo_ui` directory:
 
 ```bash
-uv run uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload
+uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-> **Note:** If not using `uv`, activate your virtual environment first, then run `uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload` directly.
+> **Note:** Make sure your virtual environment is activated (you should see `(.venv)` in your terminal prompt).
 
 #### 4. Open the frontend
 
