@@ -88,8 +88,7 @@
 .wizard-card:focus-visible,
 .choice-card:focus-visible,
 .iw-provider-card:focus-visible,
-.theme-toggle:focus-visible,
-.expert-mode-toggle:focus-visible {
+.theme-toggle:focus-visible {
     outline: 2px solid var(--primary);
     outline-offset: 2px;
     box-shadow: 0 0 0 4px var(--primary-light);
@@ -630,55 +629,6 @@ header {
     box-shadow: 0 0 0 2px var(--bg-primary), 0 0 0 4px var(--primary);
 }
 
-/* Expert Mode Toggle - Floating below theme toggle */
-.expert-mode-toggle {
-    position: fixed;
-    top: 76px;
-    right: 24px;
-    z-index: 1000;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    cursor: pointer;
-    padding: 10px 16px;
-    background: var(--bg-primary);
-    border: 2px solid var(--border-color);
-    border-radius: var(--radius);
-    transition: all 0.2s ease;
-    box-shadow: var(--shadow);
-}
-
-.expert-mode-toggle:hover {
-    box-shadow: var(--shadow-lg);
-    transform: translateY(-1px);
-}
-
-.expert-mode-toggle.active {
-    border-color: var(--primary);
-    background: var(--primary-light);
-}
-
-.expert-mode-label {
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--text-secondary);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-}
-
-.expert-mode-toggle.active .expert-mode-label {
-    color: var(--primary);
-}
-
-.expert-mode-icon {
-    font-size: 16px;
-    transition: transform 0.3s ease;
-}
-
-.expert-mode-toggle:hover .expert-mode-icon {
-    transform: scale(1.1);
-}
-
 /* Locked control styling */
 .form-group.locked label::after {
     content: "🔒";
@@ -707,15 +657,6 @@ header {
 .locked-helper::before {
     content: "ℹ️";
     font-size: 14px;
-}
-
-/* Hidden in guided mode */
-.expert-only {
-    display: none;
-}
-
-.expert-mode .expert-only {
-    display: block;
 }
 
 /* Section Styling */

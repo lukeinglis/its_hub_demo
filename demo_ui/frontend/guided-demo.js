@@ -5,8 +5,7 @@
  *
  * Data loading:
  *   On startup, fetches guided-demo-data.json (captured via capture_guided_scenarios.py).
- *   If the file is present, real API responses are used for all 8 scenario+method combos.
- *   If the file is missing or fails to load, hardcoded mock data is used as fallback.
+ *   All 10 scenario+method combos use real pre-captured API responses from this file.
  *
  * The GUIDED_SCENARIOS object defines the branching structure (goals → scenarios).
  * You can add/remove scenarios there without changing any other code.
@@ -20,7 +19,7 @@ let GUIDED_CAPTURED_DATA = null;
 let _guidedDataPromise = fetch('guided-demo-data.json')
     .then(r => r.json())
     .then(data => { GUIDED_CAPTURED_DATA = data; })
-    .catch(err => console.warn('Guided demo data not loaded, using mock fallback:', err));
+    .catch(err => console.error('Failed to load guided-demo-data.json:', err));
 
 // ============================================================
 // STATE
@@ -126,294 +125,57 @@ const GUIDED_SCENARIOS = {
 };
 
 // ============================================================
-// MOCK QUESTIONS — Replace with real demo questions later
-// Key format: `${scenarioId}_${method}`
+// SCENARIO DATA — reads from captured JSON (guided-demo-data.json)
 // ============================================================
 
-const GUIDED_MOCK_QUESTIONS = {
-    'improve_frontier_self_consistency': 'A palindrome is a number that reads the same forwards and backwards. How many 5-digit palindromes are divisible by 3?',
-    'improve_frontier_best_of_n': 'An investment of $10,000 earns 8% annual interest compounded quarterly. After 3 years, how much total interest has been earned? Round to the nearest cent.',
-    'improve_opensource_self_consistency': 'In how many ways can 5 letters be placed in 5 addressed envelopes so that no letter is in its correct envelope?',
-    'improve_opensource_best_of_n': 'In how many ways can 5 letters be placed in 5 addressed envelopes so that no letter is in its correct envelope?',
-    'match_same_family_self_consistency': 'In how many ways can 5 letters be placed in 5 addressed envelopes so that no letter is in its correct envelope?',
-    'match_same_family_best_of_n': 'In how many ways can 5 letters be placed in 5 addressed envelopes so that no letter is in its correct envelope?',
-    'match_cross_family_self_consistency': 'In how many ways can 5 letters be placed in 5 addressed envelopes so that no letter is in its correct envelope?',
-    'match_cross_family_best_of_n': 'In how many ways can 5 letters be placed in 5 addressed envelopes so that no letter is in its correct envelope?',
-    'tool_stock_self_consistency': 'What is the current stock price of Apple (AAPL)?',
-    'tool_currency_self_consistency': 'How many Japanese yen can I get for 200 US dollars?',
-};
-
-// ============================================================
-// RESPONSE DATA — uses captured JSON when available, mock fallback otherwise
-// ============================================================
-
-function getMockResponse(scenarioId, method) {
+function getScenarioData(scenarioId, method) {
     const scenario = GUIDED_SCENARIOS[scenarioId];
     const isMatchFrontier = scenario.goal === 'match_frontier';
-
-    // --- Try captured data first ---
     const key = `${scenarioId}_${method}`;
     const captured = GUIDED_CAPTURED_DATA && GUIDED_CAPTURED_DATA[key];
-    if (captured) {
-        const result = {
-            baseline: captured.baseline,
-            its: captured.its,
-            trace: captured.trace || null,
-        };
-        if (isMatchFrontier && captured.frontier) {
-            result.frontier = captured.frontier;
-        }
-        return result;
-    }
 
-    // --- Tool calling mock data ---
-    if (scenario.goal === 'tool_calling') {
-        return getToolCallingMockResponse(scenarioId);
-    }
+    if (!captured) return null;
 
-    // --- Fallback: hardcoded mocks ---
-
-    // Self-Consistency mocks
-    if (method === 'self_consistency') {
-        const result = {
-            baseline: {
-                response: '[Placeholder] The baseline model gave a single response without verification.\n\nThis is where the standard model output would appear — a single inference pass with no ITS enhancement.',
-                latency_ms: 480,
-                input_tokens: 28,
-                output_tokens: 35,
-                cost_usd: 0.000025,
-            },
-            its: {
-                response: '[Placeholder] The ITS-enhanced response was selected by majority voting across 8 candidates.\n\nThe most common answer was chosen, improving reliability over a single pass.',
-                latency_ms: 1150,
-                input_tokens: 224,
-                output_tokens: 52,
-                cost_usd: 0.000195,
-            },
-            trace: {
-                algorithm: 'self_consistency',
-                candidates: [
-                    { index: 0, content: 'Candidate 1: Answer A — placeholder reasoning', is_selected: false, tool_calls: null },
-                    { index: 1, content: 'Candidate 2: Answer A — different reasoning path', is_selected: false, tool_calls: null },
-                    { index: 2, content: 'Candidate 3: Answer A — selected as representative', is_selected: true, tool_calls: null },
-                    { index: 3, content: 'Candidate 4: Answer B — alternative answer', is_selected: false, tool_calls: null },
-                    { index: 4, content: 'Candidate 5: Answer A — consistent', is_selected: false, tool_calls: null },
-                    { index: 5, content: 'Candidate 6: Answer C — outlier', is_selected: false, tool_calls: null },
-                    { index: 6, content: 'Candidate 7: Answer A — majority', is_selected: false, tool_calls: null },
-                    { index: 7, content: 'Candidate 8: Answer B — minority', is_selected: false, tool_calls: null },
-                ],
-                vote_counts: { 'Answer A': 5, 'Answer B': 2, 'Answer C': 1 },
-                total_votes: 8,
-                tool_voting: null,
-            },
-        };
-        if (isMatchFrontier) {
-            result.frontier = {
-                response: '[Placeholder] The frontier model produced a high-quality response in a single pass.\n\nThis represents the quality target that the small model + ITS aims to match.',
-                latency_ms: 620,
-                input_tokens: 28,
-                output_tokens: 65,
-                cost_usd: 0.00250,
-            };
-        }
-        return result;
-    }
-
-    // Best-of-N mocks
-    const scores = [0.72, 0.85, 0.95, 0.61, 0.88, 0.77, 0.91, 0.68];
     const result = {
-        baseline: {
-            response: '[Placeholder] The baseline model produced a single response without quality evaluation.\n\nWith Best-of-N, multiple candidates would be generated and scored by an LLM judge.',
-            latency_ms: 520,
-            input_tokens: 32,
-            output_tokens: 48,
-            cost_usd: 0.000032,
-        },
-        its: {
-            response: '[Placeholder] The highest-scoring response was selected by an LLM judge from 8 candidates.\n\nThe judge scored each response for quality, selecting the best one (score: 0.95).',
-            latency_ms: 2800,
-            input_tokens: 256,
-            output_tokens: 384,
-            cost_usd: 0.000480,
-        },
-        trace: {
-            algorithm: 'best_of_n',
-            candidates: scores.map((s, i) => ({
-                index: i,
-                content: `[Candidate ${i + 1}] Placeholder response — scored ${s.toFixed(2)} by LLM judge`,
-                is_selected: i === 2,
-                tool_calls: null,
-            })),
-            scores: scores,
-            max_score: 0.95,
-            min_score: 0.61,
-        },
+        baseline: captured.baseline,
+        its: captured.its,
+        trace: captured.trace || null,
     };
-    if (isMatchFrontier) {
-        result.frontier = {
-            response: '[Placeholder] The frontier model baseline — the quality target for the small model + ITS.',
-            latency_ms: 650,
-            input_tokens: 32,
-            output_tokens: 72,
-            cost_usd: 0.00280,
-        };
+    if (isMatchFrontier && captured.frontier) {
+        result.frontier = captured.frontier;
     }
     return result;
 }
 
 // ============================================================
-// TOOL CALLING MOCK DATA
+// PERFORMANCE DATA — derived from captured scenario data
 // ============================================================
 
-// Questions adapted from the Berkeley Function Calling Leaderboard (BFCL)
-// https://gorilla.cs.berkeley.edu/leaderboard.html
-// Stock scenario: adapted from BFCL multiple_56
-// Currency scenario: adapted from BFCL multiple_52
-function getToolCallingMockResponse(scenarioId) {
-    if (scenarioId === 'tool_stock') {
-        return {
-            baseline: {
-                response: 'Let me search the web for the current Apple stock price.',
-                latency_ms: 520,
-                input_tokens: 45,
-                output_tokens: 38,
-                cost_usd: 0.000033,
-                tool_call: {
-                    name: 'web_search',
-                    arguments: { query: 'AAPL Apple stock price today' },
-                },
-            },
-            its: {
-                response: 'I\'ll retrieve the current AAPL stock price from the data API.',
-                latency_ms: 1280,
-                input_tokens: 360,
-                output_tokens: 52,
-                cost_usd: 0.000210,
-                tool_call: {
-                    name: 'get_data',
-                    arguments: { data_type: 'stock_price', parameters: { symbol: 'AAPL' } },
-                },
-            },
-            trace: {
-                algorithm: 'self_consistency',
-                candidates: [
-                    { index: 0, content: 'I\'ll use get_data to retrieve the AAPL stock price.', is_selected: false,
-                      tool_calls: [{ name: 'get_data', arguments: { data_type: 'stock_price', parameters: { symbol: 'AAPL' } } }] },
-                    { index: 1, content: 'Let me search the web for Apple\'s current stock price.', is_selected: false,
-                      tool_calls: [{ name: 'web_search', arguments: { query: 'AAPL Apple stock price today' } }] },
-                    { index: 2, content: 'I\'ll query get_data for AAPL stock data.', is_selected: true,
-                      tool_calls: [{ name: 'get_data', arguments: { data_type: 'stock_price', parameters: { symbol: 'AAPL' } } }] },
-                    { index: 3, content: 'I\'ll use the get_data API for stock price info.', is_selected: false,
-                      tool_calls: [{ name: 'get_data', arguments: { data_type: 'stock_price', parameters: { symbol: 'AAPL' } } }] },
-                    { index: 4, content: 'Let me search for Apple stock information online.', is_selected: false,
-                      tool_calls: [{ name: 'web_search', arguments: { query: 'Apple AAPL stock price current' } }] },
-                    { index: 5, content: 'I\'ll retrieve stock data via the get_data tool.', is_selected: false,
-                      tool_calls: [{ name: 'get_data', arguments: { data_type: 'stock_price', parameters: { symbol: 'AAPL' } } }] },
-                    { index: 6, content: 'Using get_data for AAPL stock price retrieval.', is_selected: false,
-                      tool_calls: [{ name: 'get_data', arguments: { data_type: 'stock_price', parameters: { symbol: 'AAPL' } } }] },
-                    { index: 7, content: 'I\'ll look up Apple stock price using get_data.', is_selected: false,
-                      tool_calls: [{ name: 'get_data', arguments: { data_type: 'stock_price', parameters: { symbol: 'AAPL' } } }] },
-                ],
-                vote_counts: { 'get_data': 6, 'web_search': 2 },
-                total_votes: 8,
-                tool_voting: {
-                    tool_vote_type: 'tool_name',
-                    tool_counts: { 'get_data': 6, 'web_search': 2 },
-                    winning_tool: 'get_data',
-                    total_tool_calls: 8,
-                },
-            },
-        };
-    }
-
-    if (scenarioId === 'tool_currency') {
-        return {
-            baseline: {
-                response: 'Let me search the web for the current USD to JPY exchange rate.',
-                latency_ms: 540,
-                input_tokens: 48,
-                output_tokens: 42,
-                cost_usd: 0.000035,
-                tool_call: {
-                    name: 'web_search',
-                    arguments: { query: 'current USD to JPY exchange rate' },
-                },
-            },
-            its: {
-                response: 'I\'ll retrieve the current USD to JPY exchange rate using the structured data API.',
-                latency_ms: 1320,
-                input_tokens: 384,
-                output_tokens: 50,
-                cost_usd: 0.000220,
-                tool_call: {
-                    name: 'get_data',
-                    arguments: { data_type: 'currency_rate', parameters: { from: 'USD', to: 'JPY' } },
-                },
-            },
-            trace: {
-                algorithm: 'self_consistency',
-                candidates: [
-                    { index: 0, content: 'I\'ll use get_data to retrieve the USD/JPY exchange rate.', is_selected: false,
-                      tool_calls: [{ name: 'get_data', arguments: { data_type: 'currency_rate', parameters: { from: 'USD', to: 'JPY' } } }] },
-                    { index: 1, content: 'Let me search for the current exchange rate online.', is_selected: false,
-                      tool_calls: [{ name: 'web_search', arguments: { query: 'USD to JPY exchange rate today' } }] },
-                    { index: 2, content: 'I\'ll query the currency rate data source.', is_selected: true,
-                      tool_calls: [{ name: 'get_data', arguments: { data_type: 'currency_rate', parameters: { from: 'USD', to: 'JPY' } } }] },
-                    { index: 3, content: 'Let me search for USD to yen conversion.', is_selected: false,
-                      tool_calls: [{ name: 'web_search', arguments: { query: 'US dollar to Japanese yen conversion rate' } }] },
-                    { index: 4, content: 'Using the get_data tool for currency conversion.', is_selected: false,
-                      tool_calls: [{ name: 'get_data', arguments: { data_type: 'currency_rate', parameters: { from: 'USD', to: 'JPY' } } }] },
-                    { index: 5, content: 'I\'ll look up the currency rate via get_data.', is_selected: false,
-                      tool_calls: [{ name: 'get_data', arguments: { data_type: 'currency_rate', parameters: { from: 'USD', to: 'JPY' } } }] },
-                    { index: 6, content: 'I\'ll use get_data for the exchange rate.', is_selected: false,
-                      tool_calls: [{ name: 'get_data', arguments: { data_type: 'currency_rate', parameters: { from: 'USD', to: 'JPY' } } }] },
-                    { index: 7, content: 'I\'ll retrieve the exchange rate from the data API.', is_selected: false,
-                      tool_calls: [{ name: 'get_data', arguments: { data_type: 'currency_rate', parameters: { from: 'USD', to: 'JPY' } } }] },
-                ],
-                vote_counts: { 'get_data': 6, 'web_search': 2 },
-                total_votes: 8,
-                tool_voting: {
-                    tool_vote_type: 'tool_name',
-                    tool_counts: { 'get_data': 6, 'web_search': 2 },
-                    winning_tool: 'get_data',
-                    total_tool_calls: 8,
-                },
-            },
-        };
-    }
-
-    // Fallback
-    return getMockResponse('improve_frontier', 'self_consistency');
-}
-
-// ============================================================
-// PERFORMANCE DATA — derived from response data (real or mock)
-// ============================================================
-
-function getMockPerformance(scenarioId, method) {
+function getPerformanceData(scenarioId, method) {
     const scenario = GUIDED_SCENARIOS[scenarioId];
     const isMatchFrontier = scenario.goal === 'match_frontier';
-    const mockResp = getMockResponse(scenarioId, method);
+    const data = getScenarioData(scenarioId, method);
+    if (!data) return null;
 
     if (isMatchFrontier) {
         return {
             columns: ['Small Baseline', 'Small + ITS', 'Frontier'],
-            cost:    [mockResp.baseline.cost_usd, mockResp.its.cost_usd, mockResp.frontier.cost_usd],
-            latency: [mockResp.baseline.latency_ms, mockResp.its.latency_ms, mockResp.frontier.latency_ms],
+            cost:    [data.baseline.cost_usd, data.its.cost_usd, data.frontier.cost_usd],
+            latency: [data.baseline.latency_ms, data.its.latency_ms, data.frontier.latency_ms],
             tokens:  [
-                mockResp.baseline.input_tokens + mockResp.baseline.output_tokens,
-                mockResp.its.input_tokens + mockResp.its.output_tokens,
-                mockResp.frontier.input_tokens + mockResp.frontier.output_tokens,
+                data.baseline.input_tokens + data.baseline.output_tokens,
+                data.its.input_tokens + data.its.output_tokens,
+                data.frontier.input_tokens + data.frontier.output_tokens,
             ],
         };
     }
     return {
         columns: ['Baseline', 'ITS Enhanced'],
-        cost:    [mockResp.baseline.cost_usd, mockResp.its.cost_usd],
-        latency: [mockResp.baseline.latency_ms, mockResp.its.latency_ms],
+        cost:    [data.baseline.cost_usd, data.its.cost_usd],
+        latency: [data.baseline.latency_ms, data.its.latency_ms],
         tokens:  [
-            mockResp.baseline.input_tokens + mockResp.baseline.output_tokens,
-            mockResp.its.input_tokens + mockResp.its.output_tokens,
+            data.baseline.input_tokens + data.baseline.output_tokens,
+            data.its.input_tokens + data.its.output_tokens,
         ],
     };
 }
@@ -777,12 +539,10 @@ function guidedPopulatePrompt() {
         </div>
     `;
 
-    // Prompt text — prefer captured data, fall back to mock questions
+    // Prompt text from captured data
     const key = `${guidedDemoState.scenario}_${method}`;
     const capturedEntry = GUIDED_CAPTURED_DATA && GUIDED_CAPTURED_DATA[key];
-    const question = (capturedEntry && capturedEntry.question)
-        || GUIDED_MOCK_QUESTIONS[key]
-        || 'Placeholder question — replace with real demo question';
+    const question = (capturedEntry && capturedEntry.question) || '';
     document.getElementById('guidedPromptText').textContent = question;
 
     // Reset submit button
@@ -812,14 +572,13 @@ function guidedSubmit() {
 function guidedRenderResponses() {
     const scenario = GUIDED_SCENARIOS[guidedDemoState.scenario];
     const method = guidedDemoState.method;
-    const mockData = getMockResponse(guidedDemoState.scenario, method);
+    const scenarioData = getScenarioData(guidedDemoState.scenario, method);
     const isMatchFrontier = scenario.goal === 'match_frontier';
 
     // --- Question display at top of results ---
     const key = `${guidedDemoState.scenario}_${method}`;
     const capturedEntry = GUIDED_CAPTURED_DATA && GUIDED_CAPTURED_DATA[key];
-    const question = (capturedEntry && capturedEntry.question)
-        || GUIDED_MOCK_QUESTIONS[key] || '';
+    const question = (capturedEntry && capturedEntry.question) || '';
 
     const container = document.getElementById('guidedResponses');
     const isToolCalling = scenario.goal === 'tool_calling';
@@ -827,9 +586,7 @@ function guidedRenderResponses() {
 
     // Build question banner (spans full width above response columns)
     const expectedAnswer = capturedEntry && capturedEntry.expected_answer;
-    const dataSourceBadge = capturedEntry
-        ? '<span class="guided-data-source guided-data-source--captured" title="Results from real API calls captured via capture_guided_scenarios.py">Using captured results</span>'
-        : '<span class="guided-data-source guided-data-source--mock" title="Pre-captured data not available — showing example data">Using example data</span>';
+    const dataSourceBadge = '<span class="guided-data-source guided-data-source--captured" title="Results from real API calls captured via capture_guided_scenarios.py">Using captured results</span>';
 
     let questionHtml = `
         <div class="guided-question-banner" style="grid-column: 1 / -1;">
@@ -853,10 +610,10 @@ function guidedRenderResponses() {
     if (isToolCalling) {
         // Tool calling: always 2-column, use tool call panes
         container.innerHTML += guidedBuildToolCallPane(
-            modelName + ' (Baseline)', 'baseline', mockData.baseline, guidedDemoState.scenario
+            modelName + ' (Baseline)', 'baseline', scenarioData.baseline, guidedDemoState.scenario
         );
         container.innerHTML += guidedBuildToolCallPane(
-            modelName + ' + ITS', 'its', mockData.its, guidedDemoState.scenario
+            modelName + ' + ITS', 'its', scenarioData.its, guidedDemoState.scenario
         );
     } else {
         // Baseline pane
@@ -864,7 +621,7 @@ function guidedRenderResponses() {
             ? (scenario.smallModel + ' (Baseline)')
             : (modelName + ' (Baseline)');
         container.innerHTML += guidedBuildResponsePane(
-            baselineLabel, 'baseline', mockData.baseline
+            baselineLabel, 'baseline', scenarioData.baseline
         );
 
         // ITS pane
@@ -872,13 +629,13 @@ function guidedRenderResponses() {
             ? (scenario.smallModel + ' + ITS')
             : (modelName + ' + ITS');
         container.innerHTML += guidedBuildResponsePane(
-            itsLabel, 'its', mockData.its
+            itsLabel, 'its', scenarioData.its
         );
 
         // Frontier pane (match_frontier only)
-        if (isMatchFrontier && mockData.frontier) {
+        if (isMatchFrontier && scenarioData.frontier) {
             container.innerHTML += guidedBuildResponsePane(
-                scenario.frontierModel + ' (Frontier)', 'frontier', mockData.frontier
+                scenario.frontierModel + ' (Frontier)', 'frontier', scenarioData.frontier
             );
         }
     }
@@ -896,8 +653,8 @@ function guidedRenderResponses() {
     // Tool calling: expected tool + correctness explanation
     if (isToolCalling && scenario.expectedTool) {
         const expectedJson = JSON.stringify(scenario.expectedTool.arguments, null, 2);
-        const baselineTool = mockData.baseline.tool_call ? mockData.baseline.tool_call.name : '';
-        const itsTool = mockData.its.tool_call ? mockData.its.tool_call.name : '';
+        const baselineTool = scenarioData.baseline.tool_call ? scenarioData.baseline.tool_call.name : '';
+        const itsTool = scenarioData.its.tool_call ? scenarioData.its.tool_call.name : '';
         const baselineCorrect = baselineTool === scenario.expectedTool.name;
         const itsCorrect = itsTool === scenario.expectedTool.name;
 
@@ -1245,8 +1002,8 @@ function guidedBuildResponsePane(title, type, data) {
 }
 
 // Simulated tool results — shows what each tool would return for the query.
-// These match the mock tool implementations in backend/tools.py.
-const TOOL_RESULT_MOCKS = {
+// Simulated tool execution results for the trace animation, matching backend/tools.py.
+const TOOL_RESULT_EXAMPLES = {
     'get_data:stock_price': {
         symbol: 'AAPL', price: 178.42, change: 2.34,
         change_percent: 1.32, volume: 75000000,
@@ -1276,11 +1033,11 @@ const TOOL_RESULT_MOCKS = {
 
 function guidedGetToolResult(tc, scenarioId) {
     if (tc.name === 'get_data' && tc.arguments.data_type) {
-        return TOOL_RESULT_MOCKS['get_data:' + tc.arguments.data_type] || null;
+        return TOOL_RESULT_EXAMPLES['get_data:' + tc.arguments.data_type] || null;
     }
     if (tc.name === 'web_search') {
-        if (scenarioId.includes('stock')) return TOOL_RESULT_MOCKS['web_search:stock'];
-        if (scenarioId.includes('currency')) return TOOL_RESULT_MOCKS['web_search:currency'];
+        if (scenarioId.includes('stock')) return TOOL_RESULT_EXAMPLES['web_search:stock'];
+        if (scenarioId.includes('currency')) return TOOL_RESULT_EXAMPLES['web_search:currency'];
     }
     return null;
 }
@@ -1339,17 +1096,17 @@ function guidedBuildToolCallPane(title, type, data, scenarioId) {
 
 function guidedRunTraceAnimation() {
     const method = guidedDemoState.method;
-    const mockData = getMockResponse(guidedDemoState.scenario, method);
+    const scenarioData = getScenarioData(guidedDemoState.scenario, method);
     const traceContent = document.getElementById('guidedTraceContent');
-    const numCandidates = mockData.trace.candidates.length;
+    const numCandidates = scenarioData.trace.candidates.length;
 
     const isSC = method === 'self_consistency';
-    const isToolVoting = !!(mockData.trace.tool_voting);
+    const isToolVoting = !!(scenarioData.trace.tool_voting);
     const scenario = GUIDED_SCENARIOS[guidedDemoState.scenario];
     let explainerText, conclusionText;
 
     if (isToolVoting) {
-        const toolVoting = mockData.trace.tool_voting;
+        const toolVoting = scenarioData.trace.tool_voting;
         explainerText = `The same question was sent to the same model ${numCandidates} times with access to ${scenario.availableTools.length} tools. Each call independently chose which tool to use and what arguments to pass. The most-voted tool selection wins.`;
         conclusionText = `Tool "${toolVoting.winning_tool}" won with ${toolVoting.tool_counts[toolVoting.winning_tool]} out of ${toolVoting.total_tool_calls} votes. By voting across multiple attempts, ITS ensures the correct tool is selected even when individual calls are unreliable.`;
     } else if (isSC) {
@@ -1365,10 +1122,10 @@ function guidedRunTraceAnimation() {
 
     if (isToolVoting) {
         // Tool voting trace — show tool name votes
-        const toolVoting = mockData.trace.tool_voting;
+        const toolVoting = scenarioData.trace.tool_voting;
         const winningTool = toolVoting.winning_tool;
 
-        mockData.trace.candidates.forEach((c, i) => {
+        scenarioData.trace.candidates.forEach((c, i) => {
             const toolName = c.tool_calls && c.tool_calls[0] ? c.tool_calls[0].name : '(no tool)';
             const toolArgs = c.tool_calls && c.tool_calls[0]
                 ? JSON.stringify(c.tool_calls[0].arguments) : '';
@@ -1390,7 +1147,7 @@ function guidedRunTraceAnimation() {
     } else if (isSC) {
         // For SC: extract final answer from each candidate and show vote-style
         const voteMap = {}; // answer → [candidate indices]
-        mockData.trace.candidates.forEach((c, i) => {
+        scenarioData.trace.candidates.forEach((c, i) => {
             const extracted = guidedExtractFinalAnswer(c.content);
             const answerText = extracted.answer.replace(/\$\$/g, '').replace(/\\boxed\{|\}/g, '').trim() || '(no answer)';
             if (!voteMap[answerText]) voteMap[answerText] = [];
@@ -1401,7 +1158,7 @@ function guidedRunTraceAnimation() {
         const maxVotes = sortedAnswers[0][1].length;
         const winnerAnswer = sortedAnswers[0][0];
 
-        mockData.trace.candidates.forEach((c, i) => {
+        scenarioData.trace.candidates.forEach((c, i) => {
             const extracted = guidedExtractFinalAnswer(c.content);
             const answerText = extracted.answer.replace(/\$\$/g, '').replace(/\\boxed\{|\}/g, '').trim() || '(no answer)';
             const isWinner = c.is_selected;
@@ -1418,12 +1175,12 @@ function guidedRunTraceAnimation() {
                 </div>
             `;
         });
-    } else if (mockData.trace.scores) {
+    } else if (scenarioData.trace.scores) {
         // For BoN: show score for each candidate
-        const maxScore = Math.max(...mockData.trace.scores);
+        const maxScore = Math.max(...scenarioData.trace.scores);
 
-        mockData.trace.candidates.forEach((c, i) => {
-            const score = mockData.trace.scores[i];
+        scenarioData.trace.candidates.forEach((c, i) => {
+            const score = scenarioData.trace.scores[i];
             const isWinner = c.is_selected;
             const isTopScore = score === maxScore;
 
@@ -1472,7 +1229,7 @@ function guidedRunTraceAnimation() {
     traceContent.querySelectorAll('.guided-trace-row').forEach(row => {
         row.addEventListener('click', function() {
             const idx = parseInt(this.dataset.candidateIdx);
-            const candidate = mockData.trace.candidates[idx];
+            const candidate = scenarioData.trace.candidates[idx];
             const detailEl = document.getElementById('traceCandidateDetail');
             if (!candidate || !detailEl) return;
 
@@ -1530,7 +1287,7 @@ function guidedShowPerformance() {
 function guidedRenderPerformance() {
     const scenario = GUIDED_SCENARIOS[guidedDemoState.scenario];
     const method = guidedDemoState.method;
-    const perf = getMockPerformance(guidedDemoState.scenario, method);
+    const perf = getPerformanceData(guidedDemoState.scenario, method);
     const isMatchFrontier = scenario.goal === 'match_frontier';
     const methodLabel = scenario.goal === 'tool_calling' ? 'Self-Consistency (Tool Voting)' : (method === 'self_consistency' ? 'Self-Consistency' : 'Best-of-N');
 
@@ -1557,8 +1314,8 @@ function guidedRenderPerformance() {
         `;
     }
     // Determine budget from trace data
-    const mockResp = getMockResponse(guidedDemoState.scenario, method);
-    const budget = mockResp.trace?.candidates?.length || 8;
+    const scenarioResp = getScenarioData(guidedDemoState.scenario, method);
+    const budget = scenarioResp.trace?.candidates?.length || 8;
     const budgetValue = `${budget} candidate${budget !== 1 ? 's' : ''}`;
 
     summaryItems += `
@@ -1577,12 +1334,12 @@ function guidedRenderPerformance() {
     const chartsEl = document.getElementById('guidedPerfCharts');
     chartsEl.innerHTML = '';
 
-    const mockResp2 = getMockResponse(guidedDemoState.scenario, method);
+    const scenarioData2 = getScenarioData(guidedDemoState.scenario, method);
     const savingsCard = buildSavingsCard({
-        itsCost: mockResp2.its?.cost_usd,
-        baselineCost: isMatchFrontier ? mockResp2.frontier?.cost_usd : mockResp2.baseline?.cost_usd,
-        itsCorrect: mockResp2.its?.is_correct ?? null,
-        baselineCorrect: isMatchFrontier ? mockResp2.frontier?.is_correct ?? null : mockResp2.baseline?.is_correct ?? null,
+        itsCost: scenarioData2.its?.cost_usd,
+        baselineCost: isMatchFrontier ? scenarioData2.frontier?.cost_usd : scenarioData2.baseline?.cost_usd,
+        itsCorrect: scenarioData2.its?.is_correct ?? null,
+        baselineCorrect: isMatchFrontier ? scenarioData2.frontier?.is_correct ?? null : scenarioData2.baseline?.is_correct ?? null,
         infrastructure: scenario.infrastructure || null,
         useCase: isMatchFrontier ? 'match_frontier' : (scenario.goal === 'tool_calling' ? 'tool_consensus' : 'improve_model'),
     });
@@ -1609,7 +1366,7 @@ function guidedRenderPerformance() {
     chartsEl.innerHTML += guidedBuildTakeaway(guidedDemoState.scenario, method);
 
     // Raw data viewer + restart buttons
-    const rawData = getMockResponse(guidedDemoState.scenario, method);
+    const rawData = getScenarioData(guidedDemoState.scenario, method);
     const rawJson = JSON.stringify(rawData, null, 2);
 
     chartsEl.innerHTML += `
@@ -1678,22 +1435,22 @@ function guidedBuildChart(title, columns, values, betterWhen, formatter) {
 
 function guidedBuildTakeaway(scenarioId, method) {
     const scenario = GUIDED_SCENARIOS[scenarioId];
-    const mockResp = getMockResponse(scenarioId, method);
+    const scenarioResp = getScenarioData(scenarioId, method);
     const goal = scenario.goal;
 
     let message = '';
 
     if (goal === 'tool_calling') {
-        const bTool = mockResp.baseline.tool_call?.name || 'unknown';
-        const iTool = mockResp.its.tool_call?.name || 'unknown';
+        const bTool = scenarioResp.baseline.tool_call?.name || 'unknown';
+        const iTool = scenarioResp.its.tool_call?.name || 'unknown';
         if (bTool !== iTool) {
             message = `The baseline selected <strong>${bTool}</strong>, a general-purpose tool that returns unstructured results. ITS consensus voting corrected this to <strong>${iTool}</strong>, the structured API that returns reliable, machine-readable data. This demonstrates how ITS improves agent reliability in tool selection.`;
         } else {
             message = `Both baseline and ITS selected <strong>${iTool}</strong>. ITS consensus voting confirmed the correct tool choice with high confidence.`;
         }
     } else if (goal === 'match_frontier') {
-        const itsCost = mockResp.its.cost_usd;
-        const frontierCost = mockResp.frontier.cost_usd;
+        const itsCost = scenarioResp.its.cost_usd;
+        const frontierCost = scenarioResp.frontier.cost_usd;
         const savings = Math.round((1 - itsCost / frontierCost) * 100);
         const smallModel = scenario.smallModel;
         const frontierModel = scenario.frontierModel;
@@ -1703,7 +1460,7 @@ function guidedBuildTakeaway(scenarioId, method) {
     } else {
         // improve_performance
         const model = scenario.model;
-        const costRatio = (mockResp.its.cost_usd / mockResp.baseline.cost_usd).toFixed(1);
+        const costRatio = (scenarioResp.its.cost_usd / scenarioResp.baseline.cost_usd).toFixed(1);
         const methodName = method === 'self_consistency' ? 'Self-Consistency voting' : 'Best-of-N selection';
 
         message = `ITS corrected <strong>${model}</strong>'s wrong answer using ${methodName} at <strong>${costRatio}x</strong> the baseline cost. `;

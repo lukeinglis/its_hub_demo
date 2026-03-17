@@ -88,12 +88,6 @@
             <span class="theme-icon moon-icon">🌙</span>
         </div>
 
-        <!-- Expert Mode Toggle (Floating) - only show in interactive mode -->
-        <div class="expert-mode-toggle" id="expertModeToggle" role="button" tabindex="0" aria-label="Toggle expert mode" onclick="toggleExpertMode()">
-            <span class="expert-mode-icon">🎓</span>
-            <span class="expert-mode-label">Expert Mode</span>
-        </div>
-
         <div class="container">
         <!-- Header -->
         <header>
@@ -472,6 +466,7 @@ gcloud auth application-default login</div>
                     </div>
                 </div>
 
+                <div id="iwQuestionError" class="iw-inline-error hidden"></div>
                 <div class="iw-submit-area">
                     <button class="btn-primary iw-submit-btn" id="iwSubmitBtn" onclick="iwSubmit()">
                         <span>▶</span>

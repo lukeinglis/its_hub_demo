@@ -4,7 +4,7 @@
  * ARCHITECTURE
  * ────────────
  * State ownership:
- *   - app.js owns global state (selectedExperience, currentUseCase, isExpertMode)
+ *   - app.js owns global state (selectedExperience, currentUseCase)
  *   - guided-demo.js owns guidedDemoState
  *   - interactive-demo.js owns iwState
  *
@@ -31,7 +31,6 @@ let currentExpectedAnswer = null;
 let selectedAlgorithm = 'best_of_n';
 let lastResults = null;
 let currentUseCase = 'improve_model';
-let isExpertMode = false;
 let isRunning = false; // Track if a comparison is currently running
 let selectedExperience = null; // 'guided' or 'interactive'
 
@@ -122,20 +121,7 @@ function selectExperience(experience) {
     // Show back to home button
     document.getElementById('backToHomeBtn').classList.add('visible');
 
-    // Configure experience
-    if (experience === 'guided') {
-        // Set to guided mode (non-expert)
-        isExpertMode = false;
-        localStorage.setItem('expertMode', 'false');
-        setVisible(document.getElementById('expertModeToggle'), false);
-
-        // Wizard initialization is handled by experience:selected event in guided-demo.js
-    } else {
-        // Interactive mode - show expert toggle, default to non-expert
-        isExpertMode = false;
-        localStorage.setItem('expertMode', 'false');
-        setVisible(document.getElementById('expertModeToggle'), true);
-    }
+    // Wizard initialization is handled by experience:selected event in guided-demo.js / interactive-demo.js
 
     // Initialize the demo
     initializeDemo();
@@ -178,8 +164,6 @@ function initializeDemo() {
     // Skip old scenario initialization in guided mode
     // (Wizard handles its own initialization via initGuidedWizard)
 
-    updateUIForExpertMode();
-
     // Initialize budget slider gradient
     const budgetSlider = document.getElementById('budget');
     budgetSlider.addEventListener('input', updateBudgetSliderGradient);
@@ -201,258 +185,6 @@ function checkSavedExperience() {
         selectExperience(savedExperience);
     }
     // Otherwise, show landing page (default state)
-}
-
-// Expert Mode management
-function toggleExpertMode() {
-    // Prevent toggling during active run
-    if (isRunning) {
-        showError('Cannot change mode during active comparison. Please wait for the current run to complete.');
-        return;
-    }
-
-    isExpertMode = !isExpertMode;
-    localStorage.setItem('expertMode', isExpertMode ? 'true' : 'false');
-
-    // Update toggle button visual state
-    const toggleButton = document.getElementById('expertModeToggle');
-    if (isExpertMode) {
-        toggleButton.classList.add('active');
-    } else {
-        toggleButton.classList.remove('active');
-    }
-
-    // Update UI based on mode
-    updateUIForExpertMode();
-}
-
-// Load saved expert mode preference
-const savedExpertMode = localStorage.getItem('expertMode') === 'true';
-isExpertMode = savedExpertMode;
-if (isExpertMode) {
-    document.getElementById('expertModeToggle').classList.add('active');
-}
-
-// Update UI based on expert mode
-function updateUIForExpertMode() {
-    const useCaseSection = document.querySelector('.section:has(input[name="useCase"])');
-    const algorithmGroup = document.getElementById('algorithm').closest('.form-group');
-    const budgetGroup = document.getElementById('budget').closest('.form-group');
-    const algorithmSelect = document.getElementById('algorithm');
-    const budgetSlider = document.getElementById('budget');
-    const algorithmInfo = document.getElementById('algorithmInfo');
-    const exampleQuestionsContainer = document.querySelector('.example-questions-container');
-    const configDescription = document.getElementById('configDescription');
-    const frontierModelGroup = document.getElementById('frontierModelGroup');
-    const clearButton = document.querySelector('.btn-secondary');
-    const configSectionTitle = document.querySelector('.section:has(#modelSelectionGrid) .section-title');
-    const questionSectionTitle = document.querySelector('.section:has(#question) .section-title');
-    const questionSectionDescription = document.querySelector('.section:has(#question) .section-description');
-    const headerSubtitle = document.getElementById('headerSubtitle');
-    const guidedQuestions = document.getElementById('guidedQuestions');
-    const questionTextarea = document.getElementById('question');
-    const scenarioSelectorContainer = document.getElementById('scenarioSelectorContainer');
-    const guidedDemoBadge = document.getElementById('guidedDemoBadge');
-    const runButton = document.getElementById('runButton');
-    const configSection = document.querySelector('.section:has(#modelSelectionGrid)');
-    const questionSection = document.querySelector('.section:has(#question)');
-
-    // GUIDED DEMO: Always offline scenarios, no expert mode
-    if (selectedExperience === 'guided') {
-        // Hide use case selection entirely
-        setVisible(useCaseSection, false);
-
-        // Hide budget slider
-        setVisible(budgetGroup, false);
-
-        // Hide algorithm info cards
-        setVisible(algorithmInfo, false);
-
-        // Hide example questions
-        setVisible(exampleQuestionsContainer, false);
-
-        // Hide config description
-        setVisible(configDescription, false);
-
-        // Hide clear button
-        setVisible(clearButton, false);
-
-        // Hide frontier model group
-        setVisible(frontierModelGroup, false);
-
-        // Disable use case radio buttons
-        document.querySelectorAll('input[name="useCase"]').forEach(radio => {
-            radio.disabled = true;
-        });
-
-        // Set default budget
-        budgetSlider.value = 16;
-        document.getElementById('budgetValue').textContent = '16';
-
-        // Hide guided questions
-        if (guidedQuestions) {
-            guidedQuestions.classList.remove('visible');
-        }
-
-        // Show scenario selector
-        if (scenarioSelectorContainer) {
-            scenarioSelectorContainer.classList.add('visible');
-        }
-
-        // Show guided demo badge
-        setVisible(guidedDemoBadge, true);
-
-        // Hide Run button (scenarios are pre-loaded)
-        setVisible(runButton, false);
-
-        // Hide configuration section (scenarios are pre-configured)
-        setVisible(configSection, false);
-
-        // Make question textarea read-only
-        if (questionTextarea) {
-            questionTextarea.placeholder = 'Question from selected scenario';
-            questionTextarea.disabled = true;
-        }
-
-        // Update headers for guided mode
-        if (headerSubtitle) {
-            headerSubtitle.textContent = 'Explore pre-loaded scenarios showing how ITS can improve model responses';
-        }
-        if (questionSectionTitle) {
-            questionSectionTitle.textContent = 'Scenario Prompt';
-        }
-        setVisible(questionSectionDescription, false);
-        if (configSectionTitle) {
-            configSectionTitle.textContent = 'Setup';
-        }
-
-    // INTERACTIVE DEMO: Original live experience with expert mode toggle
-    } else if (selectedExperience === 'interactive') {
-        // Always hide scenario selector and guided badge in interactive mode
-        if (scenarioSelectorContainer) {
-            scenarioSelectorContainer.classList.remove('visible');
-        }
-        setVisible(guidedDemoBadge, false);
-
-        // Expert Mode: Show all controls (original behavior)
-        if (isExpertMode) {
-            setVisible(useCaseSection, true);
-
-            // Show budget slider
-            setVisible(budgetGroup, true);
-
-            // Show algorithm info
-            setVisible(algorithmInfo, true);
-
-            // Show example questions
-            setVisible(exampleQuestionsContainer, true);
-
-            // Show config description
-            setVisible(configDescription, true);
-
-            // Show clear button
-            setVisible(clearButton, true);
-
-            // Enable algorithm selection
-            algorithmSelect.disabled = false;
-
-            // Enable budget slider
-            budgetSlider.disabled = false;
-
-            // Enable use case radio buttons
-            document.querySelectorAll('input[name="useCase"]').forEach(radio => {
-                radio.disabled = false;
-            });
-
-            // Restore section titles and descriptions
-            if (configSectionTitle) {
-                configSectionTitle.textContent = 'Configuration';
-            }
-            if (questionSectionTitle) {
-                questionSectionTitle.textContent = 'Your Question';
-            }
-            if (questionSectionDescription) {
-                setVisible(questionSectionDescription, true);
-                questionSectionDescription.textContent = 'Ask anything or try an example';
-            }
-            if (headerSubtitle) {
-                headerSubtitle.textContent = 'Compare baseline inference with ITS algorithms side by side';
-            }
-
-            // Hide guided questions
-            if (guidedQuestions) {
-                guidedQuestions.classList.remove('visible');
-            }
-
-            // Show Run button
-            setVisible(runButton, true);
-
-            // Show configuration section
-            setVisible(configSection, true);
-
-            // Restore placeholder
-            if (questionTextarea) {
-                questionTextarea.placeholder = 'Enter your question here...';
-                questionTextarea.disabled = false;
-            }
-
-        // Non-Expert Mode: Simplified but still live (original behavior)
-        } else {
-            // Simplify section headers
-            if (configSectionTitle) {
-                configSectionTitle.textContent = 'Setup';
-            }
-            if (questionSectionTitle) {
-                questionSectionTitle.textContent = 'Your Question';
-            }
-            setVisible(questionSectionDescription, false);
-            if (headerSubtitle) {
-                headerSubtitle.textContent = 'Compare model responses with different ITS algorithms';
-            }
-
-            // Hide use case selection
-            setVisible(useCaseSection, false);
-
-            // Hide budget slider
-            setVisible(budgetGroup, false);
-
-            // Hide algorithm info cards
-            setVisible(algorithmInfo, false);
-
-            // Hide example questions
-            setVisible(exampleQuestionsContainer, false);
-
-            // Hide config description
-            setVisible(configDescription, false);
-
-            // Hide clear button
-            setVisible(clearButton, false);
-
-            // Hide frontier model group if visible
-            setVisible(frontierModelGroup, false);
-
-            // Set default budget
-            budgetSlider.value = 16;
-            document.getElementById('budgetValue').textContent = '16';
-
-            // Hide guided questions
-            if (guidedQuestions) {
-                guidedQuestions.classList.remove('visible');
-            }
-
-            // Show Run button (live API calls)
-            setVisible(runButton, true);
-
-            // Show configuration section
-            setVisible(configSection, true);
-
-            // Enable question textarea
-            if (questionTextarea) {
-                questionTextarea.placeholder = 'Enter your question here...';
-                questionTextarea.disabled = false;
-            }
-        }
-    }
 }
 
 // Show algorithm info
@@ -671,13 +403,6 @@ function clearResults() {
 
 // Update budget value and slider gradient
 document.getElementById('budget').addEventListener('input', (e) => {
-    // In guided mode, prevent budget changes
-    if (!isExpertMode) {
-        e.target.value = 16;
-        document.getElementById('budgetValue').textContent = '16';
-        return;
-    }
-
     const value = e.target.value;
     const max = e.target.max;
     const percentage = (value / max) * 100;

@@ -17,6 +17,8 @@ Quick reference for presenting the ITS demo. For setup and architecture details,
 
 The guided demo uses pre-captured real API responses. No API keys required. Each scenario walks through a 6-step flow: Goal → Method → Scenario → Question → Responses/Trace → Performance.
 
+> **Tool Consensus** is exclusive to the Guided Demo. It requires pre-configured mock tool scenarios (tool definitions, ground-truth tool selections from BFCL) that don't translate to a free-form interactive setup. The Interactive Demo covers Improve Model and Match Frontier only.
+
 ### Demo 1: Tool Consensus — Agent Reliability (show first)
 
 **Why first:** Most unique and differentiated feature. Shows how ITS improves agent tool selection through democratic voting.

@@ -179,8 +179,9 @@
     color: var(--text-primary);
 }
 
-/* ===== STEP 1 INLINE ERROR ===== */
-.iw-step1-error {
+/* ===== INLINE ERRORS ===== */
+.iw-step1-error,
+.iw-inline-error {
     padding: 16px 20px;
     background: var(--bg-primary);
     border: 2px solid var(--danger);

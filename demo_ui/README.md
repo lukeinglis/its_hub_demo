@@ -6,8 +6,8 @@ A simple web interface for comparing baseline LLM inference vs Inference-Time Sc
 
 This demo provides two entry points from the landing page:
 
-1. **Guided Demo** — A step-by-step walkthrough using pre-captured real API responses. No API keys required — works on any machine.
-2. **Interactive Demo** — Full live experience with real API calls, model selection, and custom questions. Requires at least one provider API key.
+1. **Guided Demo** — A step-by-step walkthrough using pre-captured real API responses. No API keys required — works on any machine. Includes all three use cases: Improve Model, Match Frontier, and Tool Consensus.
+2. **Interactive Demo** — Full live experience with real API calls, model selection, and custom questions. Requires at least one provider API key. Supports Improve Model and Match Frontier (tool calling is not available — see note below).
 
 ### Guided Demo Flow
 
@@ -15,7 +15,7 @@ The Guided Demo follows a 6-step progressive disclosure:
 
 | Step | Screen | What the user does |
 |------|--------|--------------------|
-| 1 | **Goal** | Choose "Improve Model Performance" or "Improve Small Model to Match Frontier" |
+| 1 | **Goal** | Choose "Improve Model Performance", "Match Frontier", or "Tool Consensus" |
 | 2 | **Method** | Choose ITS algorithm: Self-Consistency or Best-of-N |
 | 3 | **Scenario** | Pick a model scenario (options depend on goal selected in step 1) |
 | 4 | **Run** | Review pre-populated question and click Submit |
@@ -25,6 +25,7 @@ The Guided Demo follows a 6-step progressive disclosure:
 **Branching logic in Step 3:**
 - If goal = "Improve Model Performance" → Frontier Model or Open Source Model
 - If goal = "Match Frontier" → Same Family (e.g. GPT-3.5 Turbo → GPT-4o) or Cross-Family (e.g. Llama 3.2 3B → GPT-4o)
+- If goal = "Tool Consensus" → Pre-configured tool calling scenarios (e.g. Stock Price Lookup)
 
 ### Interactive Demo Flow
 
@@ -45,7 +46,8 @@ The model dropdowns in step 4 are dynamically populated based on which providers
 - **Two Scenarios** (selected in step 3):
   1. **Improve Model Performance**: Compare same model with/without ITS (2-column results)
   2. **Match Frontier**: Show small model + ITS matching large frontier model (3-column results)
-- **Backend also supports**: Tool Consensus use case (agent tool voting via API — available when running comparisons directly through the `/compare` endpoint)
+
+> **Note:** Tool Consensus (agent tool voting) is available in the **Guided Demo** only, where pre-captured scenarios showcase it effectively. It is not offered in the Interactive Demo because tool calling requires pre-configured mock tool scenarios that don't fit a free-form live setup. The `/compare` API endpoint still supports `use_case: "tool_consensus"` directly if needed.
 - **Smart Features**:
   - **Answer Extraction**: Automatically extracts `\boxed{}` answers from math responses for proper consensus voting
   - **Auto-Detection**: Recognizes question types (math, tool_calling, general) and applies optimal configuration
@@ -68,23 +70,23 @@ The model dropdowns in step 4 are dynamically populated based on which providers
 
 ### 🎯 Three Powerful Use Cases
 
-1. **Improve Any Model's Performance**
+1. **Improve Any Model's Performance** *(Guided + Interactive)*
    - See how ITS enhances any model's capabilities
    - 2-column comparison: Baseline vs ITS
-   - **NEW**: Answer extraction for math questions ensures proper consensus voting
+   - Answer extraction for math questions ensures proper consensus voting
    - Example: GPT-3.5 achieves 30-60% accuracy improvement on probability questions
 
-2. **Match Frontier at Lower Cost**
+2. **Match Frontier at Lower Cost** *(Guided + Interactive)*
    - Show small model + ITS matching large frontier model
    - 3-column comparison: Small, Small+ITS, Frontier
    - **Cost savings: 14-97%** while maintaining quality
    - Example: GPT-3.5 Turbo + ITS saves 14-44% vs GPT-4o; Llama 3.2 3B + ITS saves 97% vs GPT-4o
 
-3. **Tool Consensus for Agent Reliability** 🆕
+3. **Tool Consensus for Agent Reliability** *(Guided Demo only)*
    - Demonstrate reliable agent decision-making through tool voting
    - 2-column comparison: Single tool call vs Consensus voting
    - Shows distribution of tool selections (e.g., `{'calculate': 6}`)
-   - Perfect for showcasing agent reliability in production scenarios
+   - Guided Demo only — tool calling requires pre-configured mock tool scenarios that don't fit a free-form interactive setup
 
 ### 🧠 Intelligent Answer Extraction & Auto-Detection 🆕
 
@@ -129,7 +131,7 @@ All 6 ITS algorithms tested and working:
 ### 📚 Example Questions Library
 
 30 curated questions from multiple sources (MATH500, AIME, AMC, and hand-curated):
-- 22 math questions + 8 tool calling questions
+- 22 math questions (available in both Guided and Interactive demos) + 8 tool calling questions (Guided Demo only)
 - Easy, Medium, and Hard difficulty levels
 - Organized by category (Algebra, Number Theory, Probability, Competition Math, etc.)
 - Each includes expected answer, algorithm recommendations, and source attribution
@@ -317,7 +319,7 @@ The guided demo uses real captured API responses from `guided-demo-data.json` (g
 
 1. **Access** — Review which providers are available. Click any card to copy its env variable. Active providers are highlighted green automatically.
 2. **Status** — Click "Check Access & Continue" to detect configured credentials and see available models.
-3. **Scenario** — Choose "Improve Model Performance" (2-column) or "Match Frontier" (3-column).
+3. **Scenario** — Choose "Improve Model Performance" (2-column) or "Match Frontier" (3-column). Tool Consensus is not available in interactive mode.
 4. **Configure & Run** — Select model(s), algorithm, budget, and enter your question (from curated list or custom). Click "Run Comparison".
 5. **Results** — View response panes with Cheapest/Fastest badges, expandable reasoning and algorithm traces, and performance comparison charts.
 
@@ -697,10 +699,10 @@ For production use with process-based algorithms, consider using a dedicated pro
 - ✅ **Trace Animation**: Staged 3-phase visualization showing Generate → Evaluate → Select
 - ✅ **Performance Page**: Bar charts for Cost, Quality, Latency, and Tokens with best-value highlighting
 - ✅ **Branching Scenarios**: Model options change based on selected goal (Improve vs Match Frontier)
-- ✅ **Three Use Cases**: Improve model performance, match frontier at lower cost, or demonstrate tool consensus
+- ✅ **Three Use Cases**: Improve model performance, match frontier at lower cost, or demonstrate tool consensus (guided demo only)
 - ✅ **Answer Extraction**: Extracts `\boxed{}` answers from math responses for proper consensus voting
 - ✅ **Auto-Detection**: Recognizes math, tool_calling, and general question types automatically
-- ✅ **Tool Consensus**: Agent reliability through democratic tool voting
+- ✅ **Tool Consensus**: Agent reliability through democratic tool voting (guided demo only)
 - ✅ **Algorithm Traces**: Expandable visualization of vote counts, tool distributions, and candidate responses
 - ✅ **6 ITS Algorithms**: Outcome-based and process-based algorithms
 - ✅ **Cost Tracking**: Real-time token counting and cost calculation

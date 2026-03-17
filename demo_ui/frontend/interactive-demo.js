@@ -104,9 +104,6 @@ function iwInit() {
         setVisible(document.getElementById(id), false);
     });
 
-    // Hide elements from the original interactive UI
-    setVisible(document.getElementById('expertModeToggle'), false);
-
     // Clear Step 1 error
     const step1Err = document.getElementById('iwStep1Error');
     if (step1Err) { step1Err.innerHTML = ''; setVisible(step1Err, false); }
@@ -128,10 +125,15 @@ function iwInit() {
 // SILENT PROVIDER DETECTION (lights up cards on step 1)
 // ============================================================
 
+let iwProviderDetectController = null;
+
 async function iwDetectProvidersForCards() {
+    // Cancel any in-flight detection
+    if (iwProviderDetectController) iwProviderDetectController.abort();
+    iwProviderDetectController = new AbortController();
     const dot = document.getElementById('iwBackendDot');
     try {
-        const resp = await fetch(API_BASE_URL + '/providers', { signal: AbortSignal.timeout(3000) });
+        const resp = await fetch(API_BASE_URL + '/providers', { signal: iwProviderDetectController.signal });
         if (!resp.ok) {
             if (dot) dot.classList.add('offline');
             return;
@@ -151,7 +153,8 @@ async function iwDetectProvidersForCards() {
                 if (hint) { hint.textContent = 'Active'; hint.classList.add('active-label'); }
             }
         }
-    } catch (_) {
+    } catch (e) {
+        if (e.name === 'AbortError') return; // Cancelled — no UI update needed
         // Backend not running — cards stay neutral, show offline dot
         if (dot) { dot.classList.remove('online'); dot.classList.add('offline'); }
     }
@@ -214,7 +217,15 @@ function iwShowStep(n) {
 
 function iwGoBack(toStep) {
     if (toStep <= 3) { iwState.scenario = null; }
-    if (toStep <= 4) { iwState.modelId = null; iwState.frontierModelId = null; iwState.question = null; iwState.expectedAnswer = null; }
+    if (toStep <= 4) {
+        iwState.modelId = null; iwState.frontierModelId = null; iwState.question = null; iwState.expectedAnswer = null;
+        const ta = document.getElementById('iwCustomTextarea');
+        const sel = document.getElementById('iwCuratedSelect');
+        if (ta) ta.value = '';
+        if (sel) sel.value = '';
+        const qErr = document.getElementById('iwQuestionError');
+        if (qErr) { qErr.innerHTML = ''; setVisible(qErr, false); }
+    }
     iwShowStep(toStep);
 }
 
@@ -245,6 +256,9 @@ async function iwCheckProviders() {
 
     // Clear any previous Step 1 error
     if (step1Err) { step1Err.innerHTML = ''; setVisible(step1Err, false); }
+
+    // Cancel background provider detection (avoid late UI updates)
+    if (iwProviderDetectController) { iwProviderDetectController.abort(); iwProviderDetectController = null; }
 
     // Health check BEFORE navigating away from Step 1
     try {
@@ -477,8 +491,10 @@ function iwCustomChanged(textarea) {
 
 async function iwSubmit() {
     const question = document.getElementById('iwCustomTextarea').value.trim();
+    const qErr = document.getElementById('iwQuestionError');
+    if (qErr) { qErr.innerHTML = ''; setVisible(qErr, false); }
     if (!question) {
-        alert('Please enter or select a question.');
+        if (qErr) { qErr.textContent = 'Please enter or select a question.'; setVisible(qErr, true); }
         return;
     }
     iwState.question = question;
