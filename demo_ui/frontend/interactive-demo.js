@@ -306,23 +306,42 @@ async function iwCheckProviders() {
 
         // Render model list
         if (iwState.models.length > 0) {
-            let modelsHtml = '<h4 style="font-size:14px; margin-bottom:12px; color:var(--text-secondary);">' +
-                iwState.models.length + ' models available</h4>';
-            modelsHtml += '<div class="iw-model-list">';
             const providerLabels = { openai: 'OpenAI', openrouter: 'OpenRouter', vertex_ai: 'Vertex AI', local: 'Local' };
+            const providerOrder = ['openai', 'vertex_ai', 'openrouter', 'local'];
+            const sizeOrder = { 'Large': 0, 'Small': 1 };
+
+            // Group by provider, sort each group by size (Large first)
+            const grouped = {};
             iwState.models.forEach(m => {
-                const pLabel = providerLabels[m.provider] || m.provider;
-                const reasoningBadge = m.is_reasoning ? '<span class="iw-model-chip-reasoning">Reasoning</span>' : '';
-                modelsHtml += `
-                    <div class="iw-model-chip">
-                        <span class="iw-model-chip-provider">${escapeHtml(pLabel)}</span>
-                        <span class="iw-model-chip-name">${escapeHtml(m.description)}</span>
-                        ${reasoningBadge}
-                        <span class="iw-model-chip-size">${escapeHtml(m.size)}</span>
-                    </div>
-                `;
+                const p = m.provider || 'other';
+                if (!grouped[p]) grouped[p] = [];
+                grouped[p].push(m);
             });
-            modelsHtml += '</div>';
+            for (const p of Object.keys(grouped)) {
+                grouped[p].sort((a, b) => (sizeOrder[a.size] ?? 2) - (sizeOrder[b.size] ?? 2));
+            }
+
+            let modelsHtml = '';
+            const sortedProviders = Object.keys(grouped).sort((a, b) =>
+                (providerOrder.indexOf(a) === -1 ? 99 : providerOrder.indexOf(a)) -
+                (providerOrder.indexOf(b) === -1 ? 99 : providerOrder.indexOf(b))
+            );
+            for (const p of sortedProviders) {
+                const pLabel = providerLabels[p] || p;
+                modelsHtml += `<h4 class="iw-model-group-label">${escapeHtml(pLabel)} <span class="iw-model-group-count">${grouped[p].length}</span></h4>`;
+                modelsHtml += '<div class="iw-model-list">';
+                grouped[p].forEach(m => {
+                    const reasoningBadge = m.is_reasoning ? '<span class="iw-model-chip-reasoning">Reasoning</span>' : '';
+                    modelsHtml += `
+                        <div class="iw-model-chip">
+                            <span class="iw-model-chip-name">${escapeHtml(m.description)}</span>
+                            ${reasoningBadge}
+                            <span class="iw-model-chip-size">${escapeHtml(m.size)}</span>
+                        </div>
+                    `;
+                });
+                modelsHtml += '</div>';
+            }
             modelListEl.innerHTML = modelsHtml;
             proceedBtn.disabled = false;
         } else {
@@ -379,9 +398,7 @@ function iwPopulateConfig() {
     for (const [group, models] of Object.entries(grouped)) {
         modelHtml += `<optgroup label="${group}">`;
         models.forEach(m => {
-            const sizeLabel = m.size ? ` [${escapeHtml(m.size)}]` : '';
-            const reasoningLabel = m.is_reasoning ? ' [Reasoning]' : '';
-            modelHtml += `<option value="${escapeHtml(m.id)}">${escapeHtml(m.description)}${sizeLabel}${reasoningLabel}</option>`;
+            modelHtml += `<option value="${escapeHtml(m.id)}">${escapeHtml(m.description)}</option>`;
         });
         modelHtml += '</optgroup>';
     }

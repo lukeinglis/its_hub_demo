@@ -159,7 +159,7 @@ async def check_providers():
         "vertex_ai": {
             "enabled": bool(vertex_project),
             "name": "Google Cloud Vertex AI",
-            "description": "Claude Sonnet 4.6, Claude Haiku 4.5, Gemini 2.0 Flash, Gemini 2.5 Flash",
+            "description": "Claude Sonnet 4.6, Claude Haiku 4.5",
             "env_var": "VERTEX_PROJECT",
             "setup": "export VERTEX_PROJECT=your-project-id\ngcloud auth application-default login",
         },
