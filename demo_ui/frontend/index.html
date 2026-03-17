@@ -102,71 +102,6 @@
             </div>
         </header>
 
-        <!-- Use Case Selection -->
-        <div class="section" id="useCaseSection">
-            <div class="section-header">
-                <h2 class="section-title">Choose Your Use Case</h2>
-                <p class="section-description">Select what you want to demonstrate with ITS</p>
-            </div>
-
-            <div class="use-case-grid">
-                <label class="use-case-card" data-use-case="improve_model">
-                    <input type="radio" name="useCase" value="improve_model" checked onchange="onUseCaseChange()">
-                    <div class="use-case-content">
-                        <div class="use-case-header">
-                            <span class="use-case-icon">📈</span>
-                            <h3 class="use-case-title">Improve Model Performance</h3>
-                        </div>
-                        <p class="use-case-description">Use ITS to improve any model's performance on the same task</p>
-                        <div class="use-case-comparison">
-                            <span class="comparison-item">Model (Baseline)</span>
-                            <span class="comparison-vs">vs</span>
-                            <span class="comparison-item highlight">Model + ITS</span>
-                        </div>
-                    </div>
-                </label>
-
-                <label class="use-case-card" data-use-case="match_frontier">
-                    <input type="radio" name="useCase" value="match_frontier" onchange="onUseCaseChange()">
-                    <div class="use-case-content">
-                        <div class="use-case-header">
-                            <span class="use-case-icon">⚖️</span>
-                            <h3 class="use-case-title">Match Frontier with Smaller Model</h3>
-                        </div>
-                        <p class="use-case-description">Compare small model baseline, small model + ITS, and frontier model performance</p>
-                        <div class="use-case-comparison">
-                            <span class="comparison-item">Small</span>
-                            <span class="comparison-vs">→</span>
-                            <span class="comparison-item highlight">Small + ITS</span>
-                            <span class="comparison-vs">≈</span>
-                            <span class="comparison-item">Frontier</span>
-                        </div>
-                    </div>
-                </label>
-
-                <label class="use-case-card" data-use-case="tool_consensus">
-                    <input type="radio" name="useCase" value="tool_consensus" onchange="onUseCaseChange()">
-                    <div class="use-case-content">
-                        <div class="use-case-header">
-                            <span class="use-case-icon">🤖</span>
-                            <h3 class="use-case-title">Agent Tool Consensus</h3>
-                        </div>
-                        <p class="use-case-description">Show how ITS creates consensus on tool selection for reliable agents</p>
-                        <div class="use-case-comparison">
-                            <span class="comparison-item">Single Call</span>
-                            <span class="comparison-vs">vs</span>
-                            <span class="comparison-item highlight">Tool Voting</span>
-                        </div>
-                    </div>
-                </label>
-            </div>
-        </div>
-
-        <!-- Guided Demo Badge -->
-        <div class="guided-demo-badge hidden" id="guidedDemoBadge">
-            📚 Guided Demo Mode
-        </div>
-
         <!-- Guided Demo Wizard -->
         <div id="guidedWizard" class="guided-wizard hidden">
             <!-- Progress Bar -->
@@ -333,7 +268,7 @@
                             <span class="iw-provider-name">OpenAI</span>
                             <span class="iw-copy-hint">Click to copy</span>
                         </div>
-                        <div class="iw-provider-models">GPT-4o, GPT-4o Mini, GPT-4 Turbo, GPT-3.5 Turbo</div>
+                        <div class="iw-provider-models">GPT-4o, GPT-4o Mini, GPT-4.1, GPT-4.1 Mini/Nano, GPT-3.5 Turbo</div>
                         <div class="iw-provider-setup">OPENAI_API_KEY=sk-...</div>
                     </div>
 
@@ -343,7 +278,7 @@
                             <span class="iw-provider-name">Google Cloud Vertex AI</span>
                             <span class="iw-copy-hint">Click to copy</span>
                         </div>
-                        <div class="iw-provider-models">Claude 3.5 Sonnet/Opus/Haiku, Gemini 1.5 Pro/Flash</div>
+                        <div class="iw-provider-models">Claude Sonnet 4.6, Claude Haiku 4.5, Gemini 2.0 Flash, Gemini 2.5 Flash</div>
                         <div class="iw-provider-setup">VERTEX_PROJECT=your-project-id
 gcloud auth application-default login</div>
                     </div>
@@ -508,195 +443,6 @@ gcloud auth application-default login</div>
             </div>
         </div>
 
-        <!-- Configuration Section -->
-        <div class="section" id="configSection">
-            <div class="section-header">
-                <h2 class="section-title">Configuration</h2>
-                <p class="section-description" id="configDescription">Choose your model, algorithm, and compute budget</p>
-            </div>
-
-            <div class="form-grid" id="modelSelectionGrid">
-                <div class="form-group hidden" id="frontierModelGroup">
-                    <label for="frontierModel">Frontier Model</label>
-                    <select id="frontierModel">
-                        <option value="">Loading models...</option>
-                    </select>
-                </div>
-
-                <div class="form-group" id="modelGroup">
-                    <label for="model" id="modelLabel">Model</label>
-                    <select id="model">
-                        <option value="">Loading models...</option>
-                    </select>
-                </div>
-
-                <div class="form-group">
-                    <label for="algorithm">
-                        ITS Algorithm
-                    </label>
-                    <select id="algorithm" onchange="onAlgorithmChange()">
-                        <optgroup label="Production">
-                            <option value="best_of_n">Best-of-N</option>
-                            <option value="self_consistency">Self-Consistency</option>
-                        </optgroup>
-                        <optgroup label="Research (requires PRM)">
-                            <option value="beam_search">Beam Search</option>
-                            <option value="particle_filtering">Particle Filtering</option>
-                            <option value="entropic_particle_filtering">Entropic Particle Filtering</option>
-                            <option value="particle_gibbs">Particle Gibbs</option>
-                        </optgroup>
-                    </select>
-                </div>
-            </div>
-
-            <!-- Algorithm Info (Dynamic) -->
-            <div id="algorithmInfo"></div>
-
-            <div class="form-group form-group--spaced">
-                <label for="budget">
-                    Budget
-                    <span class="label-helper">– Computational resources allocated</span>
-                </label>
-                <div class="slider-container">
-                    <div class="slider-header">
-                        <span class="slider-hint">Lower</span>
-                        <span class="budget-value" id="budgetValue">4</span>
-                        <span class="slider-hint">Higher</span>
-                    </div>
-                    <input type="range" id="budget" min="1" max="32" value="4" step="1">
-                </div>
-            </div>
-        </div>
-
-        <!-- Question Section -->
-        <div class="section" id="questionSection">
-            <div class="section-header">
-                <h2 class="section-title">Your Question</h2>
-                <p class="section-description">Ask anything or try an example</p>
-            </div>
-
-            <div class="form-group">
-                <!-- Guided Mode Question Selector -->
-                <div id="guidedQuestions" class="guided-questions">
-                    <label class="guided-questions-label">Choose a question that demonstrates this algorithm:</label>
-                    <div id="guidedQuestionsGrid" class="guided-questions-grid">
-                        <!-- Questions will be populated dynamically -->
-                    </div>
-                </div>
-
-                <label for="question">Question</label>
-                <textarea id="question" placeholder="Enter your question here...">Explain quantum entanglement in simple terms.</textarea>
-
-                <div class="example-questions-container">
-                    <label for="exampleQuestions" class="example-label">
-                        <span>💡</span>
-                        <span>Try an example question</span>
-                    </label>
-                    <select id="exampleQuestions" class="example-select">
-                        <option value="">Select an example...</option>
-                    </select>
-                </div>
-            </div>
-
-            <div class="action-buttons">
-                <button class="btn-primary" id="runButton" onclick="runComparison()">
-                    <span>▶</span>
-                    <span>Run Comparison</span>
-                </button>
-                <button class="btn-secondary" onclick="clearResults()">Clear</button>
-            </div>
-        </div>
-
-        <div id="errorContainer" aria-live="assertive"></div>
-
-        <!-- Expected Answer -->
-        <div id="expectedAnswerContainer" class="expected-answer-container">
-            <div class="expected-answer-header">
-                <span class="check-icon">✓</span>
-                <strong>Expected Answer</strong>
-            </div>
-            <div id="expectedAnswerContent" class="expected-answer-content"></div>
-        </div>
-
-        <!-- Results -->
-        <div class="results" id="resultsContainer">
-            <!-- Small Model Baseline (only shown in match_frontier mode) -->
-            <div class="result-pane hidden" id="smallBaselinePane">
-                <div class="pane-header">
-                    <div class="pane-title">
-                        <span class="pane-indicator baseline"></span>
-                        <span id="smallBaselineTitle">Small Model</span>
-                        <span class="size-badge small hidden" id="smallBaselineSize">Small</span>
-                    </div>
-                    <div class="pane-header-actions">
-                        <div class="cost-badge hidden" id="smallBaselineCost">-</div>
-                        <div class="latency-badge hidden" id="smallBaselineLatency">-</div>
-                        <div class="result-actions hidden" id="smallBaselineActions">
-                            <button class="action-btn" onclick="copyToClipboard('smallBaseline')" title="Copy answer">📋</button>
-                        </div>
-                    </div>
-                </div>
-                <div id="smallBaselineContent" class="answer-content">
-                    <div class="empty-state">
-                        <div class="empty-state-icon">💭</div>
-                        <div>Run a comparison to see results</div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- ITS Result (or Baseline for improve_model mode) -->
-            <div class="result-pane">
-                <div class="pane-header">
-                    <div class="pane-title">
-                        <span class="pane-indicator baseline" id="middlePaneIndicator"></span>
-                        <span id="middlePaneTitle">Baseline</span>
-                        <span class="size-badge hidden" id="middlePaneSize">-</span>
-                    </div>
-                    <div class="pane-header-actions">
-                        <div class="cost-badge hidden" id="middlePaneCost">-</div>
-                        <div class="latency-badge hidden" id="middlePaneLatency">-</div>
-                        <div class="result-actions hidden" id="middlePaneActions">
-                            <button class="action-btn" onclick="copyToClipboard('middlePane')" title="Copy answer">📋</button>
-                        </div>
-                    </div>
-                </div>
-                <div id="middlePaneContent" class="answer-content">
-                    <div class="empty-state">
-                        <div class="empty-state-icon">💭</div>
-                        <div>Run a comparison to see results</div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Frontier Model or ITS Result -->
-            <div class="result-pane">
-                <div class="pane-header">
-                    <div class="pane-title">
-                        <span class="pane-indicator its" id="rightPaneIndicator"></span>
-                        <span id="rightPaneTitle">ITS Result</span>
-                        <span class="size-badge hidden" id="rightPaneSize">-</span>
-                    </div>
-                    <div class="pane-header-actions">
-                        <div class="cost-badge hidden" id="rightPaneCost">-</div>
-                        <div class="latency-badge hidden" id="rightPaneLatency">-</div>
-                        <div class="result-actions hidden" id="rightPaneActions">
-                            <button class="action-btn" onclick="copyToClipboard('rightPane')" title="Copy answer">📋</button>
-                        </div>
-                    </div>
-                </div>
-                <div id="rightPaneContent" class="answer-content">
-                    <div class="empty-state">
-                        <div class="empty-state-icon">🚀</div>
-                        <div>Run a comparison to see results</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Enhanced Performance Visualization -->
-        <div class="hidden performance-viz-wrapper" id="performance-visualization-container">
-            <div id="performance-visualization"></div>
-        </div>
     </div>
     </div><!-- End demoContainer -->
 

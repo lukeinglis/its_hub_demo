@@ -97,13 +97,6 @@ function iwInit() {
     const wizard = document.getElementById('interactiveWizard');
     setVisible(wizard, true);
 
-    // Hide all other sections — the wizard is the entire experience
-    ['useCaseSection', 'scenarioSection', 'configSection', 'questionSection',
-     'errorContainer', 'expectedAnswerContainer', 'resultsContainer',
-     'performance-visualization-container'].forEach(id => {
-        setVisible(document.getElementById(id), false);
-    });
-
     // Clear Step 1 error
     const step1Err = document.getElementById('iwStep1Error');
     if (step1Err) { step1Err.innerHTML = ''; setVisible(step1Err, false); }
@@ -605,12 +598,6 @@ function iwRenderResults(data) {
                 <div class="iw-question-display">
                     <div class="iw-question-label">Question</div>
                     <div class="iw-question-text">${escapeHtml(iwState.question)}</div>
-                    ${iwState.expectedAnswer ? `
-                        <div class="iw-expected-inline">
-                            <span class="iw-expected-label">Expected Answer:</span>
-                            <span class="iw-expected-value">${escapeHtml(iwState.expectedAnswer)}</span>
-                        </div>
-                    ` : ''}
                 </div>
             `;
         }
@@ -628,6 +615,18 @@ function iwRenderResults(data) {
         }
 
         html += '</div>';
+
+        if (iwState.expectedAnswer) {
+            html += `
+                <div class="iw-expected-answer-bar">
+                    <div class="iw-expected-label">Expected Answer</div>
+                    <div class="iw-expected-value">${escapeHtml(iwState.expectedAnswer)}</div>
+                </div>
+            `;
+        }
+
+        html += iwBuildInsightBox(data);
+
         resultsEl.innerHTML = html;
 
         // Render math in results (including question display)
@@ -651,6 +650,69 @@ function iwRenderResults(data) {
     } catch (e) { console.error('Performance section error:', e); }
 }
 
+// Build a data-aware insight box explaining ITS results
+function iwBuildInsightBox(data) {
+    const trace = data.its && data.its.trace;
+    if (!trace || !trace.candidates || trace.candidates.length === 0) return '';
+
+    const algorithm = trace.algorithm;
+    const numCandidates = trace.candidates.length;
+    const parts = [];
+
+    if (algorithm === 'self_consistency') {
+        if (trace.vote_counts) {
+            const vc = trace.vote_counts;
+            const total = trace.total_votes || Object.values(vc).reduce((a, b) => a + b, 0);
+            const sorted = Object.entries(vc).sort((a, b) => b[1] - a[1]);
+            const winner = sorted[0];
+            parts.push(`ITS generated <strong>${total}</strong> candidates. <strong>${winner[1]}/${total}</strong> agreed on answer <strong>${winner[0]}</strong> through majority voting.`);
+            if (sorted.length > 1) {
+                const others = sorted.slice(1).map(([ans, cnt]) => `${ans} (${cnt})`).join(', ');
+                parts.push(`Other answers: ${others}.`);
+            }
+        } else {
+            parts.push(`ITS evaluated ${numCandidates} candidates using self-consistency to find the most agreed-upon response.`);
+        }
+        // Match-frontier cost savings
+        if (iwState.scenario === 'match_frontier' && data.small_baseline && data.baseline) {
+            const itsCost = data.its.cost_usd;
+            const frontierCost = data.baseline.cost_usd;
+            if (itsCost && frontierCost && frontierCost > 0) {
+                const savings = ((1 - itsCost / frontierCost) * 100).toFixed(0);
+                parts.push(`Cost: <strong>$${itsCost.toFixed(4)}</strong> vs frontier's $${frontierCost.toFixed(4)} (<strong>${savings}% savings</strong>).`);
+            }
+        }
+    } else if (algorithm === 'best_of_n') {
+        const selected = trace.candidates.find(c => c.is_selected);
+        if (selected && selected.score != null) {
+            const scores = trace.candidates.filter(c => c.score != null).map(c => c.score);
+            const minScore = Math.min(...scores).toFixed(2);
+            const maxScore = Math.max(...scores).toFixed(2);
+            parts.push(`ITS generated <strong>${numCandidates}</strong> candidates scored by LLM judge. Winner scored <strong>${selected.score.toFixed ? selected.score.toFixed(2) : selected.score}</strong> (range: ${minScore}\u2013${maxScore}).`);
+        } else {
+            parts.push(`ITS generated <strong>${numCandidates}</strong> candidates and an LLM judge selected the highest quality response.`);
+        }
+    } else {
+        parts.push(`ITS evaluated <strong>${numCandidates}</strong> candidates to find the best response.`);
+    }
+
+    // Cost comparison: ITS vs baseline
+    if (data.its.cost_usd != null && data.baseline && data.baseline.cost_usd != null && data.baseline.cost_usd > 0) {
+        const multiplier = (data.its.cost_usd / data.baseline.cost_usd).toFixed(1);
+        parts.push(`ITS cost: <strong>${multiplier}x</strong> baseline ($${data.its.cost_usd.toFixed(4)} vs $${data.baseline.cost_usd.toFixed(4)}).`);
+    }
+
+    return `
+        <div class="iw-insight-box">
+            <div class="iw-insight-header">
+                <span class="iw-insight-icon">&#x1f50d;</span>
+                <span class="iw-insight-title">How ITS Worked</span>
+            </div>
+            <div class="iw-insight-content">${parts.join(' ')}</div>
+        </div>
+    `;
+}
+
 // Wrapper that catches errors per-pane so one bad pane doesn't break all results
 function iwBuildResultPaneSafe(data, type, title, minCost, minLatency) {
     try {
@@ -664,6 +726,21 @@ function iwBuildResultPaneSafe(data, type, title, minCost, minLatency) {
 function iwGetModelDesc(modelId) {
     const m = iwState.models.find(m => m.id === modelId);
     return m ? m.description : modelId;
+}
+
+function iwSyncReasoningToggle(clickedBtn) {
+    const allBtns = document.querySelectorAll('.iw-expand-btn[data-section="reasoning"]');
+    const isExpanding = !clickedBtn.closest('.iw-expandable').classList.contains('expanded');
+    allBtns.forEach(btn => {
+        const section = btn.closest('.iw-expandable');
+        if (isExpanding) {
+            section.classList.add('expanded');
+            section.setAttribute('aria-expanded', 'true');
+        } else {
+            section.classList.remove('expanded');
+            section.setAttribute('aria-expanded', 'false');
+        }
+    });
 }
 
 function iwBuildResultPane(data, type, title, minCost, minLatency) {
@@ -797,8 +874,8 @@ function iwBuildResultPane(data, type, title, minCost, minLatency) {
                 </div>
             </div>
             ${hasFullReasoning ? `
-                <div class="iw-expandable" aria-expanded="false" onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
-                    <button class="iw-expand-btn">
+                <div class="iw-expandable" aria-expanded="false" onclick="iwSyncReasoningToggle(this.querySelector('.iw-expand-btn'))">
+                    <button class="iw-expand-btn" data-section="reasoning">
                         <span class="iw-expand-icon">▶</span>
                         View Full Reasoning
                     </button>

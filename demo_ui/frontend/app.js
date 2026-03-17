@@ -1,10 +1,11 @@
 /**
- * app.js — Core state management for the ITS Demo
+ * app.js — Core bootstrap, experience selection, shared constants & trace rendering
  *
  * ARCHITECTURE
  * ────────────
  * State ownership:
- *   - app.js owns global state (selectedExperience, currentUseCase)
+ *   - app.js owns global state (selectedExperience) and shared constants
+ *     (API_BASE_URL, ALGORITHM_DESCRIPTIONS)
  *   - guided-demo.js owns guidedDemoState
  *   - interactive-demo.js owns iwState
  *
@@ -20,6 +21,16 @@
  * Visibility contract:
  *   All show/hide uses setVisible(el, bool) which toggles the .hidden CSS class.
  *   No code should set el.style.display directly.
+ *
+ * What this file owns:
+ *   - API_BASE_URL, ALGORITHM_DESCRIPTIONS constants
+ *   - Theme management (toggleTheme)
+ *   - Experience selection flow (selectExperience, returnToLanding,
+ *     checkSavedExperience, initializeApp)
+ *   - Algorithm trace rendering (renderAlgorithmTrace and helpers)
+ *   - Shared UI helpers (toggleSection, switchIteration, renderToolCalls,
+ *     renderCandidateCard)
+ *   - Keyboard accessibility handler
  */
 
 const API_BASE_URL = 'http://localhost:8000';
@@ -27,10 +38,6 @@ const API_BASE_URL = 'http://localhost:8000';
 // Shared utilities (setVisible, escapeHtml, formatLatency, formatCost, etc.)
 // are defined in utils.js which is loaded before this file.
 
-let currentExpectedAnswer = null;
-let selectedAlgorithm = 'best_of_n';
-let lastResults = null;
-let currentUseCase = 'improve_model';
 let isRunning = false; // Track if a comparison is currently running
 let selectedExperience = null; // 'guided' or 'interactive'
 
@@ -104,8 +111,6 @@ document.addEventListener('keydown', function(e) {
     }
 });
 
-// NOTE: The guided wizard is implemented in guided-demo.js (initGuidedWizard, guidedDemoState).
-
 // LANDING PAGE & EXPERIENCE SELECTION
 
 function selectExperience(experience) {
@@ -121,11 +126,6 @@ function selectExperience(experience) {
     // Show back to home button
     document.getElementById('backToHomeBtn').classList.add('visible');
 
-    // Wizard initialization is handled by experience:selected event in guided-demo.js / interactive-demo.js
-
-    // Initialize the demo
-    initializeDemo();
-
     // Notify demo modules
     document.dispatchEvent(new CustomEvent('experience:selected', { detail: { experience } }));
 }
@@ -137,8 +137,7 @@ function returnToLanding() {
     selectedExperience = null;
     localStorage.removeItem('selectedExperience');
 
-    // Hide results and guided wizard UI
-    setVisible(document.getElementById('resultsContainer'), false);
+    // Hide guided wizard UI
     setVisible(document.getElementById('guidedWizard'), false);
 
     // Hide demo container
@@ -154,29 +153,6 @@ function returnToLanding() {
     isRunning = false;
 }
 
-function initializeDemo() {
-    // This will be called after experience selection
-    showAlgorithmInfo(selectedAlgorithm);
-    loadModels();
-    loadExampleQuestions();
-    updateUIForUseCase();
-
-    // Skip old scenario initialization in guided mode
-    // (Wizard handles its own initialization via initGuidedWizard)
-
-    // Initialize budget slider gradient
-    const budgetSlider = document.getElementById('budget');
-    budgetSlider.addEventListener('input', updateBudgetSliderGradient);
-    updateBudgetSliderGradient.call(budgetSlider);
-}
-
-function updateBudgetSliderGradient() {
-    const value = this.value;
-    const max = this.max;
-    const percentage = (value / max) * 100;
-    this.style.background = `linear-gradient(to right, var(--primary) 0%, var(--primary) ${percentage}%, var(--border-color) ${percentage}%, var(--border-color) 100%)`;
-}
-
 // Check if user has a saved experience preference
 function checkSavedExperience() {
     const savedExperience = localStorage.getItem('selectedExperience');
@@ -187,401 +163,10 @@ function checkSavedExperience() {
     // Otherwise, show landing page (default state)
 }
 
-// Show algorithm info
-function showAlgorithmInfo(algorithmKey) {
-    const algo = ALGORITHM_DESCRIPTIONS[algorithmKey];
-    const container = document.getElementById('algorithmInfo');
-
-    const researchNote = algo.category === 'research'
-        ? '<div style="margin-top:8px;padding:8px 12px;background:rgba(255,152,0,0.1);border-left:3px solid #ff9800;border-radius:4px;font-size:12px;color:#e65100;">Research algorithm — requires a local Process Reward Model (PRM) for optimal latency and cost. Results may vary without dedicated PRM hardware.</div>'
-        : '';
-
-    container.innerHTML = `
-        <div class="algorithm-info">
-            <div class="algorithm-info-header">
-                <span class="algorithm-type-badge ${algo.type}">
-                    ${algo.type === 'outcome' ? 'Outcome-Based' : 'Process-Based'}
-                </span>
-                ${algo.category === 'research' ? '<span class="algorithm-type-badge" style="background:#ff9800;">Research</span>' : ''}
-                <h3>${algo.name}</h3>
-            </div>
-            <p>${algo.description}</p>
-            <div class="use-case">${algo.useCase}</div>
-            ${researchNote}
-        </div>
-    `;
-}
-
-// Handle use case change
-function onUseCaseChange() {
-    const selectedRadio = document.querySelector('input[name="useCase"]:checked');
-    currentUseCase = selectedRadio.value;
-
-    // Update UI based on use case
-    updateUIForUseCase();
-
-    // Clear results when switching use cases
-    clearResults();
-}
-
-// Update UI elements based on selected use case
-function updateUIForUseCase() {
-    const modelGroup = document.getElementById('modelGroup');
-    const frontierModelGroup = document.getElementById('frontierModelGroup');
-    const modelLabel = document.getElementById('modelLabel');
-    const configDescription = document.getElementById('configDescription');
-    const headerSubtitle = document.getElementById('headerSubtitle');
-    const resultsContainer = document.getElementById('resultsContainer');
-    const smallBaselinePane = document.getElementById('smallBaselinePane');
-    const middlePaneIndicator = document.getElementById('middlePaneIndicator');
-    const middlePaneTitle = document.getElementById('middlePaneTitle');
-    const rightPaneIndicator = document.getElementById('rightPaneIndicator');
-    const rightPaneTitle = document.getElementById('rightPaneTitle');
-
-    if (currentUseCase === 'match_frontier') {
-        // Use Case 2: 3-column layout - Small, Small+ITS, Frontier
-        modelLabel.textContent = 'Small Model';
-        setVisible(frontierModelGroup, true);
-        configDescription.textContent = 'Choose a small model to enhance with ITS and a frontier model to compare against';
-        headerSubtitle.textContent = 'Demonstrate how ITS can make smaller models competitive with large frontier models';
-
-        // Show 3-column layout
-        resultsContainer.classList.add('three-column');
-        setVisible(smallBaselinePane, true);
-
-        // Update pane titles and indicators for 3-column layout
-        // Left: Small Model baseline (gray)
-        // Middle: Small Model + ITS (blue)
-        // Right: Frontier Model baseline (green)
-        middlePaneIndicator.className = 'pane-indicator its';
-        middlePaneTitle.textContent = 'Small Model + ITS';
-        rightPaneIndicator.className = 'pane-indicator frontier';
-        rightPaneTitle.textContent = 'Frontier Model';
-
-        // Adjust grid to show both models
-        document.getElementById('modelSelectionGrid').style.gridTemplateColumns = '1fr 1fr';
-
-        // Reload all models (no filter)
-        loadModels();
-    } else if (currentUseCase === 'tool_consensus') {
-        // Use Case 3: 2-column layout - Single Tool Call, Tool Voting
-        modelLabel.textContent = 'Model';
-        setVisible(frontierModelGroup, false);
-        configDescription.textContent = 'Compare single agent call vs ITS with tool voting for reliable tool selection';
-        headerSubtitle.textContent = 'Demonstrate how ITS creates consensus on tool selection for reliable agent behavior';
-
-        // Show 2-column layout
-        resultsContainer.classList.remove('three-column');
-        setVisible(smallBaselinePane, false);
-
-        // Update pane titles and indicators for 2-column layout
-        // Middle: Single Call (gray)
-        // Right: Tool Voting (blue)
-        middlePaneIndicator.className = 'pane-indicator baseline';
-        middlePaneTitle.textContent = 'Single Agent Call';
-        rightPaneIndicator.className = 'pane-indicator its';
-        rightPaneTitle.textContent = 'ITS + Tool Voting';
-
-        // Reset grid
-        document.getElementById('modelSelectionGrid').style.gridTemplateColumns = '';
-
-        // Reload models to show only tool-compatible models
-        loadModels('tool_consensus');
-    } else {
-        // Use Case 1: 2-column layout - Baseline, ITS
-        modelLabel.textContent = 'Model';
-        setVisible(frontierModelGroup, false);
-        configDescription.textContent = 'Choose your model, algorithm, and compute budget';
-        headerSubtitle.textContent = 'Compare baseline inference with ITS algorithms side by side';
-
-        // Show 2-column layout
-        resultsContainer.classList.remove('three-column');
-        setVisible(smallBaselinePane, false);
-
-        // Update pane titles and indicators for 2-column layout
-        // Middle: Baseline (gray)
-        // Right: ITS Result (blue)
-        middlePaneIndicator.className = 'pane-indicator baseline';
-        middlePaneTitle.textContent = 'Baseline';
-        rightPaneIndicator.className = 'pane-indicator its';
-        rightPaneTitle.textContent = 'ITS Result';
-
-        // Reset grid
-        document.getElementById('modelSelectionGrid').style.gridTemplateColumns = '';
-
-        // Reload all models (no filter)
-        loadModels();
-    }
-}
-
-// Handle algorithm change
-function onAlgorithmChange() {
-    selectedAlgorithm = document.getElementById('algorithm').value;
-    showAlgorithmInfo(selectedAlgorithm);
-    loadExampleQuestions();
-}
-
-// Copy to clipboard
-async function copyToClipboard(type) {
-    let element;
-    if (type === 'smallBaseline') {
-        element = document.getElementById('smallBaselineContent');
-    } else if (type === 'middlePane') {
-        element = document.getElementById('middlePaneContent');
-    } else if (type === 'rightPane') {
-        element = document.getElementById('rightPaneContent');
-    }
-
-    // Get plain text content (strips HTML tags)
-    const content = element.textContent || element.innerText;
-
-    try {
-        await navigator.clipboard.writeText(content);
-        // Visual feedback - find the button that triggered this
-        const btn = document.querySelector(`#${type}Actions .action-btn`);
-        if (!btn) return;
-        const originalText = btn.textContent;
-        btn.textContent = '✓';
-        btn.style.background = 'var(--success)';
-        btn.style.color = 'white';
-        btn.style.borderColor = 'var(--success)';
-        setTimeout(() => {
-            btn.textContent = originalText;
-            btn.style.background = '';
-            btn.style.color = '';
-            btn.style.borderColor = '';
-        }, 1500);
-    } catch (err) {
-        console.error('Failed to copy:', err);
-        alert('Failed to copy to clipboard');
-    }
-}
-
-// Clear results
-function clearResults() {
-    // Clear small baseline pane
-    document.getElementById('smallBaselineContent').innerHTML = `
-        <div class="empty-state">
-            <div class="empty-state-icon">💭</div>
-            <div>Run a comparison to see results</div>
-        </div>
-    `;
-    setVisible(document.getElementById('smallBaselineLatency'), false);
-    setVisible(document.getElementById('smallBaselineActions'), false);
-    setVisible(document.getElementById('smallBaselineSize'), false);
-    setVisible(document.getElementById('smallBaselineCost'), false);
-
-    // Clear middle pane
-    document.getElementById('middlePaneContent').innerHTML = `
-        <div class="empty-state">
-            <div class="empty-state-icon">💭</div>
-            <div>Run a comparison to see results</div>
-        </div>
-    `;
-    setVisible(document.getElementById('middlePaneLatency'), false);
-    setVisible(document.getElementById('middlePaneActions'), false);
-    setVisible(document.getElementById('middlePaneSize'), false);
-    setVisible(document.getElementById('middlePaneCost'), false);
-
-    // Clear right pane
-    document.getElementById('rightPaneContent').innerHTML = `
-        <div class="empty-state">
-            <div class="empty-state-icon">🚀</div>
-            <div>Run a comparison to see results</div>
-        </div>
-    `;
-    setVisible(document.getElementById('rightPaneLatency'), false);
-    setVisible(document.getElementById('rightPaneActions'), false);
-    setVisible(document.getElementById('rightPaneSize'), false);
-    setVisible(document.getElementById('rightPaneCost'), false);
-
-    document.getElementById('expectedAnswerContainer').classList.remove('visible');
-
-    // Hide performance visualization
-    setVisible(document.getElementById('performance-visualization-container'), false);
-}
-
-// Update budget value and slider gradient
-document.getElementById('budget').addEventListener('input', (e) => {
-    const value = e.target.value;
-    const max = e.target.max;
-    const percentage = (value / max) * 100;
-
-    document.getElementById('budgetValue').textContent = value;
-
-    // Update gradient
-    e.target.style.background = `linear-gradient(to right, var(--primary) 0%, var(--primary) ${percentage}%, var(--border-color) ${percentage}%, var(--border-color) 100%)`;
-});
-
-// Handle example question selection
-document.getElementById('exampleQuestions').addEventListener('change', (e) => {
-    const selectedIndex = e.target.selectedIndex;
-    if (selectedIndex > 0) {
-        const selectedOption = e.target.options[selectedIndex];
-        const question = selectedOption.dataset.question;
-        const expectedAnswer = selectedOption.dataset.expected;
-
-        if (question) {
-            document.getElementById('question').value = question;
-            currentExpectedAnswer = expectedAnswer;
-            clearResults();
-        }
-    } else {
-        currentExpectedAnswer = null;
-        document.getElementById('expectedAnswerContainer').classList.remove('visible');
-    }
-});
-
-// Load models
-async function loadModels(useCase = null) {
-    try {
-        const url = useCase ? `${API_BASE_URL}/models?use_case=${useCase}` : `${API_BASE_URL}/models`;
-        const response = await fetch(url);
-        if (!response.ok) throw new Error('Failed to load models');
-
-        const data = await response.json();
-
-        // Filter models for tool_consensus to only show those supporting tools
-        let models = data.models;
-        if (useCase === 'tool_consensus') {
-            models = models.filter(m => m.supports_tools);
-        }
-
-        if (models.length === 0 && useCase === 'tool_consensus') {
-            const errorMsg = '<option value="">No models support tool calling - use OpenAI models</option>';
-            document.getElementById('model').innerHTML = errorMsg;
-            document.getElementById('frontierModel').innerHTML = errorMsg;
-            return;
-        }
-
-        const modelHTML = models.map(model => {
-            const sizeLabel = model.size ? ` [${model.size}]` : '';
-            return `<option value="${model.id}">${model.description}${sizeLabel}</option>`;
-        }).join('');
-
-        // Populate both model selects
-        document.getElementById('model').innerHTML = modelHTML;
-        document.getElementById('frontierModel').innerHTML = modelHTML;
-
-        // Pre-select a good default for frontier model (e.g., gpt-4o if available)
-        const frontierSelect = document.getElementById('frontierModel');
-        const gpt4oOption = Array.from(frontierSelect.options).find(opt => opt.value === 'gpt-4o');
-        if (gpt4oOption) {
-            frontierSelect.value = 'gpt-4o';
-        }
-    } catch (error) {
-        console.error('Error loading models:', error);
-        document.getElementById('model').innerHTML = '<option value="">Error loading models</option>';
-        document.getElementById('frontierModel').innerHTML = '<option value="">Error loading models</option>';
-    }
-}
-
-// Load example questions
-async function loadExampleQuestions() {
-    const exampleSelect = document.getElementById('exampleQuestions');
-
-    try {
-        const url = `${API_BASE_URL}/examples?algorithm=${selectedAlgorithm}&use_case=${currentUseCase}`;
-        const response = await fetch(url);
-        if (!response.ok) throw new Error('Failed to load examples');
-
-        const data = await response.json();
-
-        const byDifficulty = { 'Easy': [], 'Medium': [], 'Hard': [] };
-        data.examples.forEach(ex => byDifficulty[ex.difficulty].push(ex));
-
-        let optionsHTML = '<option value="">Select an example...</option>';
-
-        ['Easy', 'Medium', 'Hard'].forEach(difficulty => {
-            if (byDifficulty[difficulty].length > 0) {
-                optionsHTML += `<optgroup label="${difficulty} Questions">`;
-                byDifficulty[difficulty].forEach(ex => {
-                    const label = `${ex.category}: ${ex.question.substring(0, 60)}${ex.question.length > 60 ? '...' : ''}`;
-                    const questionAttr = ex.question.replace(/"/g, '&quot;');
-                    const expectedAttr = ex.expected_answer.replace(/"/g, '&quot;');
-                    optionsHTML += `<option value="${ex.question}" data-question="${questionAttr}" data-expected="${expectedAttr}" title="${ex.why}">${label}</option>`;
-                });
-                optionsHTML += '</optgroup>';
-            }
-        });
-
-        exampleSelect.innerHTML = optionsHTML;
-    } catch (error) {
-        console.error('Error loading examples:', error);
-        exampleSelect.innerHTML = '<option value="">Error loading examples</option>';
-    }
-}
-
-// Show error
-function showError(message) {
-    const errorContainer = document.getElementById('errorContainer');
-    errorContainer.innerHTML = `<div class="error-message">${message}</div>`;
-    setTimeout(() => errorContainer.innerHTML = '', 5000);
-}
-
-// Show loading
-function showLoading() {
-    const loadingHTML = `
-        <div class="loading-skeleton">
-            <div class="skeleton-line"></div>
-            <div class="skeleton-line"></div>
-            <div class="skeleton-line"></div>
-            <div class="skeleton-line"></div>
-            <div class="skeleton-line"></div>
-            <div class="skeleton-line"></div>
-        </div>
-    `;
-
-    // Show loading in all visible panes
-    if (currentUseCase === 'match_frontier') {
-        document.getElementById('smallBaselineContent').innerHTML = loadingHTML;
-        setVisible(document.getElementById('smallBaselineLatency'), false);
-        setVisible(document.getElementById('smallBaselineActions'), false);
-        setVisible(document.getElementById('smallBaselineCost'), false);
-    }
-
-    document.getElementById('middlePaneContent').innerHTML = loadingHTML;
-    setVisible(document.getElementById('middlePaneLatency'), false);
-    setVisible(document.getElementById('middlePaneActions'), false);
-    setVisible(document.getElementById('middlePaneCost'), false);
-
-    document.getElementById('rightPaneContent').innerHTML = loadingHTML;
-    setVisible(document.getElementById('rightPaneLatency'), false);
-    setVisible(document.getElementById('rightPaneActions'), false);
-    setVisible(document.getElementById('rightPaneCost'), false);
-}
-
-// Metrics moved to Performance Details within each result pane
-
 // Formatting/rendering utilities (extractFinalAnswer, formatAnswer,
 // formatReasoningSteps, extractConclusion, formatAsHTML, renderMath,
 // toggleReasoning, toggleCandidateContent, etc.) are in utils.js.
 
-// Helper to set size badge
-function setSizeBadge(elementId, size) {
-    const badge = document.getElementById(elementId);
-    if (size) {
-        badge.textContent = size;
-        badge.className = 'size-badge ' + size.toLowerCase();
-        setVisible(badge, true);
-    } else {
-        setVisible(badge, false);
-    }
-}
-
-// Helper to set cost badge
-function setCostBadge(elementId, cost_usd, threshold = 0.01) {
-    const badge = document.getElementById(elementId);
-    if (cost_usd !== null && cost_usd !== undefined && cost_usd > 0) {
-        badge.textContent = formatCost(cost_usd);
-        badge.className = cost_usd > threshold ? 'cost-badge expensive' : 'cost-badge';
-        setVisible(badge, true);
-    } else {
-        setVisible(badge, false);
-    }
-}
-
-// Display results
 function toggleSection(button) {
     const section = button.parentElement;
     section.classList.toggle('expanded');
@@ -962,296 +547,6 @@ function renderAlgorithmTrace(trace, directDisplay = false) {
             </div>
         </div>
     `;
-}
-
-function renderAnswerBox(containerId, data, comparisonData = null) {
-    const container = document.getElementById(containerId);
-
-    // The full response from the model
-    const fullResponse = data.answer;
-
-    // Extract just the concluding answer for the main display
-    const conclusion = extractConclusion(fullResponse);
-
-    let html = '';
-
-    // Main response area — show just the conclusion/answer
-    html += `<div class="chat-response">${formatAsHTML(conclusion)}</div>`;
-
-    // Expandable section with full detailed reasoning
-    html += `
-        <div class="expandable-section">
-            <button class="expand-button" onclick="toggleSection(this)">
-                <svg class="expand-icon" width="16" height="16" viewBox="0 0 16 16" fill="none">
-                    <path d="M4 6L8 10L12 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                </svg>
-                <span>View Detailed Response</span>
-            </button>
-            <div class="expandable-content">
-                <div class="reasoning-section">
-                    <div class="reasoning-content">
-                        ${formatReasoningSteps(fullResponse)}
-                    </div>
-                </div>
-            </div>
-        </div>
-    `;
-
-    // Add expandable performance details section
-    html += `
-        <div class="expandable-section">
-            <button class="expand-button" onclick="toggleSection(this)">
-                <svg class="expand-icon" width="16" height="16" viewBox="0 0 16 16" fill="none">
-                    <path d="M4 6L8 10L12 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                </svg>
-                <span>Performance Details</span>
-            </button>
-            <div class="expandable-content">
-                <div class="details-section">
-                    <div class="detail-row">
-                        <span class="detail-label">Latency</span>
-                        <span class="detail-value">${data.latency_ms}ms</span>
-                    </div>
-    `;
-
-    if (data.model_size) {
-        html += `
-            <div class="detail-row">
-                <span class="detail-label">Model Size</span>
-                <span class="detail-value">${data.model_size}</span>
-            </div>
-        `;
-    }
-
-    if (data.input_tokens) {
-        html += `
-            <div class="detail-row">
-                <span class="detail-label">Input Tokens</span>
-                <span class="detail-value">${data.input_tokens.toLocaleString()}</span>
-            </div>
-        `;
-    }
-
-    if (data.output_tokens) {
-        html += `
-            <div class="detail-row">
-                <span class="detail-label">Output Tokens</span>
-                <span class="detail-value">${data.output_tokens.toLocaleString()}</span>
-            </div>
-        `;
-    }
-
-    if (data.cost_usd !== null && data.cost_usd !== undefined) {
-        const costFormatted = data.cost_usd < 0.0001
-            ? `$${data.cost_usd.toExponential(2)}`
-            : `$${data.cost_usd.toFixed(4)}`;
-        html += `
-            <div class="detail-row">
-                <span class="detail-label">Cost</span>
-                <span class="detail-value">${costFormatted}</span>
-            </div>
-        `;
-    }
-
-    // Add comparison data if provided
-    if (comparisonData) {
-        html += `
-            <div class="detail-row">
-                <span class="detail-label">${comparisonData.label}</span>
-                <span class="detail-value">${comparisonData.value}</span>
-            </div>
-        `;
-    }
-
-    html += `
-                </div>
-            </div>
-        </div>
-    `;
-
-    // Add tool calls section if present
-    if (data.tool_calls && data.tool_calls.length > 0) {
-        html += renderToolCalls(data.tool_calls);
-    }
-
-    // Add algorithm trace section (only for ITS results that have trace data)
-    if (data.trace) {
-        html += renderAlgorithmTrace(data.trace);
-    }
-
-    container.innerHTML = html;
-    container.classList.add('fade-in');
-
-    // Render math in the final answer and reasoning
-    renderMath(container);
-
-    // Hide the old badges and latency display
-    const paneId = containerId.replace('Content', '');
-    const latencyEl = document.getElementById(paneId + 'Latency');
-    const actionsEl = document.getElementById(paneId + 'Actions');
-    setVisible(latencyEl, false);
-    setVisible(actionsEl, false);
-
-    setTimeout(() => {
-        container.classList.remove('fade-in');
-    }, 300);
-}
-
-function displayResults(data) {
-    lastResults = data;
-
-    if (currentUseCase === 'match_frontier' && data.small_baseline) {
-        // 3-column layout: Small baseline, Small+ITS, Frontier
-        const smallMs = data.small_baseline.latency_ms;
-        const itsMs = data.its.latency_ms;
-        const frontierMs = data.baseline.latency_ms;
-
-        renderAnswerBox('smallBaselineContent', data.small_baseline);
-        renderAnswerBox('middlePaneContent', data.its, {
-            label: 'vs Small Model',
-            value: `${itsMs - smallMs > 0 ? '+' : ''}${(itsMs - smallMs).toFixed(0)}ms`
-        });
-        renderAnswerBox('rightPaneContent', data.baseline, {
-            label: 'vs ITS Result',
-            value: `${frontierMs - itsMs > 0 ? '+' : ''}${(frontierMs - itsMs).toFixed(0)}ms`
-        });
-    } else {
-        // 2-column layout: Baseline, ITS
-        const baselineMs = data.baseline.latency_ms;
-        const itsMs = data.its.latency_ms;
-
-        renderAnswerBox('middlePaneContent', data.baseline);
-        renderAnswerBox('rightPaneContent', data.its, {
-            label: 'vs Baseline',
-            value: `${itsMs - baselineMs > 0 ? '+' : ''}${(itsMs - baselineMs).toFixed(0)}ms`
-        });
-    }
-
-    // Expected answer - show simply without the complex formatting
-    if (currentExpectedAnswer) {
-        const expectedContent = document.getElementById('expectedAnswerContent');
-        expectedContent.innerHTML = formatExpectedAnswer(currentExpectedAnswer);
-        renderMath(expectedContent);
-        document.getElementById('expectedAnswerContainer').classList.add('visible');
-    }
-
-    // Render enhanced performance visualization
-    renderPerformanceVisualization(data);
-}
-
-// Render enhanced performance visualization
-function renderPerformanceVisualization(data) {
-    console.log('🎨 renderPerformanceVisualization called with data:', data);
-
-    const container = document.getElementById('performance-visualization-container');
-
-    if (!container) {
-        console.error('❌ Container element not found!');
-        return;
-    }
-
-    // Show the container
-    setVisible(container, true);
-    console.log('✅ Container display set to block');
-
-    // Initialize and render the visualization with V2
-    if (typeof PerformanceVizV2 !== 'undefined') {
-        try {
-            const perfViz = new PerformanceVizV2('performance-visualization');
-            perfViz.render(data);
-            console.log('✅ Performance visualization V2 rendered successfully!');
-
-            // Scroll to visualization
-            setTimeout(() => {
-                container.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            }, 500);
-        } catch (error) {
-            console.error('❌ Error rendering visualization:', error);
-            console.error('Stack trace:', error.stack);
-        }
-    } else {
-        console.error('❌ PerformanceVizV2 class not loaded. Make sure performance-viz-v2.js is included.');
-    }
-}
-
-// Run comparison
-async function runComparison() {
-    const question = document.getElementById('question').value.trim();
-    const model_id = document.getElementById('model').value;
-    const budget = parseInt(document.getElementById('budget').value);
-
-    if (!question) {
-        showError('Please enter a question');
-        return;
-    }
-    if (!model_id) {
-        showError('Please select a model');
-        return;
-    }
-
-    // Additional validation for match_frontier use case
-    if (currentUseCase === 'match_frontier') {
-        const frontier_model_id = document.getElementById('frontierModel').value;
-        if (!frontier_model_id) {
-            showError('Please select a frontier model');
-            return;
-        }
-    }
-
-    const runButton = document.getElementById('runButton');
-    runButton.disabled = true;
-    runButton.textContent = 'Running...';
-    isRunning = true; // Set running flag
-    showLoading();
-
-    try {
-        const requestBody = {
-            question,
-            model_id,
-            algorithm: selectedAlgorithm,
-            budget,
-            use_case: currentUseCase,
-        };
-
-        // Add frontier model if using match_frontier use case
-        if (currentUseCase === 'match_frontier') {
-            requestBody.frontier_model_id = document.getElementById('frontierModel').value;
-        }
-
-        // Add tool calling parameters for tool_consensus use case
-        if (currentUseCase === 'tool_consensus') {
-            requestBody.enable_tools = true;
-            requestBody.tool_vote = 'tool_name';  // Default to tool_name voting
-            requestBody.exclude_args = [];
-        }
-
-        const response = await fetch(`${API_BASE_URL}/compare`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(requestBody),
-        });
-
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.detail || 'Comparison failed');
-        }
-
-        const data = await response.json();
-        displayResults(data);
-    } catch (error) {
-        console.error('Error running comparison:', error);
-        showError(`Error: ${error.message}`);
-
-        if (currentUseCase === 'match_frontier') {
-            document.getElementById('smallBaselineContent').innerHTML = '<div class="empty-state">Error occurred</div>';
-        }
-        document.getElementById('middlePaneContent').innerHTML = '<div class="empty-state">Error occurred</div>';
-        document.getElementById('rightPaneContent').innerHTML = '<div class="empty-state">Error occurred</div>';
-    } finally {
-        runButton.disabled = false;
-        runButton.textContent = 'Run Comparison';
-        isRunning = false; // Reset running flag
-    }
 }
 
 // Wait for KaTeX to load

@@ -76,6 +76,18 @@ MODEL_REGISTRY: Dict[str, ModelConfig] = {
     },
 
     # === Small/Fast Models ⚡ ===
+    "gpt-4o-mini": {
+        "base_url": "https://api.openai.com/v1",
+        "api_key_env_var": "OPENAI_API_KEY",
+        "model_name": "gpt-4o-mini",
+        "description": "⚡ GPT-4o Mini (Small, fast)",
+        "provider": "openai",
+        "size": "Small",
+        "input_cost_per_1m": 0.15,
+        "output_cost_per_1m": 0.60,
+        "supports_tools": True,
+        "self_hostable": False,
+    },
     "gpt-4.1-mini": {
         "base_url": "https://api.openai.com/v1",
         "api_key_env_var": "OPENAI_API_KEY",
@@ -299,6 +311,35 @@ MODEL_REGISTRY: Dict[str, ModelConfig] = {
     # Setup: https://console.cloud.google.com/vertex-ai
     # Authentication: gcloud auth application-default login
     # Or set GOOGLE_APPLICATION_CREDENTIALS to service account JSON path
+
+    # === Gemini Models (via Vertex AI) ===
+    "gemini-2.0-flash-vertex": {
+        "base_url": "",  # Not used for Vertex AI
+        "api_key_env_var": "GOOGLE_APPLICATION_CREDENTIALS",
+        "model_name": "gemini-2.0-flash",
+        "description": "⚡ Gemini 2.0 Flash (Vertex AI, Fast)",
+        "provider": "vertex_ai",
+        "vertex_project": os.getenv("VERTEX_PROJECT", "your-gcp-project-id"),
+        "vertex_location": os.getenv("VERTEX_LOCATION", "us-east5"),
+        "size": "Large",
+        "input_cost_per_1m": 0.10,
+        "output_cost_per_1m": 0.40,
+        "supports_tools": True,
+    },
+    "gemini-2.5-flash-vertex": {
+        "base_url": "",  # Not used for Vertex AI
+        "api_key_env_var": "GOOGLE_APPLICATION_CREDENTIALS",
+        "model_name": "gemini-2.5-flash-preview-05-20",
+        "description": "🧠 Gemini 2.5 Flash (Vertex AI, Reasoning)",
+        "provider": "vertex_ai",
+        "vertex_project": os.getenv("VERTEX_PROJECT", "your-gcp-project-id"),
+        "vertex_location": os.getenv("VERTEX_LOCATION", "us-east5"),
+        "size": "Large",
+        "input_cost_per_1m": 0.15,
+        "output_cost_per_1m": 0.60,
+        "supports_tools": True,
+        "is_reasoning": True,
+    },
 
     # === Claude Models (via Vertex AI) ===
     "claude-sonnet-vertex": {

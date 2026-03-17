@@ -466,8 +466,8 @@
 }
 
 @media (min-width: 768px) {
-    .iw-results-grid.two-col { grid-template-columns: 1fr 1fr; }
-    .iw-results-grid.three-col { grid-template-columns: 1fr 1fr 1fr; }
+    .iw-results-grid.two-col { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+    .iw-results-grid.three-col { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr); }
 }
 
 .iw-result-pane {
@@ -812,6 +812,31 @@
     font-family: 'IBM Plex Mono', monospace;
 }
 
+.iw-expected-answer-bar {
+    padding: 16px 24px;
+    background: rgba(34, 197, 94, 0.08);
+    border: 2px solid rgba(34, 197, 94, 0.3);
+    border-left: 4px solid #16a34a;
+    margin-top: 20px;
+    font-size: 14px;
+}
+
+.iw-expected-answer-bar .iw-expected-label {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #16a34a;
+    margin-bottom: 6px;
+}
+
+.iw-expected-answer-bar .iw-expected-value {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
 /* ===== FINAL ANSWER CALLOUT ===== */
 .iw-final-answer {
     padding: 14px 18px;
@@ -836,6 +861,45 @@
     font-weight: 600;
     color: var(--text-primary);
     line-height: 1.5;
+}
+
+/* ===== INSIGHT BOX ===== */
+.iw-insight-box {
+    padding: 16px 24px;
+    background: rgba(59, 130, 246, 0.06);
+    border: 1px solid rgba(59, 130, 246, 0.2);
+    border-left: 4px solid var(--primary);
+    margin-top: 20px;
+    animation: wizardFadeIn 0.4s ease-out;
+}
+
+.iw-insight-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.iw-insight-icon {
+    font-size: 16px;
+}
+
+.iw-insight-title {
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--primary);
+}
+
+.iw-insight-content {
+    font-size: 14px;
+    line-height: 1.6;
+    color: var(--text-secondary);
+}
+
+.iw-insight-content strong {
+    color: var(--text-primary);
 }
 
 /* ===== RESTART AREA ===== */

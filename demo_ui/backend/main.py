@@ -152,14 +152,14 @@ async def check_providers():
         "openai": {
             "enabled": bool(openai_key),
             "name": "OpenAI",
-            "description": "GPT-4o, GPT-4.1, GPT-4.1 Mini/Nano, GPT-3.5 Turbo",
+            "description": "GPT-4o, GPT-4o Mini, GPT-4.1, GPT-4.1 Mini/Nano, GPT-3.5 Turbo",
             "env_var": "OPENAI_API_KEY",
             "setup": "export OPENAI_API_KEY=sk-...",
         },
         "vertex_ai": {
             "enabled": bool(vertex_project),
             "name": "Google Cloud Vertex AI",
-            "description": "Claude Sonnet 4.6, Claude Haiku 4.5",
+            "description": "Claude Sonnet 4.6, Claude Haiku 4.5, Gemini 2.0 Flash, Gemini 2.5 Flash",
             "env_var": "VERTEX_PROJECT",
             "setup": "export VERTEX_PROJECT=your-project-id\ngcloud auth application-default login",
         },
@@ -186,6 +186,13 @@ async def list_models(use_case: str | None = None):
     """
     available_models = []
 
+    # Determine which providers are enabled
+    enabled_providers = {
+        "openai": bool(os.getenv("OPENAI_API_KEY")),
+        "openrouter": bool(os.getenv("OPENROUTER_API_KEY")),
+        "vertex_ai": bool(os.getenv("VERTEX_PROJECT")),
+    }
+
     for model_id, config in MODEL_REGISTRY.items():
         # Filter out models that don't support tools for tool_consensus use case
         if use_case == "tool_consensus":
@@ -193,13 +200,13 @@ async def list_models(use_case: str | None = None):
             if not supports_tools:
                 continue
 
-        # Only show OpenRouter models if the user has an API key configured
-        if config.get("api_key_env_var") == "OPENROUTER_API_KEY" and not os.getenv("OPENROUTER_API_KEY"):
-            continue
-
         # Check if model requires external server (has non-standard base_url)
         base_url = config.get("base_url", "")
         provider_group = _get_provider_group(config)
+
+        # Skip models from disabled providers
+        if provider_group in enabled_providers and not enabled_providers[provider_group]:
+            continue
 
         model_entry = {
             "id": model_id,
@@ -211,7 +218,7 @@ async def list_models(use_case: str | None = None):
             "provider": provider_group,
         }
 
-        # Skip server check for standard OpenAI, OpenRouter, Vertex AI, and Model Garden models
+        # Skip server check for standard API-based models
         if (base_url.startswith("https://api.openai.com") or
             base_url.startswith("https://openrouter.ai") or
             config.get("provider") in ("vertex_ai", "vertex_ai_model_garden") or

@@ -199,11 +199,6 @@ function initGuidedWizard() {
     setVisible(document.getElementById('guidedScenarioSummary'), false);
 
     // Hide all other sections
-    ['useCaseSection', 'scenarioSection', 'configSection', 'questionSection',
-     'errorContainer', 'expectedAnswerContainer', 'resultsContainer',
-     'performance-visualization-container'].forEach(id => {
-        setVisible(document.getElementById(id), false);
-    });
 
     // Clean up dynamic elements from previous runs
     ['performanceDetailsContainer', 'wizardResultsHeadline', 'wizardPromptDisplay'].forEach(id => {
