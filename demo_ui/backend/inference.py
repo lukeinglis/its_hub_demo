@@ -295,6 +295,8 @@ async def run_baseline(
             # "LLM Provider NOT provided". Detect OpenRouter by base_url.
             if "openrouter.ai" in lm.endpoint and not request_data.get("model", "").startswith("openrouter/"):
                 request_data["model"] = "openrouter/" + request_data["model"]
+            elif ("localhost:11434" in lm.endpoint or "127.0.0.1:11434" in lm.endpoint) and not request_data.get("model", "").startswith("ollama/"):
+                request_data["model"] = "ollama/" + request_data["model"]
             full_response = await litellm.acompletion(**request_data)
 
             # Extract usage from full response

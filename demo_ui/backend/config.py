@@ -354,35 +354,44 @@ MODEL_REGISTRY: Dict[str, ModelConfig] = {
     },
 
     # ========================================================================
-    # IBM GRANITE MODELS (Self-hosted)
+    # IBM GRANITE MODELS (Self-hosted via Ollama or vLLM)
     # ========================================================================
     # IBM's open-source Granite models for enterprise AI
-    # Note: Requires vLLM server running on GRANITE_BASE_URL
-    # Start with: python -m vllm.entrypoints.openai.api_server \
-    #   --model ibm-granite/granite-3.3-8b-instruct --port 8100 --max-model-len 8192
-    "granite-3.3-8b": {
-        "base_url": os.getenv("GRANITE_BASE_URL", "http://localhost:8100/v1"),
-        "api_key_env_var": "GRANITE_API_KEY",
-        "model_name": "ibm-granite/granite-3.3-8b-instruct",
-        "description": "🏢 IBM Granite 3.3 8B Instruct (Self-hosted)",
+    # Ollama: ollama pull granite4:3b && ollama serve
+    # vLLM:  python -m vllm.entrypoints.openai.api_server \
+    #          --model ibm-granite/granite-3.3-8b-instruct --port 8100
+    "granite-4-3b": {
+        "base_url": os.getenv("OLLAMA_BASE_URL", "http://localhost:11434/v1"),
+        "api_key_env_var": "OLLAMA_API_KEY",  # Not required — defaults to "ollama" below
+        "model_name": "granite4:3b",
+        "description": "🏢🎯 IBM Granite 4 3B (Self-hosted)",
         "provider": "openai",
-        "size": "8B",
-        "input_cost_per_1m": 0.0,  # Free if self-hosted
+        "size": "Small",
+        "input_cost_per_1m": 0.0,
         "output_cost_per_1m": 0.0,
         "self_hostable": True,
-        "min_gpu": "1x A10 24GB / RTX 4090",
-        "gpu_cloud_cost_hr": 0.50,
+    },
+    "granite-3.3-8b": {
+        "base_url": os.getenv("GRANITE_BASE_URL", os.getenv("OLLAMA_BASE_URL", "http://localhost:11434/v1")),
+        "api_key_env_var": "GRANITE_API_KEY",
+        "model_name": os.getenv("GRANITE_MODEL_NAME", "granite3.3:8b"),
+        "description": "🏢 IBM Granite 3.3 8B (Self-hosted)",
+        "provider": "openai",
+        "size": "8B",
+        "input_cost_per_1m": 0.0,
+        "output_cost_per_1m": 0.0,
+        "self_hostable": True,
     },
 
     # ========================================================================
     # LOCAL / CUSTOM MODELS
     # ========================================================================
-    # For running your own vLLM server with any open-source model
+    # For running your own Ollama or vLLM server with any open-source model
     "local-vllm": {
         "base_url": os.getenv("VLLM_BASE_URL", "http://localhost:8100/v1"),
         "api_key_env_var": "VLLM_API_KEY",
         "model_name": os.getenv("VLLM_MODEL_NAME", "your-model-name"),
-        "description": "🔧 Local vLLM (Your own model)",
+        "description": "🔧 Local Model (Your own model)",
         "size": os.getenv("VLLM_MODEL_SIZE", "Custom"),
     },
 }
@@ -400,6 +409,10 @@ def get_api_key(model_id: str) -> str:
     config = get_model_config(model_id)
     api_key = os.getenv(config["api_key_env_var"])
     if not api_key:
+        # Self-hosted models (Ollama, local vLLM) don't require API keys
+        base_url = config.get("base_url", "")
+        if "localhost" in base_url or "127.0.0.1" in base_url:
+            return "ollama"
         raise ValueError(
             f"API key not found for model '{model_id}'. "
             f"Please set environment variable '{config['api_key_env_var']}'"

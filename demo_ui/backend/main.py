@@ -142,11 +142,12 @@ async def check_providers():
     vertex_project = os.getenv("VERTEX_PROJECT")
     vllm_url = os.getenv("VLLM_BASE_URL")
 
+    ollama_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434/v1")
     local_available = False
     if vllm_url:
         local_available = check_server_available(vllm_url)
-    else:
-        local_available = check_server_available("http://localhost:8100/v1")
+    if not local_available:
+        local_available = check_server_available(ollama_url)
 
     providers = {
         "openai": {
@@ -166,9 +167,9 @@ async def check_providers():
         "local": {
             "enabled": local_available,
             "name": "Self-Hosted / Local",
-            "description": "Any model served via vLLM or OpenAI-compatible endpoint",
-            "env_var": "VLLM_BASE_URL",
-            "setup": "export VLLM_BASE_URL=http://localhost:8100/v1",
+            "description": "IBM Granite 4 3B, Granite 3.3 8B, or any model via Ollama / vLLM",
+            "env_var": "OLLAMA_BASE_URL",
+            "setup": "ollama pull granite4:3b && ollama serve",
         },
     }
 

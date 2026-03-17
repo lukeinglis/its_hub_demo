@@ -794,8 +794,9 @@ function iwBuildResultPane(data, type, title, minCost, minLatency) {
 
     // Format cost
     const isEstimated = !!data.tokens_estimated;
+    const isSelfHosted = cost != null && cost === 0;
     const costFmt = cost != null
-        ? (isEstimated ? '~' : '') + (cost < 0.0001 ? '$' + cost.toExponential(2) : '$' + cost.toFixed(4))
+        ? (isSelfHosted ? '$0 (Self-hosted)' : (isEstimated ? '~' : '') + (cost < 0.0001 ? '$' + cost.toExponential(2) : '$' + cost.toFixed(4)))
         : 'N/A';
 
     // Response content

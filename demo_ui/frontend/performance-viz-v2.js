@@ -260,7 +260,7 @@ class PerformanceVizV2 {
         models.forEach(model => {
             const total = (model.data.input_tokens || 0) + (model.data.output_tokens || 0);
             const est = model.data.tokens_estimated ? '~' : '';
-            const costPerToken = (total > 0 && model.data.cost_usd != null) ? est + '$' + (model.data.cost_usd / total).toFixed(6) : 'N/A';
+            const costPerToken = model.data.cost_usd === 0 ? '$0 (Self-hosted)' : (total > 0 && model.data.cost_usd != null) ? est + '$' + (model.data.cost_usd / total).toFixed(6) : 'N/A';
             html += `<td>${costPerToken}</td>`;
         });
         html += '</tr>';

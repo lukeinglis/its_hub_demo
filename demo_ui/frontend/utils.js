@@ -43,6 +43,7 @@ function formatLatency(ms) {
 
 function formatCost(cost_usd) {
     if (cost_usd == null || cost_usd === undefined) return 'N/A';
+    if (cost_usd === 0) return '$0 (Self-hosted)';
     if (cost_usd < 0.0001) return '$' + cost_usd.toExponential(2);
     if (cost_usd < 0.01) return '$' + cost_usd.toFixed(4);
     if (cost_usd < 1) return '$' + cost_usd.toFixed(3);
