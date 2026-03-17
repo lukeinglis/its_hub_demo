@@ -310,6 +310,10 @@ async def run_baseline(
     else:
         # For Vertex AI or other models, use standard interface
         response = await lm.agenerate(messages)
+        # Extract usage if the model wrapper provided it (e.g. Vertex AI Claude)
+        if isinstance(response, dict) and "usage" in response:
+            input_tokens = response["usage"].get("input_tokens", 0)
+            output_tokens = response["usage"].get("output_tokens", 0)
 
     answer = extract_content_from_lm_response(response)
 

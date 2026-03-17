@@ -431,6 +431,20 @@ gcloud auth application-default login</div>
                     <div id="iwPerfContainer"></div>
                 </div>
 
+                <!-- Raw API Response -->
+                <div id="iwRawDataSection" class="iw-raw-data-section hidden">
+                    <details class="iw-raw-data-toggle">
+                        <summary class="iw-raw-data-btn">View Raw API Response</summary>
+                        <div class="iw-raw-data-content">
+                            <div class="iw-raw-data-header">
+                                <span id="iwRawDataLabel"></span>
+                                <button class="iw-raw-data-copy" onclick="navigator.clipboard.writeText(document.getElementById('iwRawDataJson').textContent).then(() => { this.textContent = 'Copied!'; setTimeout(() => this.textContent = 'Copy JSON', 1500); })">Copy JSON</button>
+                            </div>
+                            <pre class="iw-raw-data-json" id="iwRawDataJson"></pre>
+                        </div>
+                    </details>
+                </div>
+
                 <!-- Restart -->
                 <div class="iw-restart-area">
                     <button class="btn-secondary" onclick="iwGoBack(4)">

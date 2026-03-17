@@ -148,7 +148,14 @@ class VertexAIClaudeModel(_VertexAIBaseModel):
             return self.client.messages.create(**kwargs)
 
         response = await asyncio.to_thread(sync_call)
-        return {"role": "assistant", "content": response.content[0].text}
+        result = {"role": "assistant", "content": response.content[0].text}
+        # Capture token usage from the Anthropic response
+        if hasattr(response, 'usage') and response.usage:
+            result["usage"] = {
+                "input_tokens": getattr(response.usage, 'input_tokens', 0),
+                "output_tokens": getattr(response.usage, 'output_tokens', 0),
+            }
+        return result
 
 
 class VertexAIGeminiModel(_VertexAIBaseModel):

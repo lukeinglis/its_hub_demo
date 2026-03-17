@@ -663,6 +663,20 @@ function iwRenderResults(data) {
     try {
         iwRenderPerformance(data);
     } catch (e) { console.error('Performance section error:', e); }
+
+    // Show raw API response viewer
+    try {
+        const rawSection = document.getElementById('iwRawDataSection');
+        const rawLabel = document.getElementById('iwRawDataLabel');
+        const rawJson = document.getElementById('iwRawDataJson');
+        if (rawSection && rawJson) {
+            const scenario = iwState.scenario || 'improve_model';
+            const modelId = iwState.modelId || '';
+            rawLabel.innerHTML = `Model: <strong>${escapeHtml(modelId)}</strong> | Scenario: <strong>${escapeHtml(scenario)}</strong>`;
+            rawJson.textContent = JSON.stringify(data, null, 2);
+            setVisible(rawSection, true);
+        }
+    } catch (e) { console.error('Raw data section error:', e); }
 }
 
 // Build a data-aware insight box explaining ITS results

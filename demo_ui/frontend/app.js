@@ -250,7 +250,13 @@ function renderSelfConsistencyTrace(trace) {
     sortedVotes.forEach(([answer, count], i) => {
         const pct = (count / maxVotes) * 100;
         const isWinner = answer === winningAnswer;
-        const displayAnswer = answer.length > 40 ? answer.substring(0, 40) + '...' : answer;
+        // Try to extract just the final answer for display
+        let displayAnswer = answer;
+        if (typeof extractFinalAnswer === 'function') {
+            const extracted = extractFinalAnswer(answer);
+            if (extracted) displayAnswer = extracted;
+        }
+        if (displayAnswer.length > 60) displayAnswer = displayAnswer.substring(0, 60) + '...';
         html += `
             <div class="vote-chart-row ${isWinner ? 'is-winner' : ''}">
                 <span class="vote-chart-rank">${i + 1}</span>
