@@ -642,8 +642,6 @@ function iwRenderResults(data) {
             `;
         }
 
-        html += iwBuildInsightBox(data);
-
         resultsEl.innerHTML = html;
 
         // Render math in results (including question display)
@@ -813,16 +811,27 @@ function iwBuildResultPane(data, type, title, minCost, minLatency) {
         `;
     }
 
-    // Build response content (conclusion for long responses, full for short)
-    const conclusion = typeof extractConclusion === 'function'
-        ? extractConclusion(fullResponse) : fullResponse;
-    const responseHtml = typeof formatAsHTML === 'function'
-        ? formatAsHTML(finalAnswer ? conclusion : fullResponse)
-        : '<p>' + fullResponse + '</p>';
+    // Build response content — show only a concise summary, full reasoning goes in expandable
+    let responseHtml = '';
+    if (finalAnswer) {
+        // If we extracted a final answer, don't repeat it in the response body
+        responseHtml = '';
+    } else {
+        // No boxed answer — show a short conclusion
+        const conclusion = typeof extractConclusion === 'function'
+            ? extractConclusion(fullResponse) : fullResponse;
+        // Truncate to ~500 chars to keep panes compact
+        const truncated = conclusion.length > 500
+            ? conclusion.substring(0, 500).replace(/\s+\S*$/, '') + '...'
+            : conclusion;
+        responseHtml = typeof formatAsHTML === 'function'
+            ? formatAsHTML(truncated)
+            : '<p>' + truncated + '</p>';
+    }
 
-    // Full reasoning (for expandable section)
+    // Full reasoning (for expandable section) — always available
     const fullHtml = typeof formatReasoningSteps === 'function' ? formatReasoningSteps(fullResponse) : '';
-    const hasFullReasoning = (finalAnswer || conclusion !== fullResponse) && fullHtml;
+    const hasFullReasoning = fullResponse.length > 200 && fullHtml;
 
     // Trace expandable (for ITS results)
     let traceExpandable = '';
@@ -899,23 +908,6 @@ function iwBuildResultPane(data, type, title, minCost, minLatency) {
                     <div class="iw-expand-content">${fullHtml}</div>
                 </div>
             ` : ''}
-            <div class="iw-expandable" aria-expanded="false" onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))">
-                <button class="iw-expand-btn">
-                    <span class="iw-expand-icon">▶</span>
-                    Performance Details
-                </button>
-                <div class="iw-expand-content">
-                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; font-size:13px;">
-                        <span style="color:var(--text-tertiary)">Latency</span><span style="font-family:'IBM Plex Mono',monospace">${formatLatency(latency)}</span>
-                        <span style="color:var(--text-tertiary)">Cost${isEstimated ? ' (est.)' : ''}</span><span style="font-family:'IBM Plex Mono',monospace">${costFmt}</span>
-                        <span style="color:var(--text-tertiary)">Input Tokens${isEstimated ? ' (est.)' : ''}</span><span style="font-family:'IBM Plex Mono',monospace">${isEstimated ? '~' : ''}${(data.input_tokens || 0).toLocaleString()}</span>
-                        <span style="color:var(--text-tertiary)">Output Tokens${isEstimated ? ' (est.)' : ''}</span><span style="font-family:'IBM Plex Mono',monospace">${isEstimated ? '~' : ''}${(data.output_tokens || 0).toLocaleString()}</span>
-                        ${data.model_size ? `<span style="color:var(--text-tertiary)">Model Size</span><span>${escapeHtml(data.model_size)}</span>` : ''}
-                    </div>
-                    ${isEstimated ? `<div class="iw-estimate-note">Token counts and cost are estimates. ITS algorithms make multiple internal LLM calls whose usage is not individually tracked. Latency is actual wall-clock time.</div>` : ''}
-                </div>
-            </div>
-            ${traceExpandable}
             ${toolsExpandable}
         </div>
     `;

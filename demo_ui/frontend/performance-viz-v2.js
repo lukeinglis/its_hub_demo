@@ -249,14 +249,16 @@ class PerformanceVizV2 {
         // Input tokens
         html += '<tr><td class="perf-v2-table-label">Input Tokens</td>';
         models.forEach(model => {
-            html += `<td>${(model.data.input_tokens || 0).toLocaleString()}</td>`;
+            const est = model.data.tokens_estimated ? '~' : '';
+            html += `<td>${est}${(model.data.input_tokens || 0).toLocaleString()}</td>`;
         });
         html += '</tr>';
 
         // Output tokens
         html += '<tr><td class="perf-v2-table-label">Output Tokens</td>';
         models.forEach(model => {
-            html += `<td>${(model.data.output_tokens || 0).toLocaleString()}</td>`;
+            const est = model.data.tokens_estimated ? '~' : '';
+            html += `<td>${est}${(model.data.output_tokens || 0).toLocaleString()}</td>`;
         });
         html += '</tr>';
 
@@ -264,7 +266,8 @@ class PerformanceVizV2 {
         html += '<tr><td class="perf-v2-table-label">Total Tokens</td>';
         models.forEach(model => {
             const total = (model.data.input_tokens || 0) + (model.data.output_tokens || 0);
-            html += `<td><strong>${total.toLocaleString()}</strong></td>`;
+            const est = model.data.tokens_estimated ? '~' : '';
+            html += `<td><strong>${est}${total.toLocaleString()}</strong></td>`;
         });
         html += '</tr>';
 
@@ -278,10 +281,11 @@ class PerformanceVizV2 {
         html += '</tr>';
 
         // Cost per token
-        html += '<tr><td class="perf-v2-table-label">Cost per Token</td>';
+        html += '<tr><td class="perf-v2-table-label">Cost/Token</td>';
         models.forEach(model => {
             const total = (model.data.input_tokens || 0) + (model.data.output_tokens || 0);
-            const costPerToken = (total > 0 && model.data.cost_usd != null) ? '$' + (model.data.cost_usd / total).toFixed(6) : 'N/A';
+            const est = model.data.tokens_estimated ? '~' : '';
+            const costPerToken = (total > 0 && model.data.cost_usd != null) ? est + '$' + (model.data.cost_usd / total).toFixed(6) : 'N/A';
             html += `<td>${costPerToken}</td>`;
         });
         html += '</tr>';
