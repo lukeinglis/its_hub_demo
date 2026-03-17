@@ -250,10 +250,15 @@ function renderSelfConsistencyTrace(trace) {
     sortedVotes.forEach(([answer, count], i) => {
         const pct = (count / maxVotes) * 100;
         const isWinner = answer === winningAnswer;
-        // Try to extract just the final answer for display
+        // Clean up Python tuple representations like "('17',)" → "17"
         let displayAnswer = answer;
-        if (typeof extractFinalAnswer === 'function') {
-            const extracted = extractFinalAnswer(answer);
+        const tupleMatch = displayAnswer.match(/^\('?(.+?)'?,?\)$/);
+        if (tupleMatch) displayAnswer = tupleMatch[1];
+        // Also strip None
+        if (displayAnswer === 'None' || displayAnswer === '(None,)') displayAnswer = '(no answer)';
+        // Try to extract boxed answer from full response text
+        if (displayAnswer.length > 80 && typeof extractFinalAnswer === 'function') {
+            const extracted = extractFinalAnswer(displayAnswer);
             if (extracted) displayAnswer = extracted;
         }
         if (displayAnswer.length > 60) displayAnswer = displayAnswer.substring(0, 60) + '...';
