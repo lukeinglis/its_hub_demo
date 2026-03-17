@@ -20,9 +20,7 @@ class PerformanceVizV2 {
         `;
 
         // Big savings callout for 3-column
-        if (isThreeColumn) {
-            html += this.renderSavingsCallout(data.small_baseline, data.its, data.baseline);
-        }
+        // Cost savings callout removed — the data is shown in the breakdown table
 
         // Metrics comparison section
         html += '<div class="perf-v2-metrics">';
