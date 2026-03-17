@@ -66,23 +66,8 @@ CURATED_QUESTIONS: List[Dict] = [
     },
 
     # =========================================================================
-    # MATH500 BENCHMARK QUESTIONS
-    # From HuggingFaceH4/MATH-500 (subset of the MATH benchmark).
-    # Selected for ITS-friendly difficulty: small models struggle but
-    # consensus / judge selection recovers the correct answer.
+    # BENCHMARK QUESTIONS — verified to trip up Granite 4 3B baseline
     # =========================================================================
-    {
-        "category": "Number Theory",
-        "difficulty": "Medium",
-        "question": (
-            "What is the remainder when $2^{2005}$ is divided by 7?"
-        ),
-        "expected_answer": "2",
-        "best_for": ["self_consistency", "beam_search", "particle_filtering"],
-        "why": "Modular exponentiation requires finding a pattern in powers mod 7 (period 3). Models often miscalculate the cycle.",
-        "source": "MATH500",
-        "source_id": "MATH500-NT-1",
-    },
     {
         "category": "Counting & Probability",
         "difficulty": "Medium",
@@ -91,21 +76,9 @@ CURATED_QUESTIONS: List[Dict] = [
         ),
         "expected_answer": "282",
         "best_for": ["self_consistency", "best_of_n"],
-        "why": "Stars and bars with upper-bound constraints. Models frequently miscount by forgetting digit limits or leading zeros.",
+        "why": "Stars and bars with upper-bound constraints. Baseline gets 264 (wrong). ITS corrects via consensus.",
         "source": "MATH500",
         "source_id": "MATH500-CP-1",
-    },
-    {
-        "category": "Algebra",
-        "difficulty": "Medium",
-        "question": (
-            "If $a + b = 6$ and $a^2 + b^2 = 20$, find $a^4 + b^4$."
-        ),
-        "expected_answer": "272",
-        "best_for": ["self_consistency", "best_of_n", "beam_search"],
-        "why": "Requires computing ab=8 then (a^2+b^2)^2 - 2(ab)^2. Arithmetic errors are common but fixable via consensus.",
-        "source": "MATH500",
-        "source_id": "MATH500-ALG-1",
     },
     {
         "category": "Precalculus",
@@ -116,54 +89,9 @@ CURATED_QUESTIONS: List[Dict] = [
         ),
         "expected_answer": "\\frac{\\sqrt{3}}{8}",
         "best_for": ["self_consistency", "best_of_n"],
-        "why": "Trig identity problem requiring the triple-angle product formula. Models often get partial simplifications wrong.",
+        "why": "Trig identity problem requiring triple-angle product formula. Baseline gets wrong simplification.",
         "source": "MATH500",
         "source_id": "MATH500-PRECALC-1",
-    },
-    {
-        "category": "Geometry",
-        "difficulty": "Medium",
-        "question": (
-            "In triangle $ABC$, $AB = 13$, $BC = 14$, and $CA = 15$. "
-            "Find the area of triangle $ABC$."
-        ),
-        "expected_answer": "84",
-        "best_for": ["self_consistency", "best_of_n", "beam_search"],
-        "why": "Classic Heron's formula problem. Models sometimes make arithmetic errors in the intermediate products.",
-        "source": "MATH500",
-        "source_id": "MATH500-GEOM-1",
-    },
-
-    # =========================================================================
-    # AIME QUESTIONS
-    # American Invitational Mathematics Examination — competition-level
-    # problems that strongly benefit from ITS due to multi-step reasoning.
-    # =========================================================================
-    {
-        "category": "Competition Math",
-        "difficulty": "Hard",
-        "question": (
-            "Find the number of ordered pairs $(x, y)$ of positive integers "
-            "satisfying $x + 2y = 100$ where $x$ and $y$ are both positive."
-        ),
-        "expected_answer": "49",
-        "best_for": ["self_consistency", "best_of_n"],
-        "why": "Boundary conditions on positive integers trip up models. Consensus voting reliably catches off-by-one errors.",
-        "source": "AIME",
-        "source_id": "AIME-adapted-1",
-    },
-    {
-        "category": "Competition Math",
-        "difficulty": "Hard",
-        "question": (
-            "Let $S$ be the set of integers from 1 to 100. How many elements "
-            "of $S$ are neither a perfect square nor a perfect cube?"
-        ),
-        "expected_answer": "88",
-        "best_for": ["self_consistency", "beam_search"],
-        "why": "Inclusion-exclusion with sixth powers (10 squares + 4 cubes - 2 sixth powers = 12). Models often miscount overlaps.",
-        "source": "AIME",
-        "source_id": "AIME-adapted-2",
     },
     {
         "category": "Competition Math",
@@ -210,18 +138,6 @@ CURATED_QUESTIONS: List[Dict] = [
         "why": "Requires systematic case analysis with parity constraints. Models miss cases without consensus correction.",
         "source": "AMC",
         "source_id": "AMC-adapted-2",
-    },
-    {
-        "category": "Competition Math",
-        "difficulty": "Easy",
-        "question": (
-            "What is the greatest prime factor of $15! + 17!$?"
-        ),
-        "expected_answer": "13",
-        "best_for": ["self_consistency", "best_of_n", "beam_search"],
-        "why": "Factor out 15! to get 15!(1 + 16·17) = 15! · 273 = 15! · 3·7·13. All primes ≤ 13. Models often wrongly guess 17.",
-        "source": "AMC",
-        "source_id": "AMC-adapted-3",
     },
     {
         "category": "Competition Math",
