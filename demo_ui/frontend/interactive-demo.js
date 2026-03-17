@@ -812,12 +812,17 @@ function iwBuildResultPane(data, type, title, minCost, minLatency) {
     // Build final answer callout if we found one
     let finalAnswerHtml = '';
     if (finalAnswer) {
-        const hasLatex = finalAnswer.includes('$') || /[\\{}_^]/.test(finalAnswer);
-        const displayAnswer = hasLatex
-            ? finalAnswer
-            : (finalAnswer.includes('=') || /^[-+]?\d/.test(finalAnswer))
-                ? '$' + finalAnswer + '$'
-                : escapeHtml(finalAnswer);
+        // Wrap in $...$ for KaTeX rendering unless already wrapped
+        let displayAnswer;
+        if (finalAnswer.includes('$')) {
+            // Already has $ delimiters
+            displayAnswer = finalAnswer;
+        } else if (/[\\{}_^]/.test(finalAnswer) || /\d/.test(finalAnswer)) {
+            // Has LaTeX commands or is numeric — wrap for rendering
+            displayAnswer = '$' + finalAnswer + '$';
+        } else {
+            displayAnswer = escapeHtml(finalAnswer);
+        }
         finalAnswerHtml = `
             <div class="iw-final-answer">
                 <div class="iw-final-answer-label">Final Answer</div>
