@@ -90,16 +90,16 @@ The model dropdowns in step 4 are dynamically populated based on which providers
 
 ### 🧠 Intelligent Answer Extraction & Auto-Detection 🆕
 
-**Answer Extraction for Math Questions:**
+**Answer Extraction:**
 - Automatically extracts `\boxed{}` answers from mathematical responses
-- Enables proper consensus voting (votes on "3/4" not "Therefore, the answer is 3/4...")
-- Fixes Self-Consistency voting on full text (which was previously broken for math)
-- Shows vote counts in algorithm trace: e.g., `{"('\\frac{3',)": 8}` (8/8 consensus)
+- Extracts final answers from general responses ("Therefore...", "In conclusion...", last paragraph)
+- Enables proper consensus voting (votes on "45" not "Therefore, the answer is 45...")
+- Vote counts in the algorithm trace show clean extracted answers grouped by consensus
 
 **Auto-Detection:**
-- **Math questions**: Detects LaTeX symbols (`$`, `\frac`, `\boxed`), math keywords → applies QWEN system prompt + answer extraction
+- **Math questions**: Detects LaTeX symbols (`$`, `\frac`, `\boxed`), math keywords → applies QWEN system prompt + boxed answer extraction
 - **Tool calling**: Detects `enable_tools=True` → applies tool voting configuration
-- **General**: Default full-text matching for other questions
+- **General**: Extracts final answer/conclusion for voting, with last-paragraph fallback
 - No manual configuration needed - just paste your question!
 
 **System Prompts:**
