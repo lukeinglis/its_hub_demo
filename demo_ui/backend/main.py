@@ -288,8 +288,8 @@ async def compare(request: CompareRequest):
         - budget: Computation budget
 
     Output:
-        - baseline: { answer, latency_ms, log_preview }
-        - its: { answer, latency_ms, log_preview }
+        - baseline: { answer, latency_ms, ... }
+        - its: { answer, latency_ms, ... }
         - meta: { model_id, algorithm, budget, run_id }
     """
     run_id = str(uuid.uuid4())
@@ -499,7 +499,6 @@ async def compare(request: CompareRequest):
             "baseline": ResultDetail(
                 answer=baseline_answer,
                 latency_ms=baseline_latency,
-                log_preview="",  # Placeholder for future
                 model_size=frontier_model_size if request.use_case == "match_frontier" else model_size,
                 cost_usd=baseline_cost if baseline_cost is not None else None,
                 input_tokens=baseline_input_tokens if baseline_input_tokens else None,
@@ -511,7 +510,6 @@ async def compare(request: CompareRequest):
             "its": ResultDetail(
                 answer=its_answer,
                 latency_ms=its_latency,
-                log_preview="",  # Placeholder for future
                 model_size=model_size,
                 cost_usd=its_cost if its_cost is not None else None,
                 input_tokens=its_input_tokens if its_input_tokens else None,
@@ -550,7 +548,6 @@ async def compare(request: CompareRequest):
             response_data["small_baseline"] = ResultDetail(
                 answer=small_baseline_answer,
                 latency_ms=small_baseline_latency,
-                log_preview="",
                 model_size=model_size,
                 cost_usd=small_baseline_cost if small_baseline_cost is not None else None,
                 input_tokens=small_baseline_input_tokens if small_baseline_input_tokens else None,

@@ -116,21 +116,6 @@ class PerformanceVizV2 {
         this.container.innerHTML = html;
     }
 
-    renderSavingsCallout(smallBaseline, its, frontier) {
-        if (frontier.cost_usd == null || its.cost_usd == null || frontier.cost_usd === 0) return '';
-        const savings = ((frontier.cost_usd - its.cost_usd) / frontier.cost_usd * 100).toFixed(0);
-        return `
-            <div class="perf-v2-savings">
-                <div class="perf-v2-savings-badge">💰 COST SAVINGS</div>
-                <div class="perf-v2-savings-amount">${savings}%</div>
-                <div class="perf-v2-savings-text">
-                    Small + ITS costs <strong>${this.formatCost(its.cost_usd)}</strong> vs
-                    Frontier at <strong>${this.formatCost(frontier.cost_usd)}</strong>
-                </div>
-            </div>
-        `;
-    }
-
     renderMetricComparison(title, unit, items, betterWhen = 'lower') {
         const validValues = items.map(i => i.value).filter(v => v != null);
         const maxValue = validValues.length > 0 ? Math.max(...validValues) : 0;

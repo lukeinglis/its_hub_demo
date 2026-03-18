@@ -38,7 +38,6 @@ const API_BASE_URL = 'http://localhost:8000';
 // Shared utilities (setVisible, escapeHtml, formatLatency, formatCost, etc.)
 // are defined in utils.js which is loaded before this file.
 
-let isRunning = false; // Track if a comparison is currently running
 let selectedExperience = null; // 'guided' or 'interactive'
 
 
@@ -149,8 +148,6 @@ function returnToLanding() {
     // Hide back button
     document.getElementById('backToHomeBtn').classList.remove('visible');
 
-    // Clear any running state
-    isRunning = false;
 }
 
 // Check if user has a saved experience preference

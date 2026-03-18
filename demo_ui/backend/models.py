@@ -146,7 +146,6 @@ class ResultDetail(BaseModel):
     """
     answer: str = Field(..., description="The final answer text")
     latency_ms: int = Field(..., description="Latency in milliseconds (actual wall-clock)")
-    log_preview: str = Field(default="", description="Placeholder for step logs (future)")
     model_size: Optional[str] = Field(default=None, description="Model size (e.g., 'Large', 'Small')")
     cost_usd: Optional[float] = Field(default=None, description="Cost in USD (estimated when tokens_estimated=True)")
     input_tokens: Optional[int] = Field(default=None, description="Number of input tokens (estimated for ITS results)")

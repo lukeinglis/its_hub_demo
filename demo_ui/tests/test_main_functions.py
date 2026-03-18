@@ -22,27 +22,17 @@ class TestDetectQuestionType:
     def test_latex_boxed(self):
         assert detect_question_type("The answer is \\boxed{42}") == "math"
 
-    def test_caret_operator(self):
-        assert detect_question_type("What is 2^10?") == "math"
+    def test_single_weak_indicator_is_general(self):
+        """A single weak indicator is not enough — need 2+ for math."""
+        assert detect_question_type("What is the probability of rolling a 6?") == "general"
+        assert detect_question_type("Find the value of sin(30)") == "general"
+        assert detect_question_type("What is the 10th term of the sequence?") == "general"
 
-    def test_probability_keyword(self):
-        assert detect_question_type("What is the probability of rolling a 6?") == "math"
-
-    def test_calculate_keyword(self):
-        assert detect_question_type("Calculate the area of a circle") == "math"
-
-    def test_solve_keyword(self):
-        assert detect_question_type("Solve for x in 2x + 3 = 7") == "math"
-
-    def test_find_the_value(self):
-        assert detect_question_type("Find the value of sin(30)") == "math"
-
-    def test_what_is_the_term(self):
-        assert detect_question_type("What is the 10th term of the sequence?") == "math"
-
-    def test_case_insensitive_math(self):
-        assert detect_question_type("CALCULATE the sum") == "math"
-        assert detect_question_type("Solve THIS equation") == "math"
+    def test_two_weak_indicators_is_math(self):
+        """Two or more weak indicators trigger math detection."""
+        assert detect_question_type("What is the probability of the 5th term being prime?") == "math"
+        assert detect_question_type("Solve for x: find the value of x + 3 = 10") == "math"
+        assert detect_question_type("Find the value and evaluate the integral of f(x)") == "math"
 
     # -- Tool calling detection --
 
@@ -97,22 +87,22 @@ class TestCalculateCost:
     def test_input_cost_only(self, sample_model_config):
         config = {**sample_model_config, "output_cost_per_1m": 0.0}
         cost = calculate_cost(config, 1_000_000, 0)
-        assert cost == 0.15
+        assert cost == 0.40
 
     def test_output_cost_only(self, sample_model_config):
         config = {**sample_model_config, "input_cost_per_1m": 0.0}
         cost = calculate_cost(config, 0, 1_000_000)
-        assert cost == 0.60
+        assert cost == 1.60
 
     def test_combined_cost(self, sample_model_config):
-        # 1M input tokens at $0.15/1M + 500K output tokens at $0.60/1M
+        # 1M input tokens at $0.40/1M + 500K output tokens at $1.60/1M
         cost = calculate_cost(sample_model_config, 1_000_000, 500_000)
-        assert cost == pytest.approx(0.45)
+        assert cost == pytest.approx(1.20)
 
     def test_small_token_count(self, sample_model_config):
         # 100 input + 200 output
         cost = calculate_cost(sample_model_config, 100, 200)
-        expected = (100 / 1_000_000) * 0.15 + (200 / 1_000_000) * 0.60
+        expected = (100 / 1_000_000) * 0.40 + (200 / 1_000_000) * 1.60
         assert cost == pytest.approx(round(expected, 6))
 
     def test_zero_tokens(self, sample_model_config):

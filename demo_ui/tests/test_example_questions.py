@@ -5,7 +5,6 @@ import pytest
 from backend.example_questions import (
     get_all_questions,
     get_questions_by_algorithm,
-    get_questions_by_difficulty,
     get_tool_calling_questions,
     get_tool_calling_questions_by_algorithm,
 )
@@ -62,26 +61,6 @@ class TestGetQuestionsByAlgorithm:
                 saw_non_tier1 = True
             elif saw_non_tier1:
                 pytest.fail("Tier 1 question appeared after non-tier-1 question")
-
-
-class TestGetQuestionsByDifficulty:
-    """Tests for get_questions_by_difficulty()."""
-
-    def test_filter_easy(self):
-        questions = get_questions_by_difficulty("Easy")
-        assert all(q["difficulty"] == "Easy" for q in questions)
-
-    def test_filter_medium(self):
-        questions = get_questions_by_difficulty("Medium")
-        assert all(q["difficulty"] == "Medium" for q in questions)
-
-    def test_filter_hard(self):
-        questions = get_questions_by_difficulty("Hard")
-        assert all(q["difficulty"] == "Hard" for q in questions)
-
-    def test_nonexistent_difficulty_returns_empty(self):
-        questions = get_questions_by_difficulty("Impossible")
-        assert questions == []
 
 
 class TestGetToolCallingQuestions:

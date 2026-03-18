@@ -315,19 +315,6 @@ def get_questions_by_algorithm(algorithm: str, limit: int = 10) -> List[Dict[str
     return result[:limit]
 
 
-def get_questions_by_difficulty(difficulty: str) -> List[Dict[str, str]]:
-    """
-    Get example questions by difficulty level.
-
-    Args:
-        difficulty: 'Easy', 'Medium', or 'Hard'
-
-    Returns:
-        List of question dictionaries
-    """
-    return [q for q in get_all_questions() if q["difficulty"] == difficulty]
-
-
 def get_tool_calling_questions() -> List[Dict[str, str]]:
     """
     Get all tool calling example questions.

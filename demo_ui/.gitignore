@@ -41,6 +41,7 @@ comprehensive_scenarios.js
 
 # Logs
 logs/
+scripts/capture_logs/
 
 # Node
 node_modules/
