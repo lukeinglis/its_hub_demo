@@ -6,6 +6,7 @@ for the frontend to visualize.
 """
 
 import logging
+import re
 
 import numpy as np
 
@@ -27,6 +28,100 @@ from .models import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _unwrap_vote_key(key) -> str:
+    """Convert a vote key to a clean display string.
+
+    Handles:
+    - Tuples like ('45',) -> '45'
+    - Multi-element tuples like ('algebra', '42') -> '42' (last non-None element)
+    - Plain strings -> returned as-is
+    - None -> '(no answer)'
+    """
+    if isinstance(key, tuple):
+        # Filter out None values and take the last meaningful element
+        non_none = [str(v) for v in key if v is not None]
+        if non_none:
+            return non_none[-1]
+        return "(no answer)"
+    if key is None:
+        return "(no answer)"
+    return str(key)
+
+
+def _extract_answer_from_key(key_str: str) -> str:
+    """Extract a concise answer from a vote key that may contain full response text.
+
+    Uses the same patterns as the frontend extractFinalAnswer() and the backend
+    extract_final_answer() to ensure consistency.
+    """
+    # Already short enough — no extraction needed
+    if len(key_str) <= 80:
+        return key_str
+
+    # Try boxed answer
+    boxed_idx = key_str.find('\\boxed{')
+    if boxed_idx != -1:
+        brace_count = 0
+        start = boxed_idx + 7
+        for i in range(start, len(key_str)):
+            if key_str[i] == '{':
+                brace_count += 1
+            elif key_str[i] == '}':
+                if brace_count == 0:
+                    if i > start:
+                        return key_str[start:i]
+                    break
+                brace_count -= 1
+
+    # Try explicit answer patterns
+    answer_patterns = [
+        r'Final Answer:\s*(.+?)(?:\n\n|$)',
+        r'Answer:\s*(.+?)(?:\n\n|$)',
+        r'Therefore,?\s+the\s+(?:answer|value|result)\s+(?:is|equals?)\s+(.+?)(?:\.|$)',
+        r'(?:^|\n)Therefore,?\s+(.+?)(?:\n\n|$)',
+        r'(?:^|\n)Thus,?\s+(.+?)(?:\n\n|$)',
+        r'(?:^|\n)So,?\s+the\s+(?:answer|value|result)\s+(?:is|equals?)\s+(.+?)(?:\.|$)',
+        r'(?:^|\n)In conclusion,?\s+(.+?)(?:\n\n|$)',
+    ]
+    for pattern in answer_patterns:
+        match = re.search(pattern, key_str, re.IGNORECASE | re.DOTALL)
+        if match:
+            answer = match.group(1).strip()
+            if len(answer) < 200:
+                return answer
+
+    # Fallback: last non-empty paragraph
+    paragraphs = [p.strip() for p in key_str.strip().split('\n\n') if p.strip()]
+    if paragraphs:
+        last = paragraphs[-1]
+        if len(last) <= 200:
+            return last
+
+    # Nothing worked — truncate
+    return key_str[:80]
+
+
+def _clean_vote_counts(response_counts) -> dict[str, int]:
+    """Clean and re-aggregate vote counts for frontend display.
+
+    The self-consistency algorithm's response_counts may be keyed by:
+    - Full response text (when no projection function extracts answers)
+    - Python tuples like ('45',) from regex projection functions
+    - Clean strings (ideal case)
+
+    This function:
+    1. Unwraps tuple keys to clean strings
+    2. Extracts concise answers from long full-text keys
+    3. Re-aggregates counts when multiple keys resolve to the same answer
+    """
+    cleaned: dict[str, int] = {}
+    for key, count in response_counts.items():
+        display_key = _unwrap_vote_key(key)
+        display_key = _extract_answer_from_key(display_key)
+        cleaned[display_key] = cleaned.get(display_key, 0) + count
+    return cleaned
 
 
 def _parse_tool_args(tool_args):
@@ -94,7 +189,7 @@ def build_trace(algorithm: str, result, tool_vote: str | None = None) -> dict | 
                     tool_calls=tool_calls_data,
                 ))
 
-            vote_counts = {str(k): v for k, v in result.response_counts.items()}
+            vote_counts = _clean_vote_counts(result.response_counts)
 
             # Build tool voting trace if tool voting was used
             tool_voting_trace = None
