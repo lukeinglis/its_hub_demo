@@ -147,6 +147,84 @@ def create_math_projection_function():
     return create_regex_projection_function(r'\\boxed\{([^}]+)\}')
 
 
+def extract_final_answer(text: str) -> str | None:
+    """
+    Extract the final answer from a model response, ignoring reasoning.
+
+    Mirrors the frontend extractFinalAnswer() logic so that self-consistency
+    voting groups responses by their conclusion, not their full text.
+
+    Returns the extracted answer string, or None if no answer pattern matched.
+    """
+    if not text or not text.strip():
+        return None
+
+    # 1. Boxed answer (math) — handle nested braces
+    boxed_idx = text.find('\\boxed{')
+    if boxed_idx != -1:
+        brace_count = 0
+        start = boxed_idx + 7
+        for i in range(start, len(text)):
+            if text[i] == '{':
+                brace_count += 1
+            elif text[i] == '}':
+                if brace_count == 0:
+                    if i > start:
+                        return text[start:i]
+                    break
+                brace_count -= 1
+
+    # 2. Explicit answer patterns
+    answer_patterns = [
+        r'Final Answer:\s*(.+?)(?:\n\n|$)',
+        r'Answer:\s*(.+?)(?:\n\n|$)',
+        r'Therefore,?\s+the\s+(?:answer|value|result)\s+(?:is|equals?)\s+(.+?)(?:\.|$)',
+        r'(?:^|\n)Therefore,?\s+(.+?)(?:\n\n|$)',
+        r'(?:^|\n)Thus,?\s+(.+?)(?:\n\n|$)',
+        r'(?:^|\n)So,?\s+the\s+(?:answer|value|result)\s+(?:is|equals?)\s+(.+?)(?:\.|$)',
+        r'(?:^|\n)In conclusion,?\s+(.+?)(?:\n\n|$)',
+    ]
+    for pattern in answer_patterns:
+        match = re.search(pattern, text, re.IGNORECASE | re.DOTALL)
+        if match:
+            answer = match.group(1).strip()
+            if len(answer) < 200:
+                return answer
+
+    # 3. Short last line that looks like an answer
+    lines = text.strip().split('\n')
+    last_line = lines[-1].strip()
+    if last_line and len(last_line) < 150 and re.search(
+        r'^[A-Z]:|^[-+]?\d+|\$.*\$|^x\s*=|^y\s*=|=.*\d', last_line
+    ):
+        return last_line
+
+    return None
+
+
+def create_general_projection_function():
+    """
+    Create a projection function for general (non-math, non-tool) questions.
+
+    Extracts the final answer/conclusion from each response so that
+    self-consistency votes on answers, not full reasoning text.
+    Falls back to the last paragraph if no explicit answer pattern is found.
+    """
+    def project(response: str) -> str:
+        extracted = extract_final_answer(response)
+        if extracted:
+            return extracted.strip().lower()
+
+        # Fallback: use the last non-empty paragraph as a rough "conclusion"
+        paragraphs = [p.strip() for p in response.strip().split('\n\n') if p.strip()]
+        if paragraphs:
+            return paragraphs[-1].strip().lower()
+
+        return response.strip().lower()
+
+    return project
+
+
 def create_language_model(
     model_id: str,
     system_prompt: str | None = None
@@ -443,9 +521,10 @@ async def run_its(
                 exclude_args=[]
             )
         else:
-            # General: exact text matching (current behavior)
+            # General: extract final answer/conclusion for voting
+            projection_func = create_general_projection_function()
             alg = SelfConsistency(
-                consistency_space_projection_func=None,
+                consistency_space_projection_func=projection_func,
                 tool_vote=None,
                 exclude_args=[]
             )
