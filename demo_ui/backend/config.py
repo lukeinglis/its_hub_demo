@@ -124,6 +124,74 @@ MODEL_REGISTRY: Dict[str, ModelConfig] = {
         "supports_tools": True,
     },
 
+    # === Medium Models ⚖️ ===
+    "gpt-4-turbo": {
+        "base_url": "https://api.openai.com/v1",
+        "api_key_env_var": "OPENAI_API_KEY",
+        "model_name": "gpt-4-turbo",
+        "description": "⚖️ GPT-4 Turbo (Previous gen frontier)",
+        "provider": "openai",
+        "size": "Large",
+        "input_cost_per_1m": 10.00,
+        "output_cost_per_1m": 30.00,
+        "supports_tools": True,
+        "self_hostable": False,
+    },
+
+    # === Reasoning Models 🧠 ===
+    "o3-mini": {
+        "base_url": "https://api.openai.com/v1",
+        "api_key_env_var": "OPENAI_API_KEY",
+        "model_name": "o3-mini",
+        "description": "🧠 o3-mini (Small reasoning)",
+        "provider": "openai",
+        "size": "Small",
+        "input_cost_per_1m": 1.10,
+        "output_cost_per_1m": 4.40,
+        "supports_tools": True,
+        "is_reasoning": True,
+        "self_hostable": False,
+    },
+    "o4-mini": {
+        "base_url": "https://api.openai.com/v1",
+        "api_key_env_var": "OPENAI_API_KEY",
+        "model_name": "o4-mini",
+        "description": "🧠 o4-mini (Latest small reasoning)",
+        "provider": "openai",
+        "size": "Small",
+        "input_cost_per_1m": 1.10,
+        "output_cost_per_1m": 4.40,
+        "supports_tools": True,
+        "is_reasoning": True,
+        "self_hostable": False,
+    },
+    "o1": {
+        "base_url": "https://api.openai.com/v1",
+        "api_key_env_var": "OPENAI_API_KEY",
+        "model_name": "o1",
+        "description": "🧠🏆 o1 (Frontier reasoning)",
+        "provider": "openai",
+        "size": "Large",
+        "input_cost_per_1m": 15.00,
+        "output_cost_per_1m": 60.00,
+        "supports_tools": True,
+        "is_reasoning": True,
+        "self_hostable": False,
+    },
+    "o3": {
+        "base_url": "https://api.openai.com/v1",
+        "api_key_env_var": "OPENAI_API_KEY",
+        "model_name": "o3",
+        "description": "🧠🏆 o3 (Latest frontier reasoning)",
+        "provider": "openai",
+        "size": "Large",
+        "input_cost_per_1m": 2.00,
+        "output_cost_per_1m": 8.00,
+        "supports_tools": True,
+        "is_reasoning": True,
+        "self_hostable": False,
+    },
+
     # ========================================================================
     # OPENROUTER MODELS (Access to multiple providers)
     # ========================================================================
@@ -352,7 +420,19 @@ MODEL_REGISTRY: Dict[str, ModelConfig] = {
         "output_cost_per_1m": 4.00,
         "supports_tools": True,
     },
-
+    "claude-opus-vertex": {
+        "base_url": "",  # Not used for Vertex AI
+        "api_key_env_var": "GOOGLE_APPLICATION_CREDENTIALS",
+        "model_name": "claude-opus-4-6",
+        "description": "🏆 Claude Opus 4.6 (Largest frontier)",
+        "provider": "vertex_ai",
+        "vertex_project": os.getenv("VERTEX_PROJECT", "your-gcp-project-id"),
+        "vertex_location": os.getenv("VERTEX_LOCATION", "us-east5"),
+        "size": "Large",
+        "input_cost_per_1m": 15.00,
+        "output_cost_per_1m": 75.00,
+        "supports_tools": True,
+    },
     # ========================================================================
     # IBM GRANITE MODELS (Self-hosted via Ollama or vLLM)
     # ========================================================================
@@ -360,6 +440,17 @@ MODEL_REGISTRY: Dict[str, ModelConfig] = {
     # Ollama: ollama pull granite4:3b && ollama serve
     # vLLM:  python -m vllm.entrypoints.openai.api_server \
     #          --model ibm-granite/granite-3.3-8b-instruct --port 8100
+    "qwen3-0.6b": {
+        "base_url": os.getenv("OLLAMA_BASE_URL", "http://localhost:11434/v1"),
+        "api_key_env_var": "OLLAMA_API_KEY",
+        "model_name": "qwen3:0.6b",
+        "description": "🎯 Qwen3 0.6B (Tiny - ideal for ITS demos)",
+        "provider": "openai",
+        "size": "0.6B",
+        "input_cost_per_1m": 0.0,
+        "output_cost_per_1m": 0.0,
+        "self_hostable": True,
+    },
     "granite-4-3b": {
         "base_url": os.getenv("OLLAMA_BASE_URL", "http://localhost:11434/v1"),
         "api_key_env_var": "OLLAMA_API_KEY",  # Not required — defaults to "ollama" below

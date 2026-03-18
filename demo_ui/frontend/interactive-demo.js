@@ -385,29 +385,35 @@ function iwPopulateConfig() {
     const frontierSelect = document.getElementById('iwFrontierSelect');
     const isMatch = iwState.scenario === 'match_frontier';
 
-    // Populate model dropdown
-    let modelHtml = '';
+    // Populate model dropdown — exclude reasoning models (they don't support
+    // temperature/max_tokens params needed by ITS algorithms)
     const providerLabels = { openai: 'OpenAI', openrouter: 'OpenRouter', vertex_ai: 'Vertex AI', local: 'Local' };
-    const grouped = {};
-    iwState.models.forEach(m => {
-        const g = providerLabels[m.provider] || m.provider;
-        if (!grouped[g]) grouped[g] = [];
-        grouped[g].push(m);
-    });
 
-    for (const [group, models] of Object.entries(grouped)) {
-        modelHtml += `<optgroup label="${group}">`;
+    function buildModelOptions(models) {
+        const grouped = {};
         models.forEach(m => {
-            modelHtml += `<option value="${escapeHtml(m.id)}">${escapeHtml(m.description)}</option>`;
+            const g = providerLabels[m.provider] || m.provider;
+            if (!grouped[g]) grouped[g] = [];
+            grouped[g].push(m);
         });
-        modelHtml += '</optgroup>';
+        let html = '';
+        for (const [group, groupModels] of Object.entries(grouped)) {
+            html += `<optgroup label="${group}">`;
+            groupModels.forEach(m => {
+                html += `<option value="${escapeHtml(m.id)}">${escapeHtml(m.description)}</option>`;
+            });
+            html += '</optgroup>';
+        }
+        return html;
     }
-    modelSelect.innerHTML = modelHtml;
 
-    // For match_frontier, show frontier model dropdown
+    const itsModels = iwState.models.filter(m => !m.is_reasoning);
+    modelSelect.innerHTML = buildModelOptions(itsModels);
+
+    // For match_frontier, show frontier model dropdown (all models including reasoning)
     if (isMatch) {
         setVisible(frontierGroup, true);
-        frontierSelect.innerHTML = modelHtml;
+        frontierSelect.innerHTML = buildModelOptions(iwState.models);
         // Pre-select a large model if available
         const gpt4o = Array.from(frontierSelect.options).find(o => o.value === 'gpt-4o');
         if (gpt4o) frontierSelect.value = 'gpt-4o';
