@@ -17,14 +17,64 @@ from its_hub.utils import extract_content_from_lm_response
 
 
 def _default_projection_func(response: str) -> str:
-    """Default projection function that uses exact content matching.
-    This function strips whitespace and returns the content as-is for voting.
-    Responses with identical content (after stripping) will be considered equivalent.
-    Args:
-        response: The response content string to project.
-    Returns:
-        The stripped response content.
+    """Default projection that extracts the final answer for voting.
+
+    Tries, in order:
+    1. \\boxed{...} extraction (math)
+    2. Explicit answer patterns ("Final Answer:", "Therefore, the answer is...")
+    3. Last short line that looks like an answer
+    4. Last paragraph (as a rough conclusion)
+    5. Full text stripped (fallback)
+
+    All extracted answers are lowercased to prevent case-only duplicates.
     """
+    if not response:
+        return ""
+
+    # 1. Boxed answer (math) — handle nested braces
+    boxed_idx = response.find('\\boxed{')
+    if boxed_idx != -1:
+        brace_count = 0
+        start = boxed_idx + 7
+        for i in range(start, len(response)):
+            if response[i] == '{':
+                brace_count += 1
+            elif response[i] == '}':
+                if brace_count == 0:
+                    if i > start:
+                        return response[start:i].strip().lower()
+                    break
+                brace_count -= 1
+
+    # 2. Explicit answer patterns
+    patterns = [
+        r'Final Answer:\s*(.+?)(?:\n\n|$)',
+        r'Answer:\s*(.+?)(?:\n\n|$)',
+        r'Therefore,?\s+the\s+(?:answer|value|result)\s+(?:is|equals?)\s+(.+?)(?:\.|$)',
+        r'Therefore,?\s+(.+?)(?:\n\n|$)',
+        r'Thus,?\s+(.+?)(?:\n\n|$)',
+        r'So,?\s+the\s+(?:answer|value|result)\s+(?:is|equals?)\s+(.+?)(?:\.|$)',
+        r'In conclusion,?\s+(.+?)(?:\n\n|$)',
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, response, re.IGNORECASE | re.DOTALL)
+        if match:
+            answer = match.group(1).strip()
+            if len(answer) < 200:
+                return answer.lower()
+
+    # 3. Short last line that looks like an answer
+    lines = response.strip().split('\n')
+    last_line = lines[-1].strip()
+    if last_line and len(last_line) < 150:
+        return last_line.lower()
+
+    # 4. Last paragraph
+    paragraphs = [p.strip() for p in response.strip().split('\n\n') if p.strip()]
+    if paragraphs:
+        return paragraphs[-1].lower()
+
+    # 5. Fallback
     return response.strip()
 
 
@@ -121,10 +171,18 @@ def _select_hierarchical_most_common_or_random(
     return tuple_counts, selected_index
 
 
+class ProjectionPreset:
+    """Built-in projection presets for common use cases."""
+    MATH = "math"        # \\boxed{} extraction via regex
+    GENERAL = "general"  # Answer pattern extraction (default)
+    EXACT = "exact"      # Full text matching (legacy behavior)
+
+
 class SelfConsistency(AbstractScalingAlgorithm):
     def __init__(
         self,
         consistency_space_projection_func: Callable | None = None,
+        projection_preset: str | None = None,
         tool_vote: str | None = None,
         exclude_args: list[str] | None = None,
     ):
@@ -134,6 +192,13 @@ class SelfConsistency(AbstractScalingAlgorithm):
             consistency_space_projection_func: Function that maps response content (str)
                 to a comparable value for voting. Used when tool_vote is None or when
                 responses don't contain tool calls. Can return str, tuple, or any hashable type.
+                Takes priority over projection_preset if both are provided.
+
+            projection_preset: Built-in projection preset name. Options:
+                - "math": Extract \\boxed{} answers via regex
+                - "general": Extract final answer using pattern matching (default)
+                - "exact": Full text matching (legacy .strip() behavior)
+                Ignored if consistency_space_projection_func is provided.
 
             tool_vote: Tool voting strategy when responses contain tool calls. Options:
                 - None (default): Vote on message content using consistency_space_projection_func
@@ -147,18 +212,35 @@ class SelfConsistency(AbstractScalingAlgorithm):
                 non-semantic arguments like timestamps, request IDs, etc.
 
         Raises:
-            ValueError: If tool_vote is not one of the supported options.
+            ValueError: If tool_vote or projection_preset is not one of the supported options.
         """
-        # Validate tool_vote parameter - only validation needed since typing handles the rest
+        # Validate tool_vote parameter
         valid_tool_vote_options = {None, "tool_name", "tool_args", "tool_hierarchical"}
         if tool_vote not in valid_tool_vote_options:
             raise ValueError(
                 f"tool_vote must be one of {valid_tool_vote_options}, got: {tool_vote}"
             )
-        # Set default projection function if provided None
-        self.consistency_space_projection_func = (
-            consistency_space_projection_func or _default_projection_func
-        )
+
+        # Validate projection_preset parameter
+        valid_presets = {None, ProjectionPreset.MATH, ProjectionPreset.GENERAL, ProjectionPreset.EXACT}
+        if projection_preset not in valid_presets:
+            raise ValueError(
+                f"projection_preset must be one of {valid_presets}, got: {projection_preset}"
+            )
+
+        # Resolve projection function: explicit func > preset > default
+        if consistency_space_projection_func is not None:
+            self.consistency_space_projection_func = consistency_space_projection_func
+        elif projection_preset == ProjectionPreset.MATH:
+            self.consistency_space_projection_func = create_regex_projection_function(
+                r'\\boxed\{([^}]+)\}'
+            )
+        elif projection_preset == ProjectionPreset.EXACT:
+            self.consistency_space_projection_func = lambda r: r.strip()
+        else:
+            # Default (including projection_preset="general" or None)
+            self.consistency_space_projection_func = _default_projection_func
+
         self.tool_vote = tool_vote
         self.exclude_args = exclude_args or []
 
@@ -305,8 +387,8 @@ class SelfConsistency(AbstractScalingAlgorithm):
 
 def create_regex_projection_function(
     patterns: str | list[str],
-) -> Callable[[str], tuple]:
-    """Create a hierarchical projection function from regex pattern(s).
+) -> Callable[[str], str | tuple]:
+    """Create a projection function from regex pattern(s).
 
     Args:
         patterns: Single regex pattern string or list of regex patterns.
@@ -315,23 +397,25 @@ def create_regex_projection_function(
                  higher hierarchy levels.
 
     Returns:
-        A projection function that takes a response string and returns a tuple
-        where each element corresponds to the first match from each pattern.
-        If no match is found for a pattern, None is used for that position.
+        A projection function that takes a response string and returns:
+        - A plain string when a single pattern is provided (clean response_counts keys)
+        - A tuple when multiple patterns are provided (for hierarchical voting)
 
     Example:
-        # Single pattern for extracting final answer
-        pattern = r'\\\\boxed\\{([^}]+)\\}'
-        proj_func = create_regex_projection_function(pattern)
-        proj_func("The answer is \\\\boxed{42}") -> ("42",)
+        # Single pattern — returns a string, not a tuple
+        proj_func = create_regex_projection_function(r'\\\\boxed\\{([^}]+)\\}')
+        proj_func("The answer is \\\\boxed{42}") -> "42"
 
-        # Multiple patterns for hierarchical consistency
+        # Multiple patterns — returns a tuple for hierarchical consistency
         patterns = [r'Method:\\s*(\\w+)', r'\\\\boxed\\{([^}]+)\\}']
         proj_func = create_regex_projection_function(patterns)
         proj_func("Method: algebra\\n...\\nAnswer: \\\\boxed{42}") -> ("algebra", "42")
     """
+    # Track whether a single pattern was provided
+    single_pattern = isinstance(patterns, str)
+
     # Ensure patterns is a list
-    if isinstance(patterns, str):
+    if single_pattern:
         patterns = [patterns]
 
     # Compile regex patterns for efficiency
@@ -339,7 +423,7 @@ def create_regex_projection_function(
         re.compile(pattern, re.DOTALL | re.IGNORECASE) for pattern in patterns
     ]
 
-    def projection_function(response: str) -> tuple:
+    def projection_function(response: str) -> str | tuple:
         """Extract features from response using compiled regex patterns."""
         results = []
 
@@ -359,6 +443,11 @@ def create_regex_projection_function(
             else:
                 # No match found, use None
                 results.append(None)
+
+        # For single patterns, return the string directly so
+        # response_counts keys are clean strings, not 1-tuples
+        if single_pattern:
+            return results[0]
 
         return tuple(results)
 
