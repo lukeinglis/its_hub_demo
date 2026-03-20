@@ -69,6 +69,46 @@
             </div>
         </div>
 
+        <!-- Red Hat AI Section -->
+        <div class="rhai-section">
+            <div class="rhai-header" role="button" tabindex="0" onclick="toggleRhaiSection()" onkeydown="if(event.key==='Enter')toggleRhaiSection()">
+                <h2 class="rhai-title">How to Use in Red Hat AI</h2>
+                <span class="rhai-toggle-icon" id="rhaiToggleIcon">▼</span>
+            </div>
+            <div class="rhai-content" id="rhaiContent">
+                <p class="rhai-intro">
+                    its_hub integrates with the Red Hat AI ecosystem. Install from the Red Hat AI Python Index, deploy as a gateway on OpenShift, or use directly with models served via RHOAI.
+                </p>
+                <div class="rhai-cards">
+                    <div class="rhai-card">
+                        <div class="rhai-card-icon">📦</div>
+                        <h3>Install from Red Hat AI Python Index</h3>
+                        <p>Install its_hub with a secure, Red Hat-built supply chain on RHOAI workbenches or RHEL AI.</p>
+                        <code class="rhai-code">pip install its_hub --extra-index-url https://download.devel.redhat.com/rel-eng/ai-python-index/</code>
+                    </div>
+                    <div class="rhai-card">
+                        <div class="rhai-card-icon">🚀</div>
+                        <h3>Deploy as IaaS Gateway</h3>
+                        <p>Run the FastAPI gateway on OpenShift. Any OpenAI-compatible client gets inference-time scaling by adding a <code>budget</code> parameter.</p>
+                        <code class="rhai-code">its-iaas --host 0.0.0.0 --port 8108</code>
+                    </div>
+                    <div class="rhai-card">
+                        <div class="rhai-card-icon">🖥️</div>
+                        <h3>Use with vLLM on OpenShift AI</h3>
+                        <p>Point its_hub at models served via the RHOAI vLLM serving runtime &mdash; Granite, Llama, or any supported model.</p>
+                        <code class="rhai-code">endpoint = "https://&lt;model-route&gt;/v1"</code>
+                    </div>
+                </div>
+                <div class="rhai-links">
+                    <a href="https://access.redhat.com/articles/7137881" target="_blank" rel="noopener">Red Hat AI Python Index</a>
+                    <span class="rhai-link-sep">|</span>
+                    <a href="https://docs.redhat.com/en/documentation/red_hat_openshift_ai_self-managed/" target="_blank" rel="noopener">OpenShift AI Docs</a>
+                    <span class="rhai-link-sep">|</span>
+                    <a href="https://docs.redhat.com/en/documentation/red_hat_enterprise_linux_ai/" target="_blank" rel="noopener">RHEL AI Docs</a>
+                </div>
+            </div>
+        </div>
+
         <div class="landing-footer">
             Red Hat AI Innovation Team • Powered by its_hub
         </div>

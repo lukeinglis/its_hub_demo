@@ -36,6 +36,12 @@ cd its_hub
 pip install -e ".[dev]"
 ```
 
+## Using with Red Hat AI
+
+its_hub integrates with the Red Hat AI ecosystem. Install from the [Red Hat AI Python Index](https://access.redhat.com/articles/7137881), deploy as an IaaS gateway on OpenShift, or use directly with models served via the RHOAI vLLM serving runtime.
+
+See the full guide: [How to Use in Red Hat AI](https://ai-innovation.team/its_hub/#/red-hat-ai)
+
 ## Quick Start
 
 ### Example 1: Best-of-N with LLM Judge
