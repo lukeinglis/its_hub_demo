@@ -4,6 +4,7 @@ import random
 import re
 from collections import Counter
 from collections.abc import Callable
+from enum import StrEnum
 
 from pydantic.dataclasses import dataclass
 
@@ -17,14 +18,27 @@ from its_hub.utils import extract_content_from_lm_response
 
 
 def _default_projection_func(response: str) -> str:
-    """Default projection that extracts the final answer for voting.
+    """Default projection function that strips whitespace and lowercases for voting.
 
-    Tries, in order:
-    1. \\boxed{...} extraction (math)
+    Responses with identical content (after stripping and lowercasing) will be
+    considered equivalent. This is the safest default for any response format.
+
+    Args:
+        response: The response content string to project.
+    Returns:
+        The stripped, lowercased response content.
+    """
+    return response.strip().lower() if response else ""
+
+
+def _extract_answer(response: str) -> str:
+    """Extract the final answer from a response for voting.
+
+    Used by the GENERAL projection preset. Tries, in order:
+    1. \\boxed{...} extraction (math, handles nested braces)
     2. Explicit answer patterns ("Final Answer:", "Therefore, the answer is...")
-    3. Last short line that looks like an answer
-    4. Last paragraph (as a rough conclusion)
-    5. Full text stripped (fallback)
+    3. Last paragraph (as a rough conclusion)
+    4. Full text stripped (fallback)
 
     All extracted answers are lowercased to prevent case-only duplicates.
     """
@@ -32,19 +46,9 @@ def _default_projection_func(response: str) -> str:
         return ""
 
     # 1. Boxed answer (math) — handle nested braces
-    boxed_idx = response.find('\\boxed{')
-    if boxed_idx != -1:
-        brace_count = 0
-        start = boxed_idx + 7
-        for i in range(start, len(response)):
-            if response[i] == '{':
-                brace_count += 1
-            elif response[i] == '}':
-                if brace_count == 0:
-                    if i > start:
-                        return response[start:i].strip().lower()
-                    break
-                brace_count -= 1
+    boxed = _extract_boxed(response)
+    if boxed is not None:
+        return boxed.strip().lower()
 
     # 2. Explicit answer patterns
     patterns = [
@@ -63,19 +67,35 @@ def _default_projection_func(response: str) -> str:
             if len(answer) < 200:
                 return answer.lower()
 
-    # 3. Short last line that looks like an answer
-    lines = response.strip().split('\n')
-    last_line = lines[-1].strip()
-    if last_line and len(last_line) < 150:
-        return last_line.lower()
-
-    # 4. Last paragraph
+    # 3. Last paragraph
     paragraphs = [p.strip() for p in response.strip().split('\n\n') if p.strip()]
     if paragraphs:
         return paragraphs[-1].lower()
 
-    # 5. Fallback
-    return response.strip()
+    # 4. Fallback
+    return response.strip().lower()
+
+
+def _extract_boxed(response: str) -> str | None:
+    """Extract content from \\boxed{...}, handling nested braces.
+
+    Returns the extracted content or None if no boxed expression is found.
+    """
+    boxed_idx = response.find('\\boxed{')
+    if boxed_idx == -1:
+        return None
+    brace_count = 0
+    start = boxed_idx + 7
+    for i in range(start, len(response)):
+        if response[i] == '{':
+            brace_count += 1
+        elif response[i] == '}':
+            if brace_count == 0:
+                if i > start:
+                    return response[start:i]
+                return None
+            brace_count -= 1
+    return None
 
 
 @dataclass
@@ -171,11 +191,11 @@ def _select_hierarchical_most_common_or_random(
     return tuple_counts, selected_index
 
 
-class ProjectionPreset:
+class ProjectionPreset(StrEnum):
     """Built-in projection presets for common use cases."""
-    MATH = "math"        # \\boxed{} extraction via regex
-    GENERAL = "general"  # Answer pattern extraction (default)
-    EXACT = "exact"      # Full text matching (legacy behavior)
+    MATH = "math"        # \\boxed{} extraction with nested brace handling
+    GENERAL = "general"  # Answer pattern extraction (tries boxed, then patterns)
+    EXACT = "exact"      # Full text matching (legacy .strip() behavior)
 
 
 class SelfConsistency(AbstractScalingAlgorithm):
@@ -195,9 +215,11 @@ class SelfConsistency(AbstractScalingAlgorithm):
                 Takes priority over projection_preset if both are provided.
 
             projection_preset: Built-in projection preset name. Options:
-                - "math": Extract \\boxed{} answers via regex
-                - "general": Extract final answer using pattern matching (default)
+                - "math": Extract \\boxed{} answers (handles nested braces)
+                - "general": Extract final answer using pattern matching
+                  (boxed, "Final Answer:", "Therefore...", last paragraph)
                 - "exact": Full text matching (legacy .strip() behavior)
+                When None (default), uses strip + lowercase matching.
                 Ignored if consistency_space_projection_func is provided.
 
             tool_vote: Tool voting strategy when responses contain tool calls. Options:
@@ -232,13 +254,16 @@ class SelfConsistency(AbstractScalingAlgorithm):
         if consistency_space_projection_func is not None:
             self.consistency_space_projection_func = consistency_space_projection_func
         elif projection_preset == ProjectionPreset.MATH:
-            self.consistency_space_projection_func = create_regex_projection_function(
-                r'\\boxed\{([^}]+)\}'
-            )
+            def _math_projection(response: str) -> str:
+                boxed = _extract_boxed(response) if response else None
+                return boxed.strip().lower() if boxed else (response.strip().lower() if response else "")
+            self.consistency_space_projection_func = _math_projection
+        elif projection_preset == ProjectionPreset.GENERAL:
+            self.consistency_space_projection_func = _extract_answer
         elif projection_preset == ProjectionPreset.EXACT:
             self.consistency_space_projection_func = lambda r: r.strip()
         else:
-            # Default (including projection_preset="general" or None)
+            # Default (projection_preset=None)
             self.consistency_space_projection_func = _default_projection_func
 
         self.tool_vote = tool_vote
