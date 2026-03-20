@@ -8,6 +8,7 @@
   - [Beam Search](algorithms.md#beam-search)
   - [Self-Consistency](algorithms.md#self-consistency)
 - [Planning Wrapper](PLANNING_WRAPPER.md)
+- [Using with Red Hat AI](red-hat-ai.md)
 - [Benchmarking](benchmarking.md)
 - [Development](development.md)
 - [Self-Consistency Improvements](self-consistency-projection-improvements.md)
