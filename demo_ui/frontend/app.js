@@ -557,6 +557,14 @@ function renderAlgorithmTrace(trace, directDisplay = false) {
     `;
 }
 
+// Red Hat AI section toggle
+function toggleRhaiSection() {
+    const content = document.getElementById('rhaiContent');
+    const icon = document.getElementById('rhaiToggleIcon');
+    const isHidden = content.classList.toggle('hidden');
+    icon.textContent = isHidden ? '▼' : '▲';
+}
+
 // Wait for KaTeX to load
 function initializeApp() {
     checkSavedExperience();
