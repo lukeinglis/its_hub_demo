@@ -15,7 +15,30 @@ This guide explains how to use inference-time scaling (ITS) within the Red Hat A
 
 ## Using ITS in Red Hat OpenShift AI (Product)
 
-The officially supported way to use ITS today is through the **its_hub SDK**, available on the [Red Hat AI Python Index](https://access.redhat.com/articles/7137881). This gives you Red Hat-built packages with a secure supply chain, fully supported on Red Hat OpenShift AI.
+The officially supported way to use ITS today is through the **its_hub SDK**, available on the [Red Hat AI Python Index](https://access.redhat.com/articles/7137881).
+
+### Why the Red Hat AI Python Index?
+
+Unlike PyPI, every package on the Red Hat AI Python Index is:
+
+- **Built and delivered by Red Hat** — a trusted, secure source for generative AI workflows, critical for disconnected (air-gapped) environments
+- **Tested for platform integrity** — packages are tested and intended for use on the Red Hat OpenShift AI platform
+- **Optimized for hardware accelerators** — purpose-built for CUDA, ROCm, CPU, and ARM architectures
+- **Tightly coupled to Red Hat AI Base Images** — AI frameworks like PyTorch are tightly coupled to specific accelerator library versions; the index ensures binaries are perfectly aligned with the system libraries in the base images
+- **CVE-managed with a roll-forward policy** — when a CVE is reported, Red Hat publishes an updated package version in the next release
+
+The index provides 1000+ packages across multiple accelerator variants, updated with every Red Hat AI release (EA1, EA2, GA).
+
+### How It Works
+
+The Red Hat AI Python Index is designed to work hand-in-hand with the **Red Hat AI Base Images**. These images:
+
+- Are built for each accelerator type (CUDA, ROCm, CPU)
+- Come pre-configured to point to the Red Hat AI Python Index
+- Ensure strict alignment between compiled package binaries and system libraries
+- Are updated with every release and available on `registry.redhat.com`
+
+When you run `pip install` in a workbench based on these images, it pulls directly from the Red Hat AI Python Index — no configuration needed.
 
 ### 1. Install in an RHOAI Workbench
 
@@ -28,8 +51,6 @@ pip install its_hub
 # With Process Reward Model support (Particle Filtering, Beam Search)
 pip install "its_hub[prm]"
 ```
-
-The Red Hat AI Python Index currently provides its_hub versions 0.3.4 and 0.3.5.
 
 ### 2. Serve a Model with RHOAI
 
@@ -99,7 +120,7 @@ print(result)
 
 ### Installing Outside an RHOAI Workbench
 
-If you need to install in a custom environment (not a pre-configured RHOAI base image), specify the index URL directly. The URL is variant-specific:
+If you need to install in a custom environment (not a pre-configured Red Hat AI Base Image), specify the index URL directly. The URL is variant-specific — choose the one matching your accelerator:
 
 ```bash
 # CPU-only
