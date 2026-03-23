@@ -29,16 +29,20 @@ Unlike PyPI, every package on the Red Hat AI Python Index is:
 
 The index provides 1000+ packages across multiple accelerator variants, updated with every Red Hat AI release (EA1, EA2, GA).
 
+Browse available packages and versions at [packages.redhat.com](https://packages.redhat.com/domains/public-rhai/distributions).
+
 ### How It Works
 
 The Red Hat AI Python Index is designed to work hand-in-hand with the **Red Hat AI Base Images**. These images:
 
-- Are built for each accelerator type (CUDA, ROCm, CPU)
-- Come pre-configured to point to the Red Hat AI Python Index
-- Ensure strict alignment between compiled package binaries and system libraries
+- Are built for each accelerator type (CUDA, ROCm, CPU, ARM)
+- Come pre-configured to point to the Red Hat AI Python Index — both `pip` and `uv` work out of the box
+- Include accelerator-specific userspace libraries and system dependencies (RPMs) that the wheels are compiled against
 - Are updated with every release and available on `registry.redhat.com`
 
 When you run `pip install` in a workbench based on these images, it pulls directly from the Red Hat AI Python Index — no configuration needed.
+
+> **Important:** Red Hat AI wheels are built with external dependencies on system libraries in the base images (not the manylinux format used on PyPI). Do not mix packages from PyPI with packages from the Red Hat AI Python Index — this can lead to ABI incompatibilities and unpredictable results. If you have custom pure-Python packages, those can be installed alongside RHAI packages. Compiled packages must be built against the RHAI index.
 
 ### 1. Install in an RHOAI Workbench
 
