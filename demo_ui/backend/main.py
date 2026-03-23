@@ -122,6 +122,26 @@ def check_server_available(base_url: str, timeout: float = 1.0) -> bool:
         return False
 
 
+def check_ollama_model_available(base_url: str, model_name: str, timeout: float = 2.0) -> bool:
+    """Check if a specific model is pulled and available in Ollama."""
+    import urllib.request
+    import json
+    try:
+        parsed = urlparse(base_url)
+        host = parsed.hostname or 'localhost'
+        port = parsed.port or 11434
+        # Ollama tags endpoint is on the base port, not the /v1 path
+        tags_url = f"http://{host}:{port}/api/tags"
+        req = urllib.request.Request(tags_url)
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            data = json.loads(resp.read())
+            available_models = [m.get("name", "") for m in data.get("models", [])]
+            return model_name in available_models
+    except Exception as e:
+        logger.debug(f"Ollama model check failed for {model_name}: {e}")
+        return False
+
+
 def _get_provider_group(config: dict) -> str:
     """Determine the provider group for a model config."""
     provider = config.get("provider", "")
@@ -231,6 +251,11 @@ async def list_models(use_case: str | None = None):
         server_available = check_server_available(base_url, timeout=1.0)
 
         if server_available:
+            # For Ollama-backed models, also verify the model is actually pulled
+            if "11434" in base_url:
+                model_name = config.get("model_name", "")
+                if not check_ollama_model_available(base_url, model_name):
+                    continue
             available_models.append(model_entry)
 
     return {"models": available_models}
