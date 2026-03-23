@@ -34,36 +34,47 @@ its_hub integrates with the Red Hat AI stack at multiple levels:
 
 The [Red Hat AI Python Index](https://access.redhat.com/articles/7137881) provides Red Hat-built Python packages with a secure supply chain, supported on Red Hat OpenShift AI environments.
 
-### In an RHOAI Workbench
+### In an RHOAI Workbench (recommended)
 
-From a terminal in your RHOAI workbench (UBI9 base image):
+When using a supported RHOAI base image, **pip is pre-configured** to use the Red Hat AI Python Index automatically. Simply run:
 
 ```bash
 # Core installation (Best-of-N, Self-Consistency, cloud APIs)
-pip install its_hub \
-    --extra-index-url https://download.devel.redhat.com/rel-eng/ai-python-index/
+pip install its_hub
 
 # With Process Reward Model support (Particle Filtering, Beam Search)
-pip install "its_hub[prm]" \
-    --extra-index-url https://download.devel.redhat.com/rel-eng/ai-python-index/
+pip install "its_hub[prm]"
 ```
 
-### In a RHEL AI Environment
+No `--extra-index-url` is needed — the workbench base image handles index configuration for you.
+
+### In a Custom or Non-RHOAI Environment
+
+If you are not using a pre-configured RHOAI base image, specify the index URL directly. The URL is variant-specific — choose the one matching your hardware:
 
 ```bash
+# CPU-only (no GPU required)
 pip install its_hub \
-    --extra-index-url https://download.devel.redhat.com/rel-eng/ai-python-index/
+    --extra-index-url https://console.redhat.com/api/pypi/public-rhai/rhoai/3.2/cpu-ubi9/simple/
+
+# NVIDIA GPU (CUDA 12.9)
+pip install its_hub \
+    --extra-index-url https://console.redhat.com/api/pypi/public-rhai/rhoai/3.2/cuda12.9-ubi9/simple/
+
+# AMD GPU (ROCm 6.4)
+pip install its_hub \
+    --extra-index-url https://console.redhat.com/api/pypi/public-rhai/rhoai/3.2/rocm6.4-ubi9/simple/
 ```
 
 ### Supported Variants
 
 The Red Hat AI Python Index provides packages for multiple platform targets:
 
-| Variant | Use Case |
-|---------|----------|
-| `cpu-ubi9` | CPU-only inference, cloud API usage |
-| `cuda12.9-ubi9` | NVIDIA GPU acceleration |
-| `rocm6.4-ubi9` | AMD GPU acceleration |
+| Variant | Index URL | Use Case |
+|---------|-----------|----------|
+| `cpu-ubi9` | `.../rhoai/3.2/cpu-ubi9/simple/` | CPU-only inference, cloud API usage |
+| `cuda12.9-ubi9` | `.../rhoai/3.2/cuda12.9-ubi9/simple/` | NVIDIA GPU acceleration |
+| `rocm6.4-ubi9` | `.../rhoai/3.2/rocm6.4-ubi9/simple/` | AMD GPU acceleration |
 
 ### Verify Installation
 
@@ -94,7 +105,8 @@ Or create a minimal production Dockerfile:
 FROM registry.redhat.io/ubi9/python-311:latest
 
 WORKDIR /app
-RUN pip install its_hub --extra-index-url https://download.devel.redhat.com/rel-eng/ai-python-index/
+RUN pip install its_hub \
+    --extra-index-url https://console.redhat.com/api/pypi/public-rhai/rhoai/3.2/cuda12.9-ubi9/simple/
 
 EXPOSE 8108
 CMD ["its-iaas", "--host", "0.0.0.0", "--port", "8108"]
@@ -279,8 +291,7 @@ In the RHOAI dashboard:
 Open a terminal in your RHOAI workbench:
 
 ```bash
-pip install its_hub \
-    --extra-index-url https://download.devel.redhat.com/rel-eng/ai-python-index/
+pip install its_hub
 ```
 
 ### 3. Run Inference-Time Scaling
