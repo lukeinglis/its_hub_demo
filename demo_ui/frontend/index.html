@@ -77,26 +77,26 @@
             </div>
             <div class="rhai-content" id="rhaiContent">
                 <p class="rhai-intro">
-                    its_hub integrates with the Red Hat AI ecosystem. Install from the Red Hat AI Python Index, deploy as a gateway on OpenShift, or use directly with models served via RHOAI.
+                    ITS is officially available in <strong>Red Hat OpenShift AI</strong> through the Red Hat AI Python Index. Install the its_hub SDK in an RHOAI workbench and use it with models served via the vLLM serving runtime.
                 </p>
                 <div class="rhai-cards">
                     <div class="rhai-card">
                         <div class="rhai-card-icon">📦</div>
-                        <h3>Install from Red Hat AI Python Index</h3>
-                        <p>Install its_hub with a secure, Red Hat-built supply chain. RHOAI workbenches come pre-configured &mdash; just run pip install.</p>
+                        <h3>In the Product</h3>
+                        <p>The its_hub SDK is available on the <strong>Red Hat AI Python Index</strong>. RHOAI workbenches come pre-configured &mdash; just pip install in your workbench.</p>
                         <code class="rhai-code">pip install its_hub</code>
                     </div>
                     <div class="rhai-card">
-                        <div class="rhai-card-icon">🚀</div>
-                        <h3>Deploy as IaaS Gateway</h3>
-                        <p>Run the FastAPI gateway on OpenShift. Any OpenAI-compatible client gets inference-time scaling by adding a <code>budget</code> parameter.</p>
-                        <code class="rhai-code">its-iaas --host 0.0.0.0 --port 8108</code>
+                        <div class="rhai-card-icon">🖥️</div>
+                        <h3>Use with RHOAI Model Serving</h3>
+                        <p>Deploy models with the RHOAI vLLM serving runtime (Granite, Llama, etc.) and point its_hub at the serving endpoint.</p>
+                        <code class="rhai-code">endpoint = "https://&lt;model-route&gt;/v1"</code>
                     </div>
                     <div class="rhai-card">
-                        <div class="rhai-card-icon">🖥️</div>
-                        <h3>Use with vLLM on OpenShift AI</h3>
-                        <p>Point its_hub at models served via the RHOAI vLLM serving runtime &mdash; Granite, Llama, or any supported model.</p>
-                        <code class="rhai-code">endpoint = "https://&lt;model-route&gt;/v1"</code>
+                        <div class="rhai-card-icon">🔮</div>
+                        <h3>Coming Soon</h3>
+                        <p>ITS will be integrated into the <strong>Red Hat AI Gateway</strong>, providing inference-time scaling as a managed service.</p>
+                        <code class="rhai-code">Red Hat AI Gateway &mdash; stay tuned</code>
                     </div>
                 </div>
                 <div class="rhai-links">
