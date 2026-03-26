@@ -72,7 +72,7 @@ app = FastAPI(
 )
 
 # Configure CORS — override defaults via CORS_ORIGINS env var (comma-separated)
-cors_origins_str = os.getenv("CORS_ORIGINS", "http://localhost:8000,http://127.0.0.1:8000")
+cors_origins_str = os.getenv("CORS_ORIGINS", "http://localhost:8000,http://127.0.0.1:8000,https://lukeinglis.github.io")
 cors_origins = [origin.strip() for origin in cors_origins_str.split(",")]
 app.add_middleware(
     CORSMiddleware,
