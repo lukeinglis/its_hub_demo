@@ -139,10 +139,13 @@ def _build_pf_trace(result: ParticleFilteringResult) -> ParticleFilteringTrace:
     """Build a ParticleFilteringTrace from a ParticleFilteringResult."""
     log_w = result.log_weights_lst
     # Normalize log-weights to probabilities
-    max_lw = max(log_w) if log_w else 0.0
-    exp_w = [np.exp(lw - max_lw) for lw in log_w]
-    sum_w = sum(exp_w)
-    normalized = [w / sum_w for w in exp_w] if sum_w > 0 else [1.0 / len(log_w)] * len(log_w)
+    if not log_w:
+        normalized = []
+    else:
+        max_lw = max(log_w)
+        exp_w = [np.exp(lw - max_lw) for lw in log_w]
+        sum_w = sum(exp_w)
+        normalized = [w / sum_w for w in exp_w] if sum_w > 0 else [1.0 / len(log_w)] * len(log_w)
 
     candidates = []
     for i, resp in enumerate(result.responses):

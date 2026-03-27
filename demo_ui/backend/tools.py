@@ -18,6 +18,10 @@ from datetime import datetime
 def _safe_pow(base, exp):
     if abs(exp) > 1000:
         raise ValueError(f"Exponent too large: {exp}")
+    if abs(base) > 10000:
+        raise ValueError(f"Base too large: {base}")
+    if abs(base) > 100 and abs(exp) > 10:
+        raise ValueError("Result would be too large")
     return operator.pow(base, exp)
 
 
@@ -374,23 +378,13 @@ def _mock_code_executor(args: dict) -> str:
             "note": "Calculated x³ + y³ = 400 using the constraints x + y = 10 and x² + y² = 60"
         })
 
-    # Check if it's a simple calculation
-    if "=" in code and ("print" in code or "result" in code):
-        # Simulate successful execution
-        return json.dumps({
-            "output": "Calculation completed successfully",
-            "purpose": purpose or "Mathematical calculation",
-            "status": "success",
-            "note": "Demo mode: Code executed in simulated environment"
-        })
-
-    # Simulate execution for all code (no actual code execution in demo mode)
+    # Code execution is disabled in demo mode for security
     return json.dumps({
-        "output": "Execution completed",
+        "output": "Code execution disabled in demo mode",
         "purpose": purpose or "Code execution",
-        "status": "success",
-        "note": "Demo mode: code execution simulated"
-        })
+        "status": "demo_mode",
+        "note": "Code execution is disabled. In production, use a sandboxed environment (e.g. E2B, Firecracker)."
+    })
 
 
 def get_tool_schemas():

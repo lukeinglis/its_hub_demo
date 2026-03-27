@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 
 class CompareRequest(BaseModel):
     """Request to compare baseline vs ITS."""
-    question: str = Field(..., min_length=1, description="The question to answer")
+    question: str = Field(..., min_length=1, max_length=10000, description="The question to answer")
     model_id: str = Field(..., description="Model identifier from the registry (for ITS)")
     algorithm: Literal[
         "best_of_n",

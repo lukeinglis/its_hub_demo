@@ -9,12 +9,14 @@ import asyncio
 import logging
 import os
 import socket
+import time as _time
 import uuid
+from collections import defaultdict
 from pathlib import Path
 from urllib.parse import urlparse
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -85,6 +87,31 @@ app.add_middleware(
 frontend_dir = Path(__file__).parent.parent / "frontend"
 
 
+# ── Rate Limiting ─────────────────────────────────────────────────────
+
+MAX_REQUESTS_PER_HOUR = int(os.getenv("RATE_LIMIT_REQUESTS", "100"))
+MAX_BUDGET_PER_HOUR = int(os.getenv("RATE_LIMIT_BUDGET", "500"))
+
+_request_log: dict[str, list[tuple[float, int]]] = defaultdict(list)
+
+
+def _check_rate_limit(client_ip: str, budget: int) -> None:
+    """Enforce per-IP rate limiting on requests and total budget."""
+    now = _time.monotonic()
+    cutoff = now - 3600
+    # Prune old entries
+    _request_log[client_ip] = [
+        (t, b) for t, b in _request_log[client_ip] if t > cutoff
+    ]
+    entries = _request_log[client_ip]
+    if len(entries) >= MAX_REQUESTS_PER_HOUR:
+        raise HTTPException(status_code=429, detail="Too many requests. Please try again later.")
+    total_budget = sum(b for _, b in entries)
+    if total_budget + budget > MAX_BUDGET_PER_HOUR:
+        raise HTTPException(status_code=429, detail="Budget limit exceeded. Please try again later.")
+    _request_log[client_ip].append((now, budget))
+
+
 # ── Routes ────────────────────────────────────────────────────────────
 
 @app.get("/")
@@ -122,24 +149,28 @@ def check_server_available(base_url: str, timeout: float = 1.0) -> bool:
         return False
 
 
-def check_ollama_model_available(base_url: str, model_name: str, timeout: float = 2.0) -> bool:
-    """Check if a specific model is pulled and available in Ollama."""
+def _check_ollama_model_sync(base_url: str, model_name: str, timeout: float = 1.0) -> bool:
+    """Synchronous Ollama model check (run via asyncio.to_thread)."""
     import urllib.request
-    import json
+    import json as _json
     try:
         parsed = urlparse(base_url)
         host = parsed.hostname or 'localhost'
         port = parsed.port or 11434
-        # Ollama tags endpoint is on the base port, not the /v1 path
         tags_url = f"http://{host}:{port}/api/tags"
         req = urllib.request.Request(tags_url)
         with urllib.request.urlopen(req, timeout=timeout) as resp:
-            data = json.loads(resp.read())
+            data = _json.loads(resp.read())
             available_models = [m.get("name", "") for m in data.get("models", [])]
             return model_name in available_models
     except Exception as e:
         logger.debug(f"Ollama model check failed for {model_name}: {e}")
         return False
+
+
+async def check_ollama_model_available(base_url: str, model_name: str, timeout: float = 1.0) -> bool:
+    """Check if a specific model is pulled and available in Ollama (non-blocking)."""
+    return await asyncio.to_thread(_check_ollama_model_sync, base_url, model_name, timeout)
 
 
 def _get_provider_group(config: dict) -> str:
@@ -254,7 +285,7 @@ async def list_models(use_case: str | None = None):
             # For Ollama-backed models, also verify the model is actually pulled
             if "11434" in base_url:
                 model_name = config.get("model_name", "")
-                if not check_ollama_model_available(base_url, model_name):
+                if not await check_ollama_model_available(base_url, model_name):
                     continue
             available_models.append(model_entry)
 
@@ -302,7 +333,7 @@ async def list_examples(algorithm: str | None = None, use_case: str | None = Non
 
 
 @app.post("/compare", response_model=CompareResponse)
-async def compare(request: CompareRequest):
+async def compare(request: CompareRequest, req: Request):
     """
     Compare baseline vs ITS inference.
 
@@ -318,6 +349,10 @@ async def compare(request: CompareRequest):
         - meta: { model_id, algorithm, budget, run_id }
     """
     run_id = str(uuid.uuid4())
+
+    # Rate limiting
+    client_ip = req.client.host if req.client else "unknown"
+    _check_rate_limit(client_ip, request.budget)
 
     logger.info(
         f"[{run_id}] Starting comparison: "
@@ -590,18 +625,15 @@ async def compare(request: CompareRequest):
     except ValueError as e:
         logger.error(f"[{run_id}] Validation error: {e}")
         raise HTTPException(status_code=400, detail=str(e))
+    except asyncio.TimeoutError:
+        logger.error(f"[{run_id}] Request timed out")
+        raise HTTPException(
+            status_code=504,
+            detail="Request timed out. Try a smaller budget or a different model."
+        )
     except Exception as e:
-        logger.error(f"[{run_id}] Error during comparison: {e}", exc_info=True)
-
-        # Return generic error messages — details are logged server-side above
-        error_msg = str(e)
-        if "timeout" in error_msg.lower() or "payload" in error_msg.lower() or "ClientPayloadError" in error_msg:
-            raise HTTPException(
-                status_code=504,
-                detail="The model is temporarily unavailable. Please try again or select a different model."
-            )
-
-        raise HTTPException(status_code=500, detail="Internal server error. Check server logs for details.")
+        logger.error(f"[{run_id}] Error during comparison: {type(e).__name__}", exc_info=True)
+        raise HTTPException(status_code=500, detail="An unexpected error occurred. Please try again.")
 
 
 # Mount frontend static files at root so relative paths in index.html resolve

@@ -5,6 +5,7 @@ Contains language model creation, baseline inference, ITS inference,
 cost calculation, and question type detection.
 """
 
+import asyncio
 import json
 import logging
 import os
@@ -377,7 +378,10 @@ async def run_baseline(
                 # Use openai/ prefix for Ollama — forces litellm to use the
                 # OpenAI-compatible /v1 endpoint rather than native Ollama API
                 request_data["model"] = "openai/" + request_data["model"]
-            full_response = await litellm.acompletion(**request_data)
+            full_response = await asyncio.wait_for(
+                litellm.acompletion(**request_data),
+                timeout=120.0,
+            )
 
             # Extract usage from full response
             if hasattr(full_response, 'usage') and full_response.usage:
@@ -387,7 +391,7 @@ async def run_baseline(
             # Extract message
             response = full_response.choices[0].message.dict()
         except Exception as e:
-            logger.warning(f"Could not capture token usage: {e}")
+            logger.warning(f"Could not capture token usage: {type(e).__name__}")
             response = await lm.agenerate(messages)
     else:
         # For Vertex AI or other models, use standard interface
