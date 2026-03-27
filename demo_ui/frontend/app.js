@@ -33,7 +33,18 @@
  *   - Keyboard accessibility handler
  */
 
-const API_BASE_URL = 'http://localhost:8000';
+// Auto-detect API base URL:
+//  - ?api=<url> query param overrides everything
+//  - Same-origin when served by the backend (localhost:8000)
+//  - Falls back to localhost:8000 (GitHub Pages users run backend locally)
+const API_BASE_URL = (() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('api')) return params.get('api').replace(/\/+$/, '');
+    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+        return window.location.origin;
+    }
+    return 'http://localhost:8000';
+})();
 
 // Shared utilities (setVisible, escapeHtml, formatLatency, formatCost, etc.)
 // are defined in utils.js which is loaded before this file.

@@ -264,6 +264,12 @@ class PerformanceVizV2 {
             html += '</tr>';
         }
 
+        // Add estimate footnote if any model has estimated tokens
+        const hasEstimates = models.some(m => m.data.tokens_estimated);
+        if (hasEstimates) {
+            html += '<tr><td colspan="' + (models.length + 1) + '" class="perf-v2-table-footnote" style="font-size:0.8em;color:var(--text-tertiary, #888);padding-top:8px;border:none;">~ values are estimates derived from baseline token counts. Actual usage may differ.</td></tr>';
+        }
+
         html += `
                     </tbody>
                 </table>

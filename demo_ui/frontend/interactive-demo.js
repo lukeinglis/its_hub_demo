@@ -47,7 +47,7 @@ async function iwFetchExamples(algorithm, useCase) {
         const params = new URLSearchParams();
         if (algorithm) params.set('algorithm', algorithm);
         if (useCase) params.set('use_case', useCase);
-        const resp = await fetch(`/examples?${params}`);
+        const resp = await fetch(`${API_BASE_URL}/examples?${params}`);
         if (!resp.ok) return [];
         const data = await resp.json();
         const examples = (data.examples || []).map(e => ({
@@ -499,6 +499,19 @@ function iwCustomChanged(textarea) {
         iwState.expectedAnswer = null; // No expected answer for custom prompts
         document.getElementById('iwCuratedSelect').value = '';
     }
+    // Show character count when approaching limit
+    const counter = document.getElementById('iwCharCount');
+    if (counter) {
+        const len = textarea.value.length;
+        const max = 5000;
+        if (len > max * 0.8) {
+            counter.textContent = `${len} / ${max}`;
+            counter.style.color = len >= max ? 'var(--danger, #ef4444)' : '';
+            setVisible(counter, true);
+        } else {
+            setVisible(counter, false);
+        }
+    }
 }
 
 // ============================================================
@@ -511,6 +524,10 @@ async function iwSubmit() {
     if (qErr) { qErr.innerHTML = ''; setVisible(qErr, false); }
     if (!question) {
         if (qErr) { qErr.textContent = 'Please enter or select a question.'; setVisible(qErr, true); }
+        return;
+    }
+    if (question.length > 5000) {
+        if (qErr) { qErr.textContent = 'Question is too long (max 5,000 characters).'; setVisible(qErr, true); }
         return;
     }
     iwState.question = question;
@@ -921,8 +938,8 @@ function iwBuildResultPane(data, type, title, minCost, minLatency) {
                 <div class="iw-pane-response">${responseHtml}</div>
                 <div class="iw-pane-meta">
                     <span class="iw-meta-tag"><span class="meta-label">Latency:</span><span class="meta-value">${formatLatency(latency)}</span></span>
-                    <span class="iw-meta-tag"><span class="meta-label">Cost${isEstimated ? ' (est.)' : ''}:</span><span class="meta-value">${costFmt}</span></span>
-                    <span class="iw-meta-tag"><span class="meta-label">Tokens${isEstimated ? ' (est.)' : ''}:</span><span class="meta-value">${isEstimated ? '~' : ''}${(data.input_tokens || 0) + (data.output_tokens || 0)}</span></span>
+                    <span class="iw-meta-tag"><span class="meta-label">Cost${isEstimated ? ' (est.)' : ''}:</span><span class="meta-value"${isEstimated ? ' title="Estimated from baseline tokens × candidate count"' : ''}>${costFmt}</span></span>
+                    <span class="iw-meta-tag"><span class="meta-label">Tokens${isEstimated ? ' (est.)' : ''}:</span><span class="meta-value"${isEstimated ? ' title="Estimated from baseline tokens × candidate count"' : ''}>${isEstimated ? '~' : ''}${(data.input_tokens || 0) + (data.output_tokens || 0)}</span></span>
                 </div>
             </div>
             ${hasFullReasoning ? `
