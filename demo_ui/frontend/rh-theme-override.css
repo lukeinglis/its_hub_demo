@@ -1,0 +1,541 @@
+/**
+ * Red Hat AI Theme Override
+ * =========================
+ * Drop-in override for the ITS Demo UI.
+ * Toggle on/off by adding or removing the <link> tag in index.html.
+ *
+ * Brand spec: Red Hat AI visual identity
+ *   Primary Red:    #EE0000
+ *   Dark Red:       #CC0000
+ *   Near-Black:     #151515
+ *   Dark Purple:    #1D0C35
+ *   Teal (info):    #0097A7
+ *   Success:        #a3be8c (kept)
+ *   Warning:        #ebcb8b (kept)
+ *
+ * Fonts: Red Hat Display, Red Hat Text, Red Hat Mono (Google Fonts)
+ */
+
+/* ============================================================
+   1. GOOGLE FONTS IMPORT
+   ============================================================ */
+@import url('https://fonts.googleapis.com/css2?family=Red+Hat+Display:wght@400;500;600;700;800;900&family=Red+Hat+Mono:wght@400;500;600;700&family=Red+Hat+Text:wght@300;400;500;600;700&display=swap');
+
+/* ============================================================
+   2. DARK THEME (default) — :root CUSTOM PROPERTIES
+   ============================================================ */
+:root {
+    /* Backgrounds — dark purple-black gradient feel */
+    --bg-primary: #1D0C35;
+    --bg-secondary: #251240;
+    --bg-tertiary: #2E1A4D;
+    --bg-elevated: #3A2560;
+
+    /* Text */
+    --text-primary: #F0F0F0;
+    --text-secondary: #C8C8C8;
+    --text-tertiary: #8A8A8A;
+
+    /* Borders — purple-tinted for dark theme */
+    --border-color: #4a3b5c;
+
+    /* Primary — Red Hat Red */
+    --primary: #EE0000;
+    --primary-hover: #CC0000;
+    --primary-light: rgba(238, 0, 0, 0.1);
+
+    /* Accent — unified with primary for Red Hat brand */
+    --accent: #CC0000;
+    --accent-hover: #AA0000;
+    --accent-light: rgba(204, 0, 0, 0.15);
+
+    /* Semantic */
+    --success: #a3be8c;
+    --danger: #EE0000;
+    --warning: #ebcb8b;
+    --info: #0097A7;
+
+    /* Focus */
+    --border-focus: #EE0000;
+
+    /* Shadows — darker for dark purple bg */
+    --shadow-sm: 0 2px 4px 0 rgba(0, 0, 0, 0.4);
+    --shadow: 0 4px 6px 0 rgba(0, 0, 0, 0.5);
+    --shadow-lg: 0 10px 20px 0 rgba(0, 0, 0, 0.6);
+    --shadow-xl: 0 20px 40px 0 rgba(0, 0, 0, 0.7);
+
+    /* Success glow */
+    --success-shadow: rgba(163, 190, 140, 0.3);
+    --success-glow: rgba(163, 190, 140, 0.6);
+}
+
+/* ============================================================
+   3. LIGHT THEME — [data-theme="light"] CUSTOM PROPERTIES
+   ============================================================ */
+[data-theme="light"] {
+    --bg-primary: #FFFFFF;
+    --bg-secondary: #EEEEEE;
+    --bg-tertiary: #F5F5F5;
+    --bg-elevated: #FFFFFF;
+
+    --text-primary: #151515;
+    --text-secondary: #303030;
+    --text-tertiary: #595959;
+
+    --border-color: #BFBFBF;
+
+    --primary: #EE0000;
+    --primary-hover: #CC0000;
+    --primary-light: rgba(238, 0, 0, 0.08);
+
+    --accent: #CC0000;
+    --accent-hover: #AA0000;
+
+    --info: #0097A7;
+
+    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+    --shadow: 0 2px 4px 0 rgba(0, 0, 0, 0.1);
+    --shadow-lg: 0 8px 16px 0 rgba(0, 0, 0, 0.12);
+}
+
+/* ============================================================
+   4. TYPOGRAPHY — Font Family Overrides
+   ============================================================ */
+
+/* Body text: Red Hat Text replaces Public Sans */
+body {
+    font-family: 'Red Hat Text', -apple-system, BlinkMacSystemFont, sans-serif;
+    line-height: 1.5;
+}
+
+/* Headings: Red Hat Display replaces Azeret Mono */
+h1, h2, h3, h4, h5, h6 {
+    font-family: 'Red Hat Display', sans-serif;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+}
+
+/* Button base: Red Hat Text replaces Public Sans */
+button {
+    font-family: 'Red Hat Text', sans-serif;
+}
+
+/* All elements that explicitly used Azeret Mono — switch to Red Hat Display */
+.landing-title,
+.choice-title,
+.choice-cta,
+.rhai-title,
+.rhai-card h3,
+.section-title,
+.trace-toggle,
+.guided-chart-title,
+.perf-v2-metric-title,
+.perf-v2-table thead th {
+    font-family: 'Red Hat Display', sans-serif;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+}
+
+/* All elements that explicitly used IBM Plex Mono — switch to Red Hat Mono */
+.rhai-code,
+.detail-value,
+.metric-value,
+.vote-answer,
+.vote-count,
+.vote-chart-answer,
+.vote-chart-count,
+.leaderboard-score,
+.perf-label,
+.perf-value,
+.perf-v2-bar-value,
+.perf-v2-table tbody td,
+.perf-metric-values,
+.answer-content code,
+.guided-pane-badge,
+.guided-trace-row-answer,
+.guided-trace-row-metric,
+.guided-bar-value,
+.guided-expected-answer-bar .guided-expected-value,
+.guided-tool-value,
+.guided-tool-args-json,
+.guided-tool-trace-name,
+.guided-tool-verdict-item strong,
+.guided-tool-expected-tool,
+.guided-benchmark-badge,
+.guided-raw-data-json,
+.guided-available-tool-tag,
+.iw-provider-setup,
+.iw-backend-status-url,
+.iw-meta-tag .meta-value,
+.iw-expected-inline .iw-expected-value,
+.iw-final-answer-content,
+.iw-raw-data-json,
+.iw-response-time .response-time-value {
+    font-family: 'Red Hat Mono', monospace;
+}
+
+/* Elements using Public Sans explicitly — switch to Red Hat Text */
+.perf-v2-title,
+.perf-v2-table-title,
+.perf-v2-table-label {
+    font-family: 'Red Hat Text', sans-serif !important;
+}
+
+/* JetBrains Mono override in interactive-demo.css */
+.iw-expected-answer-bar .iw-expected-value {
+    font-family: 'Red Hat Mono', monospace;
+}
+
+/* ============================================================
+   5. BODY PSEUDO-ELEMENTS — Scanlines & Left Accent Bar
+   ============================================================ */
+
+/* Scanline effect: purple-tinted instead of frost-blue */
+body::before {
+    background-image:
+        repeating-linear-gradient(
+            0deg,
+            rgba(238, 0, 0, 0.02) 0px,
+            rgba(238, 0, 0, 0.02) 1px,
+            transparent 1px,
+            transparent 2px
+        );
+}
+
+/* Left accent bar: Red Hat red gradient */
+body::after {
+    background: linear-gradient(
+        180deg,
+        #EE0000 0%,
+        #CC0000 100%
+    );
+}
+
+/* ============================================================
+   6. DARK THEME BACKGROUND GRADIENT
+   ============================================================ */
+
+/* Apply the #1D0C35 -> #0D0618 gradient to the body in dark mode */
+body {
+    background: linear-gradient(180deg, #1D0C35 0%, #0D0618 100%);
+    background-attachment: fixed;
+}
+
+[data-theme="light"] body,
+body[data-theme="light"] {
+    background: #FFFFFF;
+}
+
+/* When data-theme is on html element */
+html[data-theme="light"] body {
+    background: #FFFFFF;
+}
+
+/* ============================================================
+   7. LANDING PAGE — Title Gradient
+   ============================================================ */
+
+/* Dark mode: red to white gradient text */
+.landing-title {
+    background: linear-gradient(135deg, #EE0000, #FFFFFF);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+/* Light mode: red to near-black gradient text */
+[data-theme="light"] .landing-title {
+    background: linear-gradient(135deg, #EE0000, #151515);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+/* ============================================================
+   8. CHOICE CARDS — Accent Gradient Overrides
+   ============================================================ */
+
+/* Top bar gradient on hover: red gradient */
+.choice-card::before {
+    background: linear-gradient(90deg, #EE0000, #CC0000);
+}
+
+/* ============================================================
+   9. WIZARD PROGRESS BAR — Red Gradient
+   ============================================================ */
+
+.wizard-progress-bar {
+    background: linear-gradient(90deg, #EE0000, #CC0000);
+}
+
+/* Interactive progress bar override */
+.iw-progress.wizard-progress .iw-progress-bar {
+    background: linear-gradient(90deg, #EE0000, #CC0000);
+}
+
+/* ============================================================
+   10. GUIDED DEMO BADGE — Red Override
+   ============================================================ */
+
+.guided-demo-badge {
+    background: linear-gradient(135deg, rgba(238, 0, 0, 0.15) 0%, rgba(204, 0, 0, 0.15) 100%);
+    color: var(--accent);
+    border-color: var(--accent);
+}
+
+/* ============================================================
+   11. FOCUS RING — Red
+   ============================================================ */
+
+select:focus,
+textarea:focus {
+    box-shadow: 0 0 0 3px rgba(238, 0, 0, 0.15);
+}
+
+.slider-container input[type="range"]::-webkit-slider-thumb:hover {
+    box-shadow: 0 0 0 8px rgba(238, 0, 0, 0.1);
+}
+
+/* ============================================================
+   12. SELECTED CARD GLOW — Red
+   ============================================================ */
+
+.guided-question-card.selected {
+    box-shadow: 0 0 0 3px rgba(238, 0, 0, 0.15);
+}
+
+/* ============================================================
+   13. ITS RESULT PANE BACKGROUND TINT — Red tint
+   ============================================================ */
+
+.results .result-pane:last-child {
+    background: linear-gradient(to bottom, var(--bg-primary), var(--bg-primary) 50%, rgba(238, 0, 0, 0.02) 100%);
+}
+
+/* ============================================================
+   14. PERFORMANCE VISUALIZATION COLORS
+   Performance bars: Baseline #808080, ITS #EE0000, Frontier #0097A7
+   ============================================================ */
+
+/* Guided demo bar fills */
+.guided-bar-fill.baseline {
+    background: #808080;
+}
+
+.guided-bar-fill.its {
+    background: #EE0000;
+}
+
+.guided-bar-fill.frontier {
+    background: #0097A7;
+}
+
+/* Pane indicators */
+.pane-indicator.baseline {
+    background: #808080;
+    box-shadow: 0 0 0 3px rgba(128, 128, 128, 0.15);
+}
+
+.pane-indicator.its {
+    background: #EE0000;
+    box-shadow: 0 0 0 3px rgba(238, 0, 0, 0.15);
+}
+
+.pane-indicator.frontier {
+    background: #0097A7;
+    box-shadow: 0 0 0 3px rgba(0, 151, 167, 0.15);
+}
+
+/* Guided pane indicators */
+.guided-pane-indicator.baseline {
+    background: #808080;
+}
+
+.guided-pane-indicator.its {
+    background: #EE0000;
+}
+
+.guided-pane-indicator.frontier {
+    background: #0097A7;
+}
+
+/* Interactive pane indicators */
+.iw-pane-indicator.baseline {
+    background: #808080;
+}
+
+.iw-pane-indicator.its {
+    background: #EE0000;
+}
+
+.iw-pane-indicator.frontier {
+    background: #0097A7;
+}
+
+/* ============================================================
+   15. HARDCODED COLOR OVERRIDES
+   Catch rgba and hex values not using CSS variables
+   ============================================================ */
+
+/* Teal-colored rgba(13, 148, 136, ...) overrides — now red */
+.size-badge.large {
+    background: rgba(238, 0, 0, 0.1);
+    color: var(--primary);
+    border: 2px solid rgba(238, 0, 0, 0.3);
+}
+
+/* Hardcoded candidate-card winner gradient (dark bg) */
+.candidate-card.winner .candidate-content::after {
+    background: linear-gradient(transparent, rgba(29, 12, 53, 0.92));
+}
+
+/* Hardcoded #64748b baseline bar color */
+/* Already handled by .guided-bar-fill.baseline above */
+
+/* Guided trace active row — was rgba(136, 176, 225, 0.06) */
+.guided-trace-row.active {
+    border-color: var(--primary);
+    background: rgba(238, 0, 0, 0.04);
+}
+
+/* Perf-v2 table row hover — was rgba(136, 192, 208, 0.05) */
+.perf-v2-table tbody tr:hover {
+    background: rgba(238, 0, 0, 0.04);
+}
+
+/* Interactive insight box — was rgba(59, 130, 246, ...) */
+.iw-insight-box {
+    background: rgba(238, 0, 0, 0.04);
+    border-color: rgba(238, 0, 0, 0.2);
+    border-left-color: var(--primary);
+}
+
+/* Interactive fastest badge — was rgba(129, 161, 193, ...) */
+.iw-pane-badge.fastest {
+    color: var(--info);
+    background: rgba(0, 151, 167, 0.15);
+    border: 1px solid rgba(0, 151, 167, 0.3);
+}
+
+/* Benchmark callout — was rgba(94, 129, 172, ...) */
+.guided-benchmark-callout {
+    background: rgba(238, 0, 0, 0.04);
+    border-color: rgba(238, 0, 0, 0.2);
+}
+
+.guided-benchmark-badge {
+    background: rgba(238, 0, 0, 0.15);
+    border-color: rgba(238, 0, 0, 0.3);
+    color: var(--primary);
+}
+
+/* Available tool tag — was rgba(94, 129, 172, ...) */
+.guided-available-tool-tag {
+    background: rgba(238, 0, 0, 0.08);
+    border-color: rgba(238, 0, 0, 0.2);
+}
+
+/* Interactive provider badges — incorrect badge border */
+.iw-pane-badge.incorrect {
+    color: var(--danger);
+    background: rgba(238, 0, 0, 0.1);
+    border: 1px solid rgba(238, 0, 0, 0.3);
+}
+
+/* Tool verdict incorrect background */
+.guided-tool-verdict-item.incorrect {
+    background: rgba(238, 0, 0, 0.06);
+    border-color: rgba(238, 0, 0, 0.25);
+}
+
+.guided-tool-verdict-item.incorrect .guided-tool-verdict-icon {
+    color: #EE0000;
+}
+
+/* Text gradient utility — red-based */
+.text-gradient {
+    background: linear-gradient(135deg, #EE0000, #CC0000);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+/* ============================================================
+   16. INTERACTIVE DEMO — Provider Setup Colors
+   ============================================================ */
+
+/* Copy hint on hover — use red */
+.iw-provider-copyable:hover .iw-copy-hint {
+    color: var(--primary);
+    background: var(--primary-light);
+}
+
+/* Backend status dot — offline uses red */
+.iw-backend-status-dot.offline {
+    background: #EE0000;
+    box-shadow: 0 0 4px rgba(238, 0, 0, 0.5);
+}
+
+/* ============================================================
+   17. PERF-V2 TABLE — Border accent
+   ============================================================ */
+
+.perf-v2-table thead th {
+    border-bottom-color: #EE0000;
+}
+
+.perf-v2-title {
+    border-bottom-color: #EE0000;
+}
+
+/* ============================================================
+   18. MISCELLANEOUS COLOR CORRECTIONS
+   ============================================================ */
+
+/* Error message border uses danger which is now #EE0000 — fine */
+
+/* Best-of-N top score bar — keep warning color */
+.guided-trace-row-bar.top-score {
+    background: #ebcb8b;
+}
+
+/* Winner bar gradient in voting arena — keep success */
+.vote-chart-row.is-winner .vote-chart-bar {
+    background: linear-gradient(90deg, var(--success), #8fbf7f);
+}
+
+/* Best fill glow — keep success glow */
+.guided-bar-fill.best {
+    box-shadow: 0 0 12px rgba(0, 151, 167, 0.4);
+}
+
+/* Perf v2 best bar glow */
+.perf-v2-bar-fill.best {
+    box-shadow: 0 0 20px var(--success-glow);
+}
+
+/* ============================================================
+   19. FORM ELEMENT FOCUS STATES — Red
+   ============================================================ */
+
+.example-select:focus {
+    border-color: var(--border-focus);
+    box-shadow: 0 0 0 3px rgba(238, 0, 0, 0.1);
+}
+
+.iw-form-group select:focus {
+    box-shadow: 0 0 0 3px var(--primary-light);
+}
+
+.iw-custom-textarea:focus {
+    box-shadow: 0 0 0 3px var(--primary-light);
+}
+
+/* ============================================================
+   20. DATA-THEME LIGHT OVERRIDES FOR BODY GRADIENT
+   Some themes set data-theme on different elements, cover all
+   ============================================================ */
+
+[data-theme="light"] {
+    background: #FFFFFF;
+}

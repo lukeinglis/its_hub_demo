@@ -22,8 +22,15 @@
     <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js" integrity="sha384-XjKyOOlGwcjNTAIQHIpgOno0Hl1YQqzUOEleOLALmuqehneUG+vnGctmUb0ZY0l8" crossorigin="anonymous"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js" integrity="sha384-+VBxd3r6XgURycqtZ117nYw44OOcIax56Z4dCRWbxyPt0Koah1uHoK0o4+/RRE05" crossorigin="anonymous"></script>
     <link rel="stylesheet" href="main.css">
+    <link rel="stylesheet" href="rh-theme-override.css">
 </head>
 <body>
+    <!-- Theme Toggle (Floating — visible on all pages) -->
+    <div class="theme-toggle" role="button" tabindex="0" aria-label="Toggle theme" onclick="toggleTheme()">
+        <span class="theme-icon sun-icon">☀️</span>
+        <span class="theme-icon moon-icon">🌙</span>
+    </div>
+
     <!-- Landing Page -->
     <div id="landingPage">
         <div class="landing-header">
@@ -121,12 +128,6 @@
             <span>←</span>
             <span>Back to Home</span>
         </button>
-
-        <!-- Theme Toggle (Floating) -->
-        <div class="theme-toggle" role="button" tabindex="0" aria-label="Toggle theme" onclick="toggleTheme()">
-            <span class="theme-icon sun-icon">☀️</span>
-            <span class="theme-icon moon-icon">🌙</span>
-        </div>
 
         <div class="container">
         <!-- Header -->
