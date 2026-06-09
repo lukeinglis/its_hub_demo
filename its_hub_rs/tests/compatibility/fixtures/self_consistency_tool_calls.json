@@ -1,0 +1,70 @@
+{
+  "description": "Self-consistency with tool_call responses and tool_vote=tool_name, majority calls get_weather",
+  "config": {
+    "endpoint": "__MOCK__",
+    "model": "test-model",
+    "alg": "self-consistency",
+    "tool_vote": "tool_name"
+  },
+  "request": {
+    "model": "test-model",
+    "messages": [
+      {"role": "user", "content": "What's the weather in London?"}
+    ],
+    "budget": 5,
+    "tools": [{"type": "function", "function": {"name": "get_weather", "parameters": {}}}]
+  },
+  "mock_responses": [
+    {
+      "id": "chatcmpl-t01",
+      "object": "chat.completion",
+      "created": 1700000000,
+      "model": "test-model",
+      "choices": [{"index": 0, "message": {"role": "assistant", "content": null, "tool_calls": [{"id": "call_1", "type": "function", "function": {"name": "get_weather", "arguments": "{\"city\":\"London\"}"}}]}, "finish_reason": "tool_calls"}],
+      "usage": {"prompt_tokens": 15, "completion_tokens": 10, "total_tokens": 25}
+    },
+    {
+      "id": "chatcmpl-t02",
+      "object": "chat.completion",
+      "created": 1700000001,
+      "model": "test-model",
+      "choices": [{"index": 0, "message": {"role": "assistant", "content": null, "tool_calls": [{"id": "call_2", "type": "function", "function": {"name": "get_weather", "arguments": "{\"city\":\"London,UK\"}"}}]}, "finish_reason": "tool_calls"}],
+      "usage": {"prompt_tokens": 15, "completion_tokens": 10, "total_tokens": 25}
+    },
+    {
+      "id": "chatcmpl-t03",
+      "object": "chat.completion",
+      "created": 1700000002,
+      "model": "test-model",
+      "choices": [{"index": 0, "message": {"role": "assistant", "content": null, "tool_calls": [{"id": "call_3", "type": "function", "function": {"name": "get_weather", "arguments": "{\"city\":\"London\"}"}}]}, "finish_reason": "tool_calls"}],
+      "usage": {"prompt_tokens": 15, "completion_tokens": 10, "total_tokens": 25}
+    },
+    {
+      "id": "chatcmpl-t04",
+      "object": "chat.completion",
+      "created": 1700000003,
+      "model": "test-model",
+      "choices": [{"index": 0, "message": {"role": "assistant", "content": null, "tool_calls": [{"id": "call_4", "type": "function", "function": {"name": "get_time", "arguments": "{\"timezone\":\"Europe/London\"}"}}]}, "finish_reason": "tool_calls"}],
+      "usage": {"prompt_tokens": 15, "completion_tokens": 10, "total_tokens": 25}
+    },
+    {
+      "id": "chatcmpl-t05",
+      "object": "chat.completion",
+      "created": 1700000004,
+      "model": "test-model",
+      "choices": [{"index": 0, "message": {"role": "assistant", "content": null, "tool_calls": [{"id": "call_5", "type": "function", "function": {"name": "get_time", "arguments": "{\"timezone\":\"GMT\"}"}}]}, "finish_reason": "tool_calls"}],
+      "usage": {"prompt_tokens": 15, "completion_tokens": 10, "total_tokens": 25}
+    }
+  ],
+  "expected": {
+    "selected_tool_name": "get_weather",
+    "response_schema": {
+      "required_fields": ["id", "object", "created", "model", "choices", "usage"],
+      "id_prefix": "chatcmpl-",
+      "object_value": "chat.completion",
+      "choices_length": 1,
+      "choice_fields": ["index", "message", "finish_reason"],
+      "usage_fields": ["prompt_tokens", "completion_tokens", "total_tokens"]
+    }
+  }
+}
