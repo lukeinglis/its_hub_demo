@@ -1,3 +1,4 @@
+pub mod best_of_n;
 pub mod self_consistency;
 
 use async_trait::async_trait;
