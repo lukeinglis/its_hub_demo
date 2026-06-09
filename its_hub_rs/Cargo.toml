@@ -17,6 +17,7 @@ regex = "1"
 clap = { version = "4", features = ["derive"] }
 uuid = { version = "1", features = ["v4"] }
 rand = "0.8"
+async-trait = "0.1"
 thiserror = "2"
 anyhow = "1"
 
