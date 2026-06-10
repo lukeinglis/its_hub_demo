@@ -122,20 +122,38 @@ pub struct ConfigRequest {
     #[serde(default = "default_provider")]
     pub provider: String,
     pub endpoint: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none", default)]
     pub api_key: Option<String>,
     pub model: String,
     pub alg: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none", default)]
     pub regex_patterns: Option<Vec<String>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none", default)]
     pub tool_vote: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none", default)]
     pub exclude_tool_args: Option<Vec<String>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none", default)]
     pub rm_name: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none", default)]
     pub rm_endpoint: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub system_prompt: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub temperature: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub max_tokens: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub n: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub stop: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub max_concurrent_requests: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub replace_error_with_message: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub return_response_only: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub include_stop_str_in_output: Option<bool>,
 }
 
 fn default_provider() -> String {
@@ -510,6 +528,37 @@ mod tests {
         assert_eq!(cfg.provider, "openai");
         assert!(cfg.api_key.is_none());
         assert!(cfg.regex_patterns.is_none());
+        assert!(cfg.system_prompt.is_none());
+        assert!(cfg.temperature.is_none());
+        assert!(cfg.max_tokens.is_none());
+        assert!(cfg.n.is_none());
+        assert!(cfg.stop.is_none());
+        assert!(cfg.max_concurrent_requests.is_none());
+        assert!(cfg.replace_error_with_message.is_none());
+        assert!(cfg.return_response_only.is_none());
+        assert!(cfg.include_stop_str_in_output.is_none());
+    }
+
+    #[test]
+    fn config_request_new_fields_roundtrip() {
+        let json_str = r#"{
+            "endpoint": "http://localhost:8100/v1",
+            "model": "m",
+            "alg": "self-consistency",
+            "system_prompt": "Be helpful",
+            "temperature": 0.5,
+            "max_tokens": 2048,
+            "max_concurrent_requests": 16,
+            "include_stop_str_in_output": true,
+            "replace_error_with_message": "oops"
+        }"#;
+        let cfg: ConfigRequest = serde_json::from_str(json_str).unwrap();
+        assert_eq!(cfg.system_prompt.as_deref(), Some("Be helpful"));
+        assert_eq!(cfg.temperature, Some(0.5));
+        assert_eq!(cfg.max_tokens, Some(2048));
+        assert_eq!(cfg.max_concurrent_requests, Some(16));
+        assert_eq!(cfg.include_stop_str_in_output, Some(true));
+        assert_eq!(cfg.replace_error_with_message.as_deref(), Some("oops"));
     }
 
     #[test]
@@ -525,6 +574,15 @@ mod tests {
             exclude_tool_args: None,
             rm_name: Some("rm-model".to_string()),
             rm_endpoint: Some("http://localhost:8200".to_string()),
+            system_prompt: Some("You are a helpful assistant.".to_string()),
+            temperature: Some(0.7),
+            max_tokens: Some(1024),
+            n: Some(4),
+            stop: Some("\n\n".to_string()),
+            max_concurrent_requests: Some(32),
+            replace_error_with_message: Some("Generation failed".to_string()),
+            return_response_only: Some(true),
+            include_stop_str_in_output: Some(true),
         };
         let json_str = serde_json::to_string(&cfg).unwrap();
         let deserialized: ConfigRequest = serde_json::from_str(&json_str).unwrap();

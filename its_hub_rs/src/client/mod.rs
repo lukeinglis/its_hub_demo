@@ -25,6 +25,8 @@ pub struct LmClient {
     max_concurrency: usize,
     max_retries: u32,
     endpoint_type: EndpointType,
+    system_prompt: Option<String>,
+    include_stop_str_in_output: Option<bool>,
 }
 
 impl LmClient {
@@ -34,6 +36,8 @@ impl LmClient {
         model_name: &str,
         max_concurrency: usize,
         max_retries: u32,
+        system_prompt: Option<String>,
+        include_stop_str_in_output: Option<bool>,
     ) -> Result<Self, LmClientError> {
         let mut default_headers = HeaderMap::new();
         default_headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
@@ -67,6 +71,8 @@ impl LmClient {
             max_concurrency,
             max_retries,
             endpoint_type,
+            system_prompt,
+            include_stop_str_in_output,
         })
     }
 
@@ -91,10 +97,18 @@ impl LmClient {
         tools: Option<&Value>,
         tool_choice: Option<&Value>,
     ) -> Value {
-        let messages_json: Vec<Value> = messages
-            .iter()
-            .map(|m| serde_json::to_value(m).unwrap_or(Value::Null))
-            .collect();
+        let mut messages_json: Vec<Value> = Vec::new();
+
+        if let Some(ref sp) = self.system_prompt {
+            messages_json.push(serde_json::json!({
+                "role": "system",
+                "content": sp,
+            }));
+        }
+
+        for m in messages {
+            messages_json.push(serde_json::to_value(m).unwrap_or(Value::Null));
+        }
 
         let mut body = serde_json::json!({
             "model": self.model_name,
@@ -103,18 +117,33 @@ impl LmClient {
         let obj = body.as_object_mut().unwrap();
 
         if self.endpoint_type == EndpointType::Vllm {
-            if let Some(last) = messages.last() {
+            let effective_last = messages.last();
+            if let Some(last) = effective_last {
                 if last.role == "assistant" {
-                    obj.insert(
-                        "extra_body".to_string(),
-                        serde_json::json!({
-                            "add_generation_prompt": false,
-                            "continue_final_message": true,
-                        }),
-                    );
+                    let extra = obj
+                        .entry("extra_body")
+                        .or_insert_with(|| serde_json::json!({}));
+                    let extra_obj = extra.as_object_mut().unwrap();
+                    extra_obj.insert("add_generation_prompt".to_string(), Value::Bool(false));
+                    extra_obj.insert("continue_final_message".to_string(), Value::Bool(true));
                     obj.insert("add_generation_prompt".to_string(), Value::Bool(false));
                     obj.insert("continue_final_message".to_string(), Value::Bool(true));
                 }
+            }
+
+            if let Some(include_stop) = self.include_stop_str_in_output {
+                let extra = obj
+                    .entry("extra_body")
+                    .or_insert_with(|| serde_json::json!({}));
+                let extra_obj = extra.as_object_mut().unwrap();
+                extra_obj.insert(
+                    "include_stop_str_in_output".to_string(),
+                    Value::Bool(include_stop),
+                );
+                obj.insert(
+                    "include_stop_str_in_output".to_string(),
+                    Value::Bool(include_stop),
+                );
             }
         }
 
@@ -374,6 +403,8 @@ mod tests {
             "test-model",
             8,
             3,
+            None,
+            None,
         )
         .unwrap();
 
@@ -406,6 +437,8 @@ mod tests {
             "test-model",
             8,
             3,
+            None,
+            None,
         )
         .unwrap();
 
@@ -447,6 +480,8 @@ mod tests {
             "test-model",
             8,
             5,
+            None,
+            None,
         )
         .unwrap();
 
@@ -487,6 +522,8 @@ mod tests {
             "test-model",
             8,
             5,
+            None,
+            None,
         )
         .unwrap();
 
@@ -514,6 +551,8 @@ mod tests {
             "test-model",
             8,
             3,
+            None,
+            None,
         )
         .unwrap();
 
@@ -544,6 +583,8 @@ mod tests {
             "test-model",
             4,
             3,
+            None,
+            None,
         )
         .unwrap();
 
@@ -564,6 +605,8 @@ mod tests {
             "model",
             8,
             3,
+            None,
+            None,
         )
         .unwrap();
         assert_eq!(vllm.endpoint_type(), EndpointType::Vllm);
@@ -574,6 +617,8 @@ mod tests {
             "gpt-4",
             8,
             3,
+            None,
+            None,
         )
         .unwrap();
         assert_eq!(openai.endpoint_type(), EndpointType::OpenAI);
@@ -587,6 +632,8 @@ mod tests {
             "test-model",
             8,
             3,
+            None,
+            None,
         )
         .unwrap();
 
@@ -605,6 +652,8 @@ mod tests {
             "test-model",
             8,
             3,
+            None,
+            None,
         )
         .unwrap();
 
@@ -638,6 +687,8 @@ mod tests {
             "gpt-4",
             8,
             3,
+            None,
+            None,
         )
         .unwrap();
 
@@ -705,5 +756,116 @@ mod tests {
             }
             _ => panic!("expected RateLimit"),
         }
+    }
+
+    #[test]
+    fn build_request_body_prepends_system_prompt() {
+        let client = LmClient::new(
+            "http://localhost:8100/v1",
+            None,
+            "test-model",
+            8,
+            3,
+            Some("You are a math tutor.".to_string()),
+            None,
+        )
+        .unwrap();
+
+        let body = client.build_request_body(&test_messages(), None, None, None, None, None);
+        let messages = body["messages"].as_array().unwrap();
+        assert_eq!(messages.len(), 2);
+        assert_eq!(messages[0]["role"], "system");
+        assert_eq!(messages[0]["content"], "You are a math tutor.");
+        assert_eq!(messages[1]["role"], "user");
+    }
+
+    #[test]
+    fn build_request_body_no_system_prompt_when_none() {
+        let client = LmClient::new(
+            "http://localhost:8100/v1",
+            None,
+            "test-model",
+            8,
+            3,
+            None,
+            None,
+        )
+        .unwrap();
+
+        let body = client.build_request_body(&test_messages(), None, None, None, None, None);
+        let messages = body["messages"].as_array().unwrap();
+        assert_eq!(messages.len(), 1);
+        assert_eq!(messages[0]["role"], "user");
+    }
+
+    #[test]
+    fn build_request_body_vllm_include_stop_str() {
+        let client = LmClient::new(
+            "http://localhost:8100/v1",
+            None,
+            "test-model",
+            8,
+            3,
+            None,
+            Some(true),
+        )
+        .unwrap();
+
+        let body = client.build_request_body(&test_messages(), None, None, None, None, None);
+        assert_eq!(body["include_stop_str_in_output"], true);
+        assert_eq!(body["extra_body"]["include_stop_str_in_output"], true);
+    }
+
+    #[test]
+    fn build_request_body_openai_no_include_stop_str() {
+        let client = LmClient::new(
+            "https://api.openai.com/v1",
+            Some("key"),
+            "gpt-4",
+            8,
+            3,
+            None,
+            Some(true),
+        )
+        .unwrap();
+
+        let body = client.build_request_body(&test_messages(), None, None, None, None, None);
+        assert!(body.get("include_stop_str_in_output").is_none());
+        assert!(body.get("extra_body").is_none());
+    }
+
+    #[test]
+    fn build_request_body_vllm_assistant_with_stop_str() {
+        let client = LmClient::new(
+            "http://localhost:8100/v1",
+            None,
+            "test-model",
+            8,
+            3,
+            None,
+            Some(false),
+        )
+        .unwrap();
+
+        let messages = vec![
+            ChatMessage {
+                role: "user".to_string(),
+                content: Some(Content::Text("Hello".to_string())),
+                tool_calls: None,
+                tool_call_id: None,
+            },
+            ChatMessage {
+                role: "assistant".to_string(),
+                content: Some(Content::Text("Starting...".to_string())),
+                tool_calls: None,
+                tool_call_id: None,
+            },
+        ];
+
+        let body = client.build_request_body(&messages, None, None, None, None, None);
+        assert_eq!(body["extra_body"]["add_generation_prompt"], false);
+        assert_eq!(body["extra_body"]["continue_final_message"], true);
+        assert_eq!(body["extra_body"]["include_stop_str_in_output"], false);
+        assert_eq!(body["include_stop_str_in_output"], false);
     }
 }

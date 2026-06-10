@@ -23,10 +23,10 @@ pub enum ToolVoteStrategy {
     Hierarchical { exclude: Vec<String> },
 }
 
-#[derive(Clone)]
 pub enum Projection {
     Default,
     Regex(Vec<Regex>),
+    Custom(Box<dyn Fn(&Value) -> ProjectedValue + Send + Sync>),
 }
 
 pub struct SelfConsistency {
@@ -41,6 +41,18 @@ impl SelfConsistency {
         tool_vote: Option<ToolVoteStrategy>,
     ) -> Result<Self, anyhow::Error> {
         Self::with_error_replacement(regex_patterns, tool_vote, None)
+    }
+
+    pub fn with_custom_projection(
+        projection_func: Box<dyn Fn(&Value) -> ProjectedValue + Send + Sync>,
+        tool_vote: Option<ToolVoteStrategy>,
+        replace_error_with_message: Option<String>,
+    ) -> Self {
+        Self {
+            projection: Projection::Custom(projection_func),
+            tool_vote,
+            replace_error_with_message,
+        }
     }
 
     pub fn with_error_replacement(
@@ -72,24 +84,31 @@ impl SelfConsistency {
     }
 
     fn project_content(&self, response: &Value) -> ProjectedValue {
-        let content = extract_content_from_lm_response(response);
-
         match &self.projection {
-            Projection::Default => ProjectedValue::Single(Some(content.trim().to_string())),
-            Projection::Regex(patterns) => {
-                let results: Vec<Option<String>> = patterns
-                    .iter()
-                    .map(|pattern| {
-                        pattern.captures(&content).and_then(|caps| {
-                            if caps.len() > 1 {
-                                caps.get(1).map(|m| m.as_str().trim().to_string())
-                            } else {
-                                caps.get(0).map(|m| m.as_str().trim().to_string())
-                            }
-                        })
-                    })
-                    .collect();
-                ProjectedValue::Tuple(results)
+            Projection::Custom(f) => f(response),
+            _ => {
+                let content = extract_content_from_lm_response(response);
+                match &self.projection {
+                    Projection::Default => {
+                        ProjectedValue::Single(Some(content.trim().to_string()))
+                    }
+                    Projection::Regex(patterns) => {
+                        let results: Vec<Option<String>> = patterns
+                            .iter()
+                            .map(|pattern| {
+                                pattern.captures(&content).and_then(|caps| {
+                                    if caps.len() > 1 {
+                                        caps.get(1).map(|m| m.as_str().trim().to_string())
+                                    } else {
+                                        caps.get(0).map(|m| m.as_str().trim().to_string())
+                                    }
+                                })
+                            })
+                            .collect();
+                        ProjectedValue::Tuple(results)
+                    }
+                    Projection::Custom(_) => unreachable!(),
+                }
             }
         }
     }
@@ -1000,5 +1019,63 @@ mod tests {
     fn invalid_regex_returns_error() {
         let result = SelfConsistency::new(Some(vec!["[invalid".into()]), None);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn custom_projection_function() {
+        let sc = SelfConsistency::with_custom_projection(
+            Box::new(|response| {
+                let content = extract_content_from_lm_response(response);
+                let num: Option<String> = content
+                    .chars()
+                    .filter(|c| c.is_ascii_digit())
+                    .collect::<String>()
+                    .parse::<u64>()
+                    .ok()
+                    .map(|n| (n % 10).to_string());
+                ProjectedValue::Single(num)
+            }),
+            None,
+            None,
+        );
+
+        let r1 = content_response("The answer is 42");
+        let r2 = content_response("I think 12");
+        let r3 = content_response("Result: 52");
+
+        let p1 = sc.project_content(&r1);
+        let p2 = sc.project_content(&r2);
+        let p3 = sc.project_content(&r3);
+
+        assert_eq!(p1, ProjectedValue::Single(Some("2".into())));
+        assert_eq!(p2, ProjectedValue::Single(Some("2".into())));
+        assert_eq!(p3, ProjectedValue::Single(Some("2".into())));
+        assert_eq!(p1, p2);
+    }
+
+    #[test]
+    fn custom_projection_process_responses() {
+        let sc = SelfConsistency::with_custom_projection(
+            Box::new(|response| {
+                let content = extract_content_from_lm_response(response);
+                ProjectedValue::Single(Some(content.to_uppercase()))
+            }),
+            None,
+            None,
+        );
+
+        let responses = vec![
+            content_response("hello"),
+            content_response("hello"),
+            content_response("world"),
+        ];
+
+        let result = sc.process_responses(responses, true).unwrap();
+        match result {
+            AlgorithmOutput::ResponseOnly(selected) => {
+                assert_eq!(selected["content"].as_str().unwrap(), "hello");
+            }
+            _ => panic!("expected ResponseOnly"),
+        }
     }
 }

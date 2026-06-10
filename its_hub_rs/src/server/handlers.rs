@@ -37,8 +37,12 @@ pub async fn configure(
                 _ => ToolVoteStrategy::Name,
             });
 
-            let sc = SelfConsistency::new(config.regex_patterns.clone(), tool_vote)
-                .map_err(|e| AppError::BadRequest(format!("invalid regex pattern: {}", e)))?;
+            let sc = SelfConsistency::with_error_replacement(
+                config.regex_patterns.clone(),
+                tool_vote,
+                config.replace_error_with_message.clone(),
+            )
+            .map_err(|e| AppError::BadRequest(format!("invalid regex pattern: {}", e)))?;
             Box::new(sc)
         }
         "best-of-n" => {
@@ -48,7 +52,10 @@ pub async fn configure(
                 .ok_or_else(|| AppError::BadRequest("rm_endpoint required for best-of-n".into()))?;
 
             let orm = HttpOrmClient::new(rm_endpoint);
-            Box::new(BestOfN::new(Box::new(orm)))
+            Box::new(BestOfN::with_error_replacement(
+                Box::new(orm),
+                config.replace_error_with_message.clone(),
+            ))
         }
         other => {
             return Err(AppError::BadRequest(format!(
@@ -58,12 +65,16 @@ pub async fn configure(
         }
     };
 
+    let max_concurrency = config.max_concurrent_requests.unwrap_or(64);
+
     let client = LmClient::new(
         &config.endpoint,
         config.api_key.as_deref(),
         &config.model,
-        64,
+        max_concurrency,
         8,
+        config.system_prompt.clone(),
+        config.include_stop_str_in_output,
     )
     .map_err(|e| AppError::BadRequest(format!("failed to create LM client: {}", e)))?;
 
