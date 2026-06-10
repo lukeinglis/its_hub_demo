@@ -129,7 +129,7 @@ impl BestOfN {
         }
     }
 
-    fn process_responses(
+    pub fn process_responses(
         &self,
         responses: Vec<Value>,
         scores: Vec<f64>,

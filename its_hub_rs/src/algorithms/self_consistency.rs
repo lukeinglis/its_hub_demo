@@ -180,7 +180,7 @@ impl SelfConsistency {
         }
     }
 
-    fn process_responses(
+    pub fn process_responses(
         &self,
         responses: Vec<Value>,
         return_response_only: bool,

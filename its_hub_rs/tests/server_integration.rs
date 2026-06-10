@@ -643,6 +643,287 @@ async fn test_system_prompt_in_config() {
     assert_eq!(body["choices"][0]["message"]["content"], "ok");
 }
 
+// --- Configuration validation: missing required fields ---
+
+#[tokio::test]
+async fn test_configuration_validation_missing_fields() {
+    let (base_url, _state) = start_test_server().await;
+    let client = reqwest::Client::new();
+
+    let resp = client
+        .post(format!("{}/configure", base_url))
+        .json(&json!({
+            "endpoint": "http://localhost:8100/v1"
+        }))
+        .send()
+        .await
+        .unwrap();
+
+    assert!(
+        resp.status() == 400 || resp.status() == 422,
+        "missing model/alg should fail"
+    );
+}
+
+// --- Chat completions with system message ---
+
+#[tokio::test]
+async fn test_chat_completions_with_system_message() {
+    let (base_url, _state) = start_test_server().await;
+    let client = reqwest::Client::new();
+
+    let backend = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/v1/chat/completions"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(make_chat_response("system aware response")))
+        .mount(&backend)
+        .await;
+
+    configure_sc(&client, &base_url, &backend.uri()).await;
+
+    let resp = client
+        .post(format!("{}/v1/chat/completions", base_url))
+        .json(&json!({
+            "model": "test-model",
+            "messages": [
+                {"role": "system", "content": "You are a math tutor"},
+                {"role": "user", "content": "Explain algebra"}
+            ],
+            "budget": 1
+        }))
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), 200);
+    let body: serde_json::Value = resp.json().await.unwrap();
+    assert_eq!(body["choices"][0]["message"]["content"], "system aware response");
+}
+
+// --- Chat completions algorithm error ---
+
+#[tokio::test]
+async fn test_chat_completions_algorithm_error() {
+    let (base_url, _state) = start_test_server().await;
+    let client = reqwest::Client::new();
+
+    let backend = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/v1/chat/completions"))
+        .respond_with(ResponseTemplate::new(500).set_body_string("internal server error"))
+        .mount(&backend)
+        .await;
+
+    configure_sc(&client, &base_url, &backend.uri()).await;
+
+    let resp = client
+        .post(format!("{}/v1/chat/completions", base_url))
+        .json(&json!({
+            "model": "test-model",
+            "messages": [{"role": "user", "content": "test"}],
+            "budget": 3
+        }))
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), 500);
+}
+
+// --- Configure beam-search algorithm ---
+
+#[tokio::test]
+async fn test_config_beam_search() {
+    let (base_url, _state) = start_test_server().await;
+    let client = reqwest::Client::new();
+    let backend = MockServer::start().await;
+    let prm = MockServer::start().await;
+
+    Mock::given(method("POST"))
+        .and(path("/score"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({"scores": [0.5]})))
+        .mount(&prm)
+        .await;
+
+    let resp = client
+        .post(format!("{}/configure", base_url))
+        .json(&json!({
+            "endpoint": format!("{}/v1", backend.uri()),
+            "model": "test-model",
+            "alg": "beam-search",
+            "step_token": "\n",
+            "prm_endpoint": prm.uri(),
+            "beam_width": 2
+        }))
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), 200);
+    let body: serde_json::Value = resp.json().await.unwrap();
+    assert_eq!(body["status"], "success");
+    assert!(body["message"].as_str().unwrap().contains("beam-search"));
+}
+
+// --- Configure particle-filtering algorithm ---
+
+#[tokio::test]
+async fn test_config_particle_filtering() {
+    let (base_url, _state) = start_test_server().await;
+    let client = reqwest::Client::new();
+    let backend = MockServer::start().await;
+    let prm = MockServer::start().await;
+
+    let resp = client
+        .post(format!("{}/configure", base_url))
+        .json(&json!({
+            "endpoint": format!("{}/v1", backend.uri()),
+            "model": "test-model",
+            "alg": "particle-filtering",
+            "step_token": "\n",
+            "stop_token": "<end>",
+            "prm_endpoint": prm.uri()
+        }))
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), 200);
+    let body: serde_json::Value = resp.json().await.unwrap();
+    assert_eq!(body["status"], "success");
+    assert!(body["message"].as_str().unwrap().contains("particle-filtering"));
+}
+
+// --- Configure planning-wrapper with inner algorithm ---
+
+#[tokio::test]
+async fn test_config_planning_wrapper() {
+    let (base_url, _state) = start_test_server().await;
+    let client = reqwest::Client::new();
+    let backend = MockServer::start().await;
+
+    let resp = client
+        .post(format!("{}/configure", base_url))
+        .json(&json!({
+            "endpoint": format!("{}/v1", backend.uri()),
+            "model": "test-model",
+            "alg": "planning-wrapper",
+            "inner_alg": "self-consistency"
+        }))
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), 200);
+    let body: serde_json::Value = resp.json().await.unwrap();
+    assert_eq!(body["status"], "success");
+    assert!(body["message"].as_str().unwrap().contains("planning-wrapper"));
+
+    let health: serde_json::Value = client
+        .get(format!("{}/health", base_url))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(health["algorithm"], "planning-wrapper");
+}
+
+// --- Configure planning-wrapper missing inner_alg returns 400 ---
+
+#[tokio::test]
+async fn test_config_planning_wrapper_missing_inner_alg() {
+    let (base_url, _state) = start_test_server().await;
+    let client = reqwest::Client::new();
+    let backend = MockServer::start().await;
+
+    let resp = client
+        .post(format!("{}/configure", base_url))
+        .json(&json!({
+            "endpoint": format!("{}/v1", backend.uri()),
+            "model": "test-model",
+            "alg": "planning-wrapper"
+        }))
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), 400);
+}
+
+// --- Configure beam-search missing step_token returns 400 ---
+
+#[tokio::test]
+async fn test_config_beam_search_missing_step_token() {
+    let (base_url, _state) = start_test_server().await;
+    let client = reqwest::Client::new();
+    let backend = MockServer::start().await;
+
+    let resp = client
+        .post(format!("{}/configure", base_url))
+        .json(&json!({
+            "endpoint": format!("{}/v1", backend.uri()),
+            "model": "test-model",
+            "alg": "beam-search"
+        }))
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), 400);
+}
+
+// --- Configure particle-filtering missing prm_endpoint returns 400 ---
+
+#[tokio::test]
+async fn test_config_particle_filtering_missing_prm() {
+    let (base_url, _state) = start_test_server().await;
+    let client = reqwest::Client::new();
+    let backend = MockServer::start().await;
+
+    let resp = client
+        .post(format!("{}/configure", base_url))
+        .json(&json!({
+            "endpoint": format!("{}/v1", backend.uri()),
+            "model": "test-model",
+            "alg": "particle-filtering",
+            "step_token": "\n"
+        }))
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), 400);
+}
+
+// --- Configure planning-wrapper with best-of-n inner algorithm ---
+
+#[tokio::test]
+async fn test_config_planning_wrapper_with_bon() {
+    let (base_url, _state) = start_test_server().await;
+    let client = reqwest::Client::new();
+    let backend = MockServer::start().await;
+    let orm = MockServer::start().await;
+
+    let resp = client
+        .post(format!("{}/configure", base_url))
+        .json(&json!({
+            "endpoint": format!("{}/v1", backend.uri()),
+            "model": "test-model",
+            "alg": "planning-wrapper",
+            "inner_alg": "best-of-n",
+            "rm_endpoint": orm.uri()
+        }))
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), 200);
+    let body: serde_json::Value = resp.json().await.unwrap();
+    assert_eq!(body["status"], "success");
+}
+
 #[tokio::test]
 async fn test_replace_error_with_message_config() {
     let (base_url, _state) = start_test_server().await;
