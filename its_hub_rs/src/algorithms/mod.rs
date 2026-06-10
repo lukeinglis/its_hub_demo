@@ -1,3 +1,4 @@
+pub mod beam_search;
 pub mod best_of_n;
 pub mod self_consistency;
 
