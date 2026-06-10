@@ -8,9 +8,8 @@ use tracing::info;
 
 use crate::api::OutcomeRewardModel;
 use crate::api::ProcessRewardModel;
-use crate::api::types::ChatMessages;
-use crate::core::lms::litellm::LiteLLMClient;
 use crate::api::types::ChatMessage;
+use crate::core::lms::LmClient;
 
 /// Scoring mode for the LLM judge reward model.
 ///
@@ -67,10 +66,14 @@ impl HttpProcessRewardModel {
 impl ProcessRewardModel for HttpProcessRewardModel {
     async fn score(
         &self,
-        prompt_or_messages: &ChatMessages,
+        prompt_messages: &[ChatMessage],
         steps: &[String],
     ) -> Result<Vec<f64>, anyhow::Error> {
-        let prompt_text = prompt_or_messages.to_prompt();
+        let prompt_text: String = prompt_messages
+            .iter()
+            .map(|m| format!("{}: {}", m.role, m.extract_text_content()))
+            .collect::<Vec<_>>()
+            .join("\n");
         let response_prefix = steps.join("\n\n");
 
         let url = format!("{}/score", self.endpoint);
@@ -103,7 +106,7 @@ impl ProcessRewardModel for HttpProcessRewardModel {
 /// by constructing a judge prompt with the criterion and parsing numeric scores
 /// from the output.
 pub struct LlmJudgeRewardModel {
-    client: LiteLLMClient,
+    client: LmClient,
     criterion: String,
     temperature: f64,
     max_tokens: u32,
@@ -112,7 +115,7 @@ pub struct LlmJudgeRewardModel {
 
 impl LlmJudgeRewardModel {
     pub fn new(
-        client: LiteLLMClient,
+        client: LmClient,
         criterion: String,
         temperature: f64,
         max_tokens: u32,
@@ -128,7 +131,7 @@ impl LlmJudgeRewardModel {
 
     /// Create a judge with a specific scoring mode.
     pub fn with_mode(
-        client: LiteLLMClient,
+        client: LmClient,
         criterion: String,
         temperature: f64,
         max_tokens: u32,
@@ -171,7 +174,7 @@ impl LlmJudgeRewardModel {
 
         vec![ChatMessage {
             role: "user".to_string(),
-            content: Some(crate::types::Content::Text(judge_prompt)),
+            content: Some(crate::api::types::Content::Text(judge_prompt)),
             tool_calls: None,
             tool_call_id: None,
         }]
@@ -240,7 +243,7 @@ impl LlmJudgeRewardModel {
 
         vec![ChatMessage {
             role: "user".to_string(),
-            content: Some(crate::types::Content::Text(judge_prompt)),
+            content: Some(crate::api::types::Content::Text(judge_prompt)),
             tool_calls: None,
             tool_call_id: None,
         }]
@@ -399,9 +402,45 @@ impl LlmJudgeRewardModel {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::api::types::Content;
     use serde_json::json;
     use wiremock::matchers::{method, path};
     use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    fn user_msg(text: &str) -> ChatMessage {
+        ChatMessage {
+            role: "user".to_string(),
+            content: Some(Content::Text(text.to_string())),
+            tool_calls: None,
+            tool_call_id: None,
+        }
+    }
+
+    fn make_judge_client(server_uri: &str) -> LmClient {
+        LmClient::new(
+            &format!("{}/v1", server_uri),
+            Some("test-key"),
+            "judge-model",
+            8,
+            3,
+            None,
+            None,
+        )
+        .unwrap()
+    }
+
+    fn make_judge_client_default() -> LmClient {
+        LmClient::new(
+            "https://api.openai.com/v1",
+            Some("key"),
+            "model",
+            8,
+            3,
+            None,
+            None,
+        )
+        .unwrap()
+    }
 
     #[tokio::test]
     async fn test_http_prm_score() {
@@ -416,14 +455,14 @@ mod tests {
             .await;
 
         let prm = HttpProcessRewardModel::new(&server.uri());
-        let cm = ChatMessages::from_string("What is 2+2?");
+        let msgs = vec![user_msg("What is 2+2?")];
         let steps = vec![
             "Step 1: Add 2+2".to_string(),
             "Step 2: = 4".to_string(),
             "Step 3: Done".to_string(),
         ];
 
-        let scores = prm.score(&cm, &steps).await.unwrap();
+        let scores = prm.score(&msgs, &steps).await.unwrap();
         assert_eq!(scores, vec![0.9, 0.8, 0.7]);
     }
 
@@ -438,10 +477,10 @@ mod tests {
             .await;
 
         let prm = HttpProcessRewardModel::new(&server.uri());
-        let cm = ChatMessages::from_string("prompt");
+        let msgs = vec![user_msg("prompt")];
         let steps: Vec<String> = vec![];
 
-        let scores = prm.score(&cm, &steps).await.unwrap();
+        let scores = prm.score(&msgs, &steps).await.unwrap();
         assert!(scores.is_empty());
     }
 
@@ -456,10 +495,10 @@ mod tests {
             .await;
 
         let prm = HttpProcessRewardModel::new(&server.uri());
-        let cm = ChatMessages::from_string("prompt");
+        let msgs = vec![user_msg("prompt")];
         let steps = vec!["step 1".to_string()];
 
-        let result = prm.score(&cm, &steps).await;
+        let result = prm.score(&msgs, &steps).await;
         assert!(result.is_err());
     }
 
@@ -510,20 +549,7 @@ mod tests {
             .mount(&server)
             .await;
 
-        let client = LiteLLMClient::new(
-            "judge-model",
-            "openai",
-            Some("test-key"),
-            Some(&format!("{}/v1", server.uri())),
-            None,
-            8,
-            3,
-            None,
-            None,
-            None,
-            std::collections::HashMap::new(),
-        )
-        .unwrap();
+        let client = make_judge_client(&server.uri());
 
         let judge = LlmJudgeRewardModel::new(
             client,
@@ -534,7 +560,7 @@ mod tests {
 
         let prompt_msgs = vec![ChatMessage {
             role: "user".to_string(),
-            content: Some(crate::types::Content::Text("What is 2+2?".to_string())),
+            content: Some(crate::api::types::Content::Text("What is 2+2?".to_string())),
             tool_calls: None,
             tool_call_id: None,
         }];
@@ -604,20 +630,7 @@ mod tests {
             .mount(&server)
             .await;
 
-        let client = LiteLLMClient::new(
-            "judge-model",
-            "openai",
-            Some("test-key"),
-            Some(&format!("{}/v1", server.uri())),
-            None,
-            8,
-            3,
-            None,
-            None,
-            None,
-            std::collections::HashMap::new(),
-        )
-        .unwrap();
+        let client = make_judge_client(&server.uri());
 
         let judge = LlmJudgeRewardModel::with_mode(
             client,
@@ -629,7 +642,7 @@ mod tests {
 
         let prompt_msgs = vec![ChatMessage {
             role: "user".to_string(),
-            content: Some(crate::types::Content::Text("What is 2+2?".to_string())),
+            content: Some(crate::api::types::Content::Text("What is 2+2?".to_string())),
             tool_calls: None,
             tool_call_id: None,
         }];
@@ -650,20 +663,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_llm_judge_groupwise_single_response() {
-        let client = LiteLLMClient::new(
-            "model",
-            "openai",
-            Some("key"),
-            None,
-            None,
-            8,
-            3,
-            None,
-            None,
-            None,
-            std::collections::HashMap::new(),
-        )
-        .unwrap();
+        let client = make_judge_client_default();
 
         let judge = LlmJudgeRewardModel::with_mode(
             client,
@@ -675,7 +675,7 @@ mod tests {
 
         let prompt_msgs = vec![ChatMessage {
             role: "user".to_string(),
-            content: Some(crate::types::Content::Text("hi".to_string())),
+            content: Some(crate::api::types::Content::Text("hi".to_string())),
             tool_calls: None,
             tool_call_id: None,
         }];
@@ -687,20 +687,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_llm_judge_groupwise_empty() {
-        let client = LiteLLMClient::new(
-            "model",
-            "openai",
-            Some("key"),
-            None,
-            None,
-            8,
-            3,
-            None,
-            None,
-            None,
-            std::collections::HashMap::new(),
-        )
-        .unwrap();
+        let client = make_judge_client_default();
 
         let judge = LlmJudgeRewardModel::with_mode(
             client,
@@ -712,7 +699,7 @@ mod tests {
 
         let prompt_msgs = vec![ChatMessage {
             role: "user".to_string(),
-            content: Some(crate::types::Content::Text("hi".to_string())),
+            content: Some(crate::api::types::Content::Text("hi".to_string())),
             tool_calls: None,
             tool_call_id: None,
         }];
@@ -724,20 +711,7 @@ mod tests {
 
     #[test]
     fn test_groupwise_prompt_contains_all_responses() {
-        let client = LiteLLMClient::new(
-            "model",
-            "openai",
-            Some("key"),
-            None,
-            None,
-            8,
-            3,
-            None,
-            None,
-            None,
-            std::collections::HashMap::new(),
-        )
-        .unwrap();
+        let client = make_judge_client_default();
 
         let judge = LlmJudgeRewardModel::with_mode(
             client,
@@ -749,7 +723,7 @@ mod tests {
 
         let prompt_msgs = vec![ChatMessage {
             role: "user".to_string(),
-            content: Some(crate::types::Content::Text("What is 1+1?".to_string())),
+            content: Some(crate::api::types::Content::Text("What is 1+1?".to_string())),
             tool_calls: None,
             tool_call_id: None,
         }];
@@ -768,20 +742,7 @@ mod tests {
 
     #[test]
     fn test_llm_judge_criterion_formatting() {
-        let client = LiteLLMClient::new(
-            "model",
-            "openai",
-            Some("key"),
-            None,
-            None,
-            8,
-            3,
-            None,
-            None,
-            None,
-            std::collections::HashMap::new(),
-        )
-        .unwrap();
+        let client = make_judge_client_default();
 
         let judge = LlmJudgeRewardModel::new(
             client,
@@ -792,7 +753,7 @@ mod tests {
 
         let prompt_msgs = vec![ChatMessage {
             role: "user".to_string(),
-            content: Some(crate::types::Content::Text("Solve x+1=3".to_string())),
+            content: Some(crate::api::types::Content::Text("Solve x+1=3".to_string())),
             tool_calls: None,
             tool_call_id: None,
         }];
@@ -834,20 +795,7 @@ mod tests {
             .mount(&server)
             .await;
 
-        let client = LiteLLMClient::new(
-            "judge-model",
-            "openai",
-            Some("test-key"),
-            Some(&format!("{}/v1", server.uri())),
-            None,
-            8,
-            3,
-            None,
-            None,
-            None,
-            std::collections::HashMap::new(),
-        )
-        .unwrap();
+        let client = make_judge_client(&server.uri());
 
         let judge = LlmJudgeRewardModel::new(
             client,
@@ -858,7 +806,7 @@ mod tests {
 
         let prompt_msgs = vec![ChatMessage {
             role: "user".to_string(),
-            content: Some(crate::types::Content::Text("What is 2+2?".to_string())),
+            content: Some(crate::api::types::Content::Text("What is 2+2?".to_string())),
             tool_calls: None,
             tool_call_id: None,
         }];

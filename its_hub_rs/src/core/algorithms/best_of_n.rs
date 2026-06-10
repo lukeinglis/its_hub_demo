@@ -5,8 +5,9 @@ use reqwest::header::{HeaderValue, CONTENT_TYPE};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::api::{AbstractLanguageModel, AlgorithmOutput, OutcomeRewardModel, ScalingAlgorithm};
+use crate::api::{AlgorithmOutput, OutcomeRewardModel, ScalingAlgorithm};
 use crate::api::types::{extract_content_from_lm_response, ChatMessage};
+use crate::core::lms::LmClient;
 
 
 /// Build a canonical deduplication key from a full response Value.
@@ -233,7 +234,7 @@ impl BestOfN {
 impl ScalingAlgorithm for BestOfN {
     async fn infer(
         &self,
-        client: &dyn AbstractLanguageModel,
+        client: &LmClient,
         messages: &[ChatMessage],
         budget: u32,
         return_response_only: bool,
@@ -715,7 +716,7 @@ mod tests {
 
         let prompt = vec![ChatMessage {
             role: "user".to_string(),
-            content: Some(crate::types::Content::Text("What is 2+2?".to_string())),
+            content: Some(crate::api::types::Content::Text("What is 2+2?".to_string())),
             tool_calls: None,
             tool_call_id: None,
         }];
@@ -747,7 +748,7 @@ mod tests {
 
         let prompt = vec![ChatMessage {
             role: "user".to_string(),
-            content: Some(crate::types::Content::Text("test".to_string())),
+            content: Some(crate::api::types::Content::Text("test".to_string())),
             tool_calls: None,
             tool_call_id: None,
         }];

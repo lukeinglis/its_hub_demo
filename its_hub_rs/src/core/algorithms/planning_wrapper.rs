@@ -3,8 +3,9 @@ use serde_json::Value;
 
 use async_trait::async_trait;
 
-use crate::api::{AbstractLanguageModel, AlgorithmOutput, ScalingAlgorithm};
+use crate::api::{AlgorithmOutput, ScalingAlgorithm};
 use crate::api::types::{extract_content_from_lm_response, ChatMessage, Content};
+use crate::core::lms::LmClient;
 
 const PLANNING_TEMPLATE: &str = r#"Before solving this problem, I want you to first create a plan with different approaches to explore. This will help generate diverse solution strategies.
 
@@ -157,7 +158,7 @@ impl PlanningWrapper {
 
     /// Create a PlanningWrapper using BeamSearch as the base algorithm.
     pub fn planning_beam_search(
-        step_generation: crate::step_generation::StepGeneration,
+        step_generation: crate::core::lms::step_generation::StepGeneration,
         prm: std::sync::Arc<dyn crate::api::ProcessRewardModel>,
         beam_width: usize,
     ) -> Self {
@@ -170,7 +171,7 @@ impl PlanningWrapper {
 impl ScalingAlgorithm for PlanningWrapper {
     async fn infer(
         &self,
-        client: &dyn AbstractLanguageModel,
+        client: &LmClient,
         messages: &[ChatMessage],
         budget: u32,
         return_response_only: bool,
@@ -194,8 +195,9 @@ impl ScalingAlgorithm for PlanningWrapper {
         }];
 
         let plan_response = client
-            .agenerate_single(&planning_messages, None, max_tokens, temperature, None, None, None)
-            .await?;
+            .chat_completion(&planning_messages, temperature, max_tokens, None, None, None)
+            .await
+            .map_err(|e| anyhow::anyhow!("planning generation failed: {}", e))?;
         let plan = extract_content_from_lm_response(&plan_response);
 
         let approaches = extract_approaches(&plan);
@@ -293,7 +295,6 @@ impl ScalingAlgorithm for PlanningWrapper {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core::lms::LmBackend;
     use serde_json::json;
 
     #[test]
@@ -463,18 +464,16 @@ mod tests {
             .mount(&server)
             .await;
 
-        let client = LmBackend::OpenAI(
-            crate::client::LmClient::new(
-                &format!("{}/v1", server.uri()),
-                Some("test-key"),
-                "test-model",
-                8,
-                3,
-                None,
-                None,
-            )
-            .unwrap(),
-        );
+        let client = LmClient::new(
+            &format!("{}/v1", server.uri()),
+            Some("test-key"),
+            "test-model",
+            8,
+            3,
+            None,
+            None,
+        )
+        .unwrap();
 
         use crate::core::algorithms::self_consistency::SelfConsistency;
         let sc = SelfConsistency::new(None, None).unwrap();
@@ -537,18 +536,16 @@ mod tests {
             .mount(&server)
             .await;
 
-        let client = LmBackend::OpenAI(
-            crate::client::LmClient::new(
-                &format!("{}/v1", server.uri()),
-                Some("test-key"),
-                "test-model",
-                8,
-                3,
-                None,
-                None,
-            )
-            .unwrap(),
-        );
+        let client = LmClient::new(
+            &format!("{}/v1", server.uri()),
+            Some("test-key"),
+            "test-model",
+            8,
+            3,
+            None,
+            None,
+        )
+        .unwrap();
 
         use crate::core::algorithms::self_consistency::SelfConsistency;
         let sc = SelfConsistency::new(None, None).unwrap();
@@ -605,18 +602,16 @@ mod tests {
             .mount(&server)
             .await;
 
-        let client = LmBackend::OpenAI(
-            crate::client::LmClient::new(
-                &format!("{}/v1", server.uri()),
-                Some("test-key"),
-                "test-model",
-                8,
-                3,
-                None,
-                None,
-            )
-            .unwrap(),
-        );
+        let client = LmClient::new(
+            &format!("{}/v1", server.uri()),
+            Some("test-key"),
+            "test-model",
+            8,
+            3,
+            None,
+            None,
+        )
+        .unwrap();
 
         use crate::core::algorithms::self_consistency::SelfConsistency;
         let sc = SelfConsistency::new(None, None).unwrap();

@@ -1,12 +1,10 @@
 //! ScalingAlgorithm trait and AlgorithmOutput enum.
-//!
-//! Extracted from the old algorithms/mod.rs to match v1's api/algorithm.py.
 
 use async_trait::async_trait;
 use serde_json::Value;
 
 use crate::api::types::ChatMessage;
-use crate::api::lm::AbstractLanguageModel;
+use crate::core::lms::LmClient;
 
 #[derive(Debug, Clone)]
 pub enum AlgorithmOutput {
@@ -19,7 +17,7 @@ pub enum AlgorithmOutput {
 pub trait ScalingAlgorithm: Send + Sync {
     async fn infer(
         &self,
-        client: &dyn AbstractLanguageModel,
+        client: &LmClient,
         messages: &[ChatMessage],
         budget: u32,
         return_response_only: bool,

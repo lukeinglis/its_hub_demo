@@ -1,7 +1,7 @@
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 
-use crate::types::LmClientError;
+use crate::api::errors::LmClientError;
 
 #[derive(Debug, thiserror::Error)]
 pub enum AppError {

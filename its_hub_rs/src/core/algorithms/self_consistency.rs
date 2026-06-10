@@ -6,8 +6,9 @@ use regex::{Regex, RegexBuilder};
 use serde_json::Value;
 use tracing::warn;
 
-use crate::api::{AbstractLanguageModel, AlgorithmOutput, ScalingAlgorithm};
+use crate::api::{AlgorithmOutput, ScalingAlgorithm};
 use crate::api::types::{extract_content_from_lm_response, ChatMessage};
+use crate::core::lms::LmClient;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum ProjectedValue {
@@ -274,7 +275,7 @@ impl SelfConsistency {
 impl ScalingAlgorithm for SelfConsistency {
     async fn infer(
         &self,
-        client: &dyn AbstractLanguageModel,
+        client: &LmClient,
         messages: &[ChatMessage],
         budget: u32,
         return_response_only: bool,

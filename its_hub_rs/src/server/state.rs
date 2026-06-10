@@ -3,8 +3,8 @@ use std::sync::Arc;
 
 use tokio::sync::RwLock;
 
-use crate::algorithms::ScalingAlgorithm;
-use crate::api::lm::AbstractLanguageModel;
+use crate::api::algorithm::ScalingAlgorithm;
+use crate::core::lms::LmClient;
 
 pub struct AlgorithmConfig {
     pub name: String,
@@ -22,7 +22,7 @@ impl Clone for AlgorithmConfig {
 
 pub struct AppState {
     pub algorithm: RwLock<Option<AlgorithmConfig>>,
-    pub clients: RwLock<HashMap<String, Arc<dyn AbstractLanguageModel>>>,
+    pub clients: RwLock<HashMap<String, Arc<LmClient>>>,
 }
 
 impl Default for AppState {

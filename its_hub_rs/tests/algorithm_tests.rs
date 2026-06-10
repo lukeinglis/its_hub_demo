@@ -2,11 +2,11 @@ use serde_json::json;
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
-use its_hub_rs::algorithms::self_consistency::SelfConsistency;
-use its_hub_rs::algorithms::best_of_n::{BestOfN, OutcomeRewardModel};
-use its_hub_rs::algorithms::ScalingAlgorithm;
-use its_hub_rs::client::{LmBackend, LmClient};
-use its_hub_rs::types::{ChatMessage, Content};
+use its_hub_rs::SelfConsistency;
+use its_hub_rs::{BestOfN, OutcomeRewardModel};
+use its_hub_rs::ScalingAlgorithm;
+use its_hub_rs::LmClient;
+use its_hub_rs::api::types::{ChatMessage, Content};
 
 fn user_message(text: &str) -> ChatMessage {
     ChatMessage {
@@ -53,7 +53,7 @@ async fn test_self_consistency_infer_flat() {
             .await;
     }
 
-    let client = LmBackend::OpenAI(LmClient::new(
+    let client = LmClient::new(
         &format!("{}/v1", server.uri()),
         None,
         "test-model",
@@ -62,7 +62,7 @@ async fn test_self_consistency_infer_flat() {
         None,
         None,
     )
-    .unwrap());
+    .unwrap();
 
     let sc = SelfConsistency::new(None, None).unwrap();
     let messages = vec![user_message("What is 6*7?")];
@@ -73,7 +73,7 @@ async fn test_self_consistency_infer_flat() {
         .unwrap();
 
     match result {
-        its_hub_rs::algorithms::AlgorithmOutput::ResponseOnly(selected) => {
+        its_hub_rs::AlgorithmOutput::ResponseOnly(selected) => {
             assert_eq!(selected["content"].as_str().unwrap(), "42");
         }
         _ => panic!("expected ResponseOnly"),
@@ -101,7 +101,7 @@ async fn test_self_consistency_infer_with_regex() {
             .await;
     }
 
-    let client = LmBackend::OpenAI(LmClient::new(
+    let client = LmClient::new(
         &format!("{}/v1", server.uri()),
         None,
         "test-model",
@@ -110,7 +110,7 @@ async fn test_self_consistency_infer_with_regex() {
         None,
         None,
     )
-    .unwrap());
+    .unwrap();
 
     let sc = SelfConsistency::new(
         Some(vec![r"\\boxed\{([^}]+)\}".to_string()]),
@@ -125,7 +125,7 @@ async fn test_self_consistency_infer_with_regex() {
         .unwrap();
 
     match result {
-        its_hub_rs::algorithms::AlgorithmOutput::Full { metadata, .. } => {
+        its_hub_rs::AlgorithmOutput::Full { metadata, .. } => {
             let counts = &metadata["response_counts"];
             assert!(
                 counts.as_object().is_some(),
@@ -184,7 +184,7 @@ async fn test_best_of_n_infer_with_mock_orm() {
         .mount(&orm_server)
         .await;
 
-    let client = LmBackend::OpenAI(LmClient::new(
+    let client = LmClient::new(
         &format!("{}/v1", server.uri()),
         None,
         "test-model",
@@ -193,9 +193,9 @@ async fn test_best_of_n_infer_with_mock_orm() {
         None,
         None,
     )
-    .unwrap());
+    .unwrap();
 
-    let orm = its_hub_rs::algorithms::best_of_n::HttpOrmClient::new(&orm_server.uri());
+    let orm = its_hub_rs::HttpOrmClient::new(&orm_server.uri());
     let bon = BestOfN::new(Box::new(orm));
     let messages = vec![user_message("test")];
 
@@ -205,7 +205,7 @@ async fn test_best_of_n_infer_with_mock_orm() {
         .unwrap();
 
     match result {
-        its_hub_rs::algorithms::AlgorithmOutput::ResponseOnly(selected) => {
+        its_hub_rs::AlgorithmOutput::ResponseOnly(selected) => {
             let content = selected["content"].as_str().unwrap();
             assert!(
                 ["answer_a", "answer_b", "answer_c"].contains(&content),
@@ -287,7 +287,7 @@ async fn test_best_of_n_dedup_skips_scoring() {
         .mount(&server)
         .await;
 
-    let client = LmBackend::OpenAI(LmClient::new(
+    let client = LmClient::new(
         &format!("{}/v1", server.uri()),
         None,
         "test-model",
@@ -296,7 +296,7 @@ async fn test_best_of_n_dedup_skips_scoring() {
         None,
         None,
     )
-    .unwrap());
+    .unwrap();
 
     let bon = BestOfN::new(Box::new(PanickingOrm));
     let messages = vec![user_message("test")];
@@ -307,7 +307,7 @@ async fn test_best_of_n_dedup_skips_scoring() {
         .unwrap();
 
     match result {
-        its_hub_rs::algorithms::AlgorithmOutput::ResponseOnly(selected) => {
+        its_hub_rs::AlgorithmOutput::ResponseOnly(selected) => {
             assert_eq!(selected["content"].as_str().unwrap(), "same");
         }
         _ => panic!("expected ResponseOnly"),
@@ -331,7 +331,7 @@ async fn test_fan_out_graceful_degradation() {
         .mount(&server)
         .await;
 
-    let client = LmBackend::OpenAI(LmClient::new(
+    let client = LmClient::new(
         &format!("{}/v1", server.uri()),
         None,
         "test-model",
@@ -340,7 +340,7 @@ async fn test_fan_out_graceful_degradation() {
         None,
         None,
     )
-    .unwrap());
+    .unwrap();
 
     let sc = SelfConsistency::with_error_replacement(
         None,
@@ -368,7 +368,7 @@ async fn test_fan_out_all_fail() {
         .mount(&server)
         .await;
 
-    let client = LmBackend::OpenAI(LmClient::new(
+    let client = LmClient::new(
         &format!("{}/v1", server.uri()),
         None,
         "test-model",
@@ -377,7 +377,7 @@ async fn test_fan_out_all_fail() {
         None,
         None,
     )
-    .unwrap());
+    .unwrap();
 
     let sc = SelfConsistency::new(None, None).unwrap();
     let messages = vec![user_message("test")];
@@ -399,8 +399,8 @@ async fn test_fan_out_all_fail() {
 
 #[test]
 fn test_self_consistency_flat_projection_process_responses() {
-    use its_hub_rs::algorithms::self_consistency::SelfConsistency;
-    use its_hub_rs::algorithms::AlgorithmOutput;
+    use its_hub_rs::SelfConsistency;
+    use its_hub_rs::AlgorithmOutput;
 
     let sc = SelfConsistency::new(None, None).unwrap();
     let responses = vec![
@@ -430,8 +430,8 @@ fn test_self_consistency_flat_projection_process_responses() {
 
 #[test]
 fn test_self_consistency_hierarchical_projection_process_responses() {
-    use its_hub_rs::algorithms::self_consistency::SelfConsistency;
-    use its_hub_rs::algorithms::AlgorithmOutput;
+    use its_hub_rs::SelfConsistency;
+    use its_hub_rs::AlgorithmOutput;
 
     let sc = SelfConsistency::new(
         Some(vec![r"Approach:\s*(\w+)".into(), r"\\boxed\{([^}]+)\}".into()]),
@@ -463,8 +463,8 @@ fn test_self_consistency_hierarchical_projection_process_responses() {
 
 #[test]
 fn test_self_consistency_return_response_only_false() {
-    use its_hub_rs::algorithms::self_consistency::SelfConsistency;
-    use its_hub_rs::algorithms::AlgorithmOutput;
+    use its_hub_rs::SelfConsistency;
+    use its_hub_rs::AlgorithmOutput;
 
     let sc = SelfConsistency::new(None, None).unwrap();
     let responses = vec![
@@ -508,7 +508,7 @@ async fn test_self_consistency_with_multimodal_content() {
             .await;
     }
 
-    let client = LmBackend::OpenAI(LmClient::new(
+    let client = LmClient::new(
         &format!("{}/v1", server.uri()),
         None,
         "test-model",
@@ -517,7 +517,7 @@ async fn test_self_consistency_with_multimodal_content() {
         None,
         None,
     )
-    .unwrap());
+    .unwrap();
 
     let sc = SelfConsistency::new(None, None).unwrap();
     let messages = vec![user_message("What is the answer?")];
@@ -528,7 +528,7 @@ async fn test_self_consistency_with_multimodal_content() {
         .unwrap();
 
     match result {
-        its_hub_rs::algorithms::AlgorithmOutput::ResponseOnly(selected) => {
+        its_hub_rs::AlgorithmOutput::ResponseOnly(selected) => {
             assert!(selected.get("content").is_some());
         }
         _ => panic!("expected ResponseOnly"),
@@ -539,8 +539,8 @@ async fn test_self_consistency_with_multimodal_content() {
 
 #[test]
 fn test_best_of_n_result_structure() {
-    use its_hub_rs::algorithms::best_of_n::BestOfN;
-    use its_hub_rs::algorithms::AlgorithmOutput;
+    use its_hub_rs::BestOfN;
+    use its_hub_rs::AlgorithmOutput;
 
     let orm = MockOrm {
         scores: vec![0.5, 0.8, 0.3],
@@ -599,7 +599,7 @@ async fn test_best_of_n_with_multimodal_content() {
         .mount(&orm_server)
         .await;
 
-    let client = LmBackend::OpenAI(LmClient::new(
+    let client = LmClient::new(
         &format!("{}/v1", server.uri()),
         None,
         "test-model",
@@ -608,9 +608,9 @@ async fn test_best_of_n_with_multimodal_content() {
         None,
         None,
     )
-    .unwrap());
+    .unwrap();
 
-    let orm = its_hub_rs::algorithms::best_of_n::HttpOrmClient::new(&orm_server.uri());
+    let orm = its_hub_rs::HttpOrmClient::new(&orm_server.uri());
     let bon = BestOfN::new(Box::new(orm));
     let messages = vec![user_message("test")];
 
@@ -620,7 +620,7 @@ async fn test_best_of_n_with_multimodal_content() {
         .unwrap();
 
     match result {
-        its_hub_rs::algorithms::AlgorithmOutput::ResponseOnly(selected) => {
+        its_hub_rs::AlgorithmOutput::ResponseOnly(selected) => {
             assert!(selected.get("content").is_some());
         }
         _ => panic!("expected ResponseOnly"),
@@ -631,9 +631,8 @@ async fn test_best_of_n_with_multimodal_content() {
 
 #[tokio::test]
 async fn test_beam_search_with_prm_scoring() {
-    use its_hub_rs::algorithms::beam_search::BeamSearch;
-    use its_hub_rs::algorithms::ProcessRewardModel;
-    use its_hub_rs::chat_messages::ChatMessages;
+    use its_hub_rs::BeamSearch;
+    use its_hub_rs::ProcessRewardModel;
     use std::sync::Arc;
     use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -646,7 +645,7 @@ async fn test_beam_search_with_prm_scoring() {
     impl ProcessRewardModel for SequentialPRM {
         async fn score(
             &self,
-            _prompt_or_messages: &ChatMessages,
+            _prompt_messages: &[ChatMessage],
             _steps: &[String],
         ) -> Result<Vec<f64>, anyhow::Error> {
             let idx = self.call_count.fetch_add(1, Ordering::SeqCst);
@@ -663,8 +662,8 @@ async fn test_beam_search_with_prm_scoring() {
         .mount(&server)
         .await;
 
-    let sg = its_hub_rs::step_generation::StepGeneration::with_step_token(
-        its_hub_rs::step_generation::StepToken::Single("\n".to_string()),
+    let sg = its_hub_rs::core::lms::step_generation::StepGeneration::with_step_token(
+        its_hub_rs::core::lms::step_generation::StepToken::Single("\n".to_string()),
         1,
         None,
         0.8,
@@ -677,7 +676,7 @@ async fn test_beam_search_with_prm_scoring() {
     });
     let bs = BeamSearch::new(sg, prm, 2);
 
-    let client = LmBackend::OpenAI(LmClient::new(
+    let client = LmClient::new(
         &format!("{}/v1", server.uri()),
         None,
         "test-model",
@@ -686,7 +685,7 @@ async fn test_beam_search_with_prm_scoring() {
         None,
         None,
     )
-    .unwrap());
+    .unwrap();
 
     let messages = vec![user_message("Solve this problem:")];
 
@@ -696,7 +695,7 @@ async fn test_beam_search_with_prm_scoring() {
         .unwrap();
 
     match result {
-        its_hub_rs::algorithms::AlgorithmOutput::Full { metadata, .. } => {
+        its_hub_rs::AlgorithmOutput::Full { metadata, .. } => {
             let scores = metadata["scores"].as_array().unwrap();
             assert!(
                 !scores.is_empty(),
@@ -721,9 +720,8 @@ async fn test_beam_search_with_prm_scoring() {
 
 #[tokio::test]
 async fn test_beam_search_return_response_only_modes() {
-    use its_hub_rs::algorithms::beam_search::BeamSearch;
-    use its_hub_rs::algorithms::ProcessRewardModel;
-    use its_hub_rs::chat_messages::ChatMessages;
+    use its_hub_rs::BeamSearch;
+    use its_hub_rs::ProcessRewardModel;
     use std::sync::Arc;
 
     struct FixedPRM;
@@ -732,7 +730,7 @@ async fn test_beam_search_return_response_only_modes() {
     impl ProcessRewardModel for FixedPRM {
         async fn score(
             &self,
-            _prompt: &ChatMessages,
+            _prompt_messages: &[ChatMessage],
             _steps: &[String],
         ) -> Result<Vec<f64>, anyhow::Error> {
             Ok(vec![0.5])
@@ -748,8 +746,8 @@ async fn test_beam_search_return_response_only_modes() {
         .await;
 
     let make_bs = || {
-        let sg = its_hub_rs::step_generation::StepGeneration::with_step_token(
-            its_hub_rs::step_generation::StepToken::Single("\n".to_string()),
+        let sg = its_hub_rs::core::lms::step_generation::StepGeneration::with_step_token(
+            its_hub_rs::core::lms::step_generation::StepToken::Single("\n".to_string()),
             1,
             None,
             0.8,
@@ -759,7 +757,7 @@ async fn test_beam_search_return_response_only_modes() {
         BeamSearch::new(sg, Arc::new(FixedPRM), 2)
     };
 
-    let client = LmBackend::OpenAI(LmClient::new(
+    let client = LmClient::new(
         &format!("{}/v1", server.uri()),
         None,
         "test-model",
@@ -768,7 +766,7 @@ async fn test_beam_search_return_response_only_modes() {
         None,
         None,
     )
-    .unwrap());
+    .unwrap();
 
     let messages = vec![user_message("test")];
 
@@ -777,7 +775,7 @@ async fn test_beam_search_return_response_only_modes() {
         .infer(&client, &messages, 2, true, None, None, None, None)
         .await
         .unwrap();
-    assert!(matches!(result1, its_hub_rs::algorithms::AlgorithmOutput::ResponseOnly(_)));
+    assert!(matches!(result1, its_hub_rs::AlgorithmOutput::ResponseOnly(_)));
 
     let bs2 = make_bs();
     let result2 = bs2
@@ -785,7 +783,7 @@ async fn test_beam_search_return_response_only_modes() {
         .await
         .unwrap();
     match result2 {
-        its_hub_rs::algorithms::AlgorithmOutput::Full { metadata, .. } => {
+        its_hub_rs::AlgorithmOutput::Full { metadata, .. } => {
             assert_eq!(metadata["algorithm"], "beam-search");
             assert!(metadata.get("scores").is_some());
             assert!(metadata.get("steps_used").is_some());
@@ -798,9 +796,8 @@ async fn test_beam_search_return_response_only_modes() {
 
 #[tokio::test]
 async fn test_particle_gibbs_reference_trajectory() {
-    use its_hub_rs::algorithms::particle_gibbs::{ParticleGibbs, SelectionMethod, ResamplingMethod, TemperatureMethod};
-    use its_hub_rs::algorithms::ProcessRewardModel;
-    use its_hub_rs::chat_messages::ChatMessages;
+    use its_hub_rs::core::algorithms::particle_gibbs::{ParticleGibbs, SelectionMethod, ResamplingMethod, TemperatureMethod};
+    use its_hub_rs::ProcessRewardModel;
     use std::sync::Arc;
     use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -812,7 +809,7 @@ async fn test_particle_gibbs_reference_trajectory() {
     impl ProcessRewardModel for MockPRM {
         async fn score(
             &self,
-            _prompt: &ChatMessages,
+            _prompt_messages: &[ChatMessage],
             _steps: &[String],
         ) -> Result<Vec<f64>, anyhow::Error> {
             let idx = self.call_count.fetch_add(1, Ordering::SeqCst);
@@ -828,8 +825,8 @@ async fn test_particle_gibbs_reference_trajectory() {
         .mount(&server)
         .await;
 
-    let sg = its_hub_rs::step_generation::StepGeneration::with_step_token(
-        its_hub_rs::step_generation::StepToken::Single("\n".to_string()),
+    let sg = its_hub_rs::core::lms::step_generation::StepGeneration::with_step_token(
+        its_hub_rs::core::lms::step_generation::StepToken::Single("\n".to_string()),
         1,
         None,
         0.8,
@@ -852,7 +849,7 @@ async fn test_particle_gibbs_reference_trajectory() {
         TemperatureMethod::Ess,
     );
 
-    let client = LmBackend::OpenAI(LmClient::new(
+    let client = LmClient::new(
         &format!("{}/v1", server.uri()),
         None,
         "test-model",
@@ -861,7 +858,7 @@ async fn test_particle_gibbs_reference_trajectory() {
         None,
         None,
     )
-    .unwrap());
+    .unwrap();
 
     let messages = vec![user_message("Solve this:")];
 
@@ -871,7 +868,7 @@ async fn test_particle_gibbs_reference_trajectory() {
         .unwrap();
 
     match result {
-        its_hub_rs::algorithms::AlgorithmOutput::Full { metadata, .. } => {
+        its_hub_rs::AlgorithmOutput::Full { metadata, .. } => {
             let rl = metadata["responses_lst"].as_array().unwrap();
             assert_eq!(rl.len(), 2, "2 iterations expected");
             let ril = metadata["ref_indices_lst"].as_array().unwrap();
@@ -889,9 +886,8 @@ async fn test_particle_gibbs_reference_trajectory() {
 
 #[tokio::test]
 async fn test_particle_filtering_flattened_output() {
-    use its_hub_rs::algorithms::particle_gibbs::{ParticleFiltering, SelectionMethod, ResamplingMethod};
-    use its_hub_rs::algorithms::ProcessRewardModel;
-    use its_hub_rs::chat_messages::ChatMessages;
+    use its_hub_rs::core::algorithms::particle_gibbs::{ParticleFiltering, SelectionMethod, ResamplingMethod};
+    use its_hub_rs::ProcessRewardModel;
     use std::sync::Arc;
 
     struct FixedPRM;
@@ -900,7 +896,7 @@ async fn test_particle_filtering_flattened_output() {
     impl ProcessRewardModel for FixedPRM {
         async fn score(
             &self,
-            _prompt: &ChatMessages,
+            _prompt_messages: &[ChatMessage],
             _steps: &[String],
         ) -> Result<Vec<f64>, anyhow::Error> {
             Ok(vec![0.7])
@@ -915,8 +911,8 @@ async fn test_particle_filtering_flattened_output() {
         .mount(&server)
         .await;
 
-    let sg = its_hub_rs::step_generation::StepGeneration::with_step_token(
-        its_hub_rs::step_generation::StepToken::Single("\n".to_string()),
+    let sg = its_hub_rs::core::lms::step_generation::StepGeneration::with_step_token(
+        its_hub_rs::core::lms::step_generation::StepToken::Single("\n".to_string()),
         1,
         None,
         0.8,
@@ -925,7 +921,7 @@ async fn test_particle_filtering_flattened_output() {
     );
     let pf = ParticleFiltering::new(sg, Arc::new(FixedPRM), SelectionMethod::Argmax, ResamplingMethod::Multinomial);
 
-    let client = LmBackend::OpenAI(LmClient::new(
+    let client = LmClient::new(
         &format!("{}/v1", server.uri()),
         None,
         "test-model",
@@ -934,7 +930,7 @@ async fn test_particle_filtering_flattened_output() {
         None,
         None,
     )
-    .unwrap());
+    .unwrap();
 
     let messages = vec![user_message("Solve this:")];
 
@@ -944,7 +940,7 @@ async fn test_particle_filtering_flattened_output() {
         .unwrap();
 
     match result {
-        its_hub_rs::algorithms::AlgorithmOutput::Full { selected, metadata } => {
+        its_hub_rs::AlgorithmOutput::Full { selected, metadata } => {
             assert_eq!(selected["role"], "assistant");
             assert_eq!(metadata["algorithm"], "particle-filtering");
             let responses = metadata["responses"].as_array().unwrap();
@@ -962,8 +958,8 @@ async fn test_particle_filtering_flattened_output() {
 
 #[tokio::test]
 async fn test_planning_wrapper_with_self_consistency() {
-    use its_hub_rs::algorithms::planning_wrapper::PlanningWrapper;
-    use its_hub_rs::algorithms::self_consistency::SelfConsistency;
+    use its_hub_rs::PlanningWrapper;
+    use its_hub_rs::SelfConsistency;
 
     let server = MockServer::start().await;
 
@@ -1012,7 +1008,7 @@ async fn test_planning_wrapper_with_self_consistency() {
         .mount(&server)
         .await;
 
-    let client = LmBackend::OpenAI(LmClient::new(
+    let client = LmClient::new(
         &format!("{}/v1", server.uri()),
         None,
         "test-model",
@@ -1021,7 +1017,7 @@ async fn test_planning_wrapper_with_self_consistency() {
         None,
         None,
     )
-    .unwrap());
+    .unwrap();
 
     let sc = SelfConsistency::new(None, None).unwrap();
     let pw = PlanningWrapper::new(Box::new(sc));
@@ -1034,7 +1030,7 @@ async fn test_planning_wrapper_with_self_consistency() {
         .unwrap();
 
     match result {
-        its_hub_rs::algorithms::AlgorithmOutput::Full { selected, metadata } => {
+        its_hub_rs::AlgorithmOutput::Full { selected, metadata } => {
             assert!(selected.get("content").is_some());
             assert_eq!(metadata["algorithm"], "planning-wrapper");
             assert!(metadata.get("plan").is_some());
@@ -1051,7 +1047,7 @@ async fn test_planning_wrapper_with_self_consistency() {
 
 #[tokio::test]
 async fn test_planning_wrapper_with_best_of_n() {
-    use its_hub_rs::algorithms::planning_wrapper::PlanningWrapper;
+    use its_hub_rs::PlanningWrapper;
 
     let server = MockServer::start().await;
 
@@ -1107,7 +1103,7 @@ async fn test_planning_wrapper_with_best_of_n() {
         .mount(&orm_server)
         .await;
 
-    let client = LmBackend::OpenAI(LmClient::new(
+    let client = LmClient::new(
         &format!("{}/v1", server.uri()),
         None,
         "test-model",
@@ -1116,9 +1112,9 @@ async fn test_planning_wrapper_with_best_of_n() {
         None,
         None,
     )
-    .unwrap());
+    .unwrap();
 
-    let orm = its_hub_rs::algorithms::best_of_n::HttpOrmClient::new(&orm_server.uri());
+    let orm = its_hub_rs::HttpOrmClient::new(&orm_server.uri());
     let bon = BestOfN::new(Box::new(orm));
     let pw = PlanningWrapper::new(Box::new(bon));
 
@@ -1130,7 +1126,7 @@ async fn test_planning_wrapper_with_best_of_n() {
         .unwrap();
 
     match result {
-        its_hub_rs::algorithms::AlgorithmOutput::ResponseOnly(selected) => {
+        its_hub_rs::AlgorithmOutput::ResponseOnly(selected) => {
             assert!(selected.get("content").is_some());
         }
         _ => panic!("expected ResponseOnly"),
@@ -1141,8 +1137,8 @@ async fn test_planning_wrapper_with_best_of_n() {
 
 #[tokio::test]
 async fn test_mixed_responses_with_and_without_tool_calls() {
-    use its_hub_rs::algorithms::self_consistency::{SelfConsistency, ToolVoteStrategy};
-    use its_hub_rs::algorithms::AlgorithmOutput;
+    use its_hub_rs::core::algorithms::self_consistency::{SelfConsistency, ToolVoteStrategy};
+    use its_hub_rs::AlgorithmOutput;
 
     let sc = SelfConsistency::new(None, Some(ToolVoteStrategy::Name)).unwrap();
 
@@ -1186,8 +1182,8 @@ async fn test_mixed_responses_with_and_without_tool_calls() {
 
 #[tokio::test]
 async fn test_fallback_to_content_voting_when_no_tool_calls() {
-    use its_hub_rs::algorithms::self_consistency::{SelfConsistency, ToolVoteStrategy};
-    use its_hub_rs::algorithms::AlgorithmOutput;
+    use its_hub_rs::core::algorithms::self_consistency::{SelfConsistency, ToolVoteStrategy};
+    use its_hub_rs::AlgorithmOutput;
 
     let sc = SelfConsistency::new(
         Some(vec![r"Answer: (\d+)".into()]),
@@ -1232,7 +1228,7 @@ async fn test_batch_generation_fan_out() {
             .await;
     }
 
-    let client = LmBackend::OpenAI(LmClient::new(
+    let client = LmClient::new(
         &format!("{}/v1", server.uri()),
         None,
         "test-model",
@@ -1241,7 +1237,7 @@ async fn test_batch_generation_fan_out() {
         None,
         None,
     )
-    .unwrap());
+    .unwrap();
 
     let messages = vec![user_message("Hello")];
     let results = client.fan_out(&messages, 3, Some(0.7), None, None, None).await;
@@ -1267,7 +1263,7 @@ async fn test_concurrency_control_fan_out() {
         .mount(&server)
         .await;
 
-    let client = LmBackend::OpenAI(LmClient::new(
+    let client = LmClient::new(
         &format!("{}/v1", server.uri()),
         None,
         "test-model",
@@ -1276,7 +1272,7 @@ async fn test_concurrency_control_fan_out() {
         None,
         None,
     )
-    .unwrap());
+    .unwrap();
 
     let messages = vec![user_message("test")];
     let results = client.fan_out(&messages, 5, None, None, None, None).await;
@@ -1304,7 +1300,7 @@ async fn test_replace_error_with_message() {
         .mount(&server)
         .await;
 
-    let client = LmBackend::OpenAI(LmClient::new(
+    let client = LmClient::new(
         &format!("{}/v1", server.uri()),
         None,
         "test-model",
@@ -1313,7 +1309,7 @@ async fn test_replace_error_with_message() {
         None,
         None,
     )
-    .unwrap());
+    .unwrap();
 
     let sc = SelfConsistency::with_error_replacement(
         None,
@@ -1330,7 +1326,7 @@ async fn test_replace_error_with_message() {
 
     assert!(result.is_ok(), "should succeed with partial error replacement");
     match result.unwrap() {
-        its_hub_rs::algorithms::AlgorithmOutput::Full { metadata, .. } => {
+        its_hub_rs::AlgorithmOutput::Full { metadata, .. } => {
             let all_responses = metadata["all_responses"].as_array().unwrap();
             let has_error = all_responses.iter().any(|r| {
                 r["content"]
@@ -1367,7 +1363,7 @@ async fn test_replace_error_with_message_batch() {
         .mount(&server)
         .await;
 
-    let client = LmBackend::OpenAI(LmClient::new(
+    let client = LmClient::new(
         &format!("{}/v1", server.uri()),
         None,
         "test-model",
@@ -1376,7 +1372,7 @@ async fn test_replace_error_with_message_batch() {
         None,
         None,
     )
-    .unwrap());
+    .unwrap();
 
     let sc = SelfConsistency::with_error_replacement(
         None,
@@ -1393,7 +1389,7 @@ async fn test_replace_error_with_message_batch() {
 
     assert!(result.is_ok(), "batch with some errors should succeed");
     match result.unwrap() {
-        its_hub_rs::algorithms::AlgorithmOutput::Full { metadata, .. } => {
+        its_hub_rs::AlgorithmOutput::Full { metadata, .. } => {
             let all_responses = metadata["all_responses"].as_array().unwrap();
             assert_eq!(all_responses.len(), 4);
             let error_count = all_responses
@@ -1423,7 +1419,7 @@ async fn test_generate_scenarios_simple_chat() {
         .mount(&server)
         .await;
 
-    let client = LmBackend::OpenAI(LmClient::new(
+    let client = LmClient::new(
         &format!("{}/v1", server.uri()),
         None,
         "test-model",
@@ -1432,7 +1428,7 @@ async fn test_generate_scenarios_simple_chat() {
         None,
         None,
     )
-    .unwrap());
+    .unwrap();
 
     let messages = vec![user_message("Hello, world!")];
     let response = client
@@ -1454,7 +1450,7 @@ async fn test_generate_scenarios_with_system_prompt() {
         .mount(&server)
         .await;
 
-    let client = LmBackend::OpenAI(LmClient::new(
+    let client = LmClient::new(
         &format!("{}/v1", server.uri()),
         None,
         "test-model",
@@ -1463,7 +1459,7 @@ async fn test_generate_scenarios_with_system_prompt() {
         Some("You are a math tutor.".to_string()),
         None,
     )
-    .unwrap());
+    .unwrap();
 
     let messages = vec![user_message("What is 2+2?")];
     let response = client
@@ -1497,7 +1493,7 @@ async fn test_self_consistency_with_tool_call_responses() {
             .await;
     }
 
-    let client = LmBackend::OpenAI(LmClient::new(
+    let client = LmClient::new(
         &format!("{}/v1", server.uri()),
         None,
         "test-model",
@@ -1506,9 +1502,9 @@ async fn test_self_consistency_with_tool_call_responses() {
         None,
         None,
     )
-    .unwrap());
+    .unwrap();
 
-    use its_hub_rs::algorithms::self_consistency::ToolVoteStrategy;
+    use its_hub_rs::core::algorithms::self_consistency::ToolVoteStrategy;
     let sc = SelfConsistency::new(None, Some(ToolVoteStrategy::Name)).unwrap();
     let messages = vec![user_message("Use a tool")];
 
@@ -1518,7 +1514,7 @@ async fn test_self_consistency_with_tool_call_responses() {
         .unwrap();
 
     match result {
-        its_hub_rs::algorithms::AlgorithmOutput::Full { selected, metadata } => {
+        its_hub_rs::AlgorithmOutput::Full { selected, metadata } => {
             let tool_name = selected["tool_calls"][0]["function"]["name"]
                 .as_str()
                 .unwrap();

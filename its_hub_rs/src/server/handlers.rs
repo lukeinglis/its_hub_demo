@@ -6,23 +6,22 @@ use axum::Json;
 use serde_json::json;
 use tracing::info;
 
-use crate::algorithms::beam_search::BeamSearch;
-use crate::algorithms::best_of_n::{BestOfN, HttpOrmClient};
-use crate::algorithms::particle_gibbs::{
-    EntropicParticleFiltering, ParticleFiltering, ParticleGibbs, ResamplingMethod,
-    SelectionMethod, TemperatureMethod,
-};
-use crate::algorithms::planning_wrapper::PlanningWrapper;
-use crate::algorithms::self_consistency::{SelfConsistency, ToolVoteStrategy};
-use crate::algorithms::AlgorithmOutput;
-use crate::client::litellm::LiteLLMClient;
-use crate::client::{LmBackend, LmClient};
-use crate::integration::reward_models::{HttpProcessRewardModel, LlmJudgeRewardModel};
-use crate::step_generation::{StepGeneration, StepToken};
-use crate::types::{
+use crate::api::algorithm::{AlgorithmOutput, ScalingAlgorithm};
+use crate::api::types::{
     ChatCompletionChoice, ChatCompletionRequest, ChatCompletionResponse, ChatCompletionUsage,
     ConfigRequest, ConfigResponse, ModelInfo, ModelsResponse,
 };
+use crate::core::algorithms::beam_search::BeamSearch;
+use crate::core::algorithms::best_of_n::{BestOfN, HttpOrmClient};
+use crate::core::algorithms::particle_gibbs::{
+    EntropicParticleFiltering, ParticleFiltering, ParticleGibbs, ResamplingMethod,
+    SelectionMethod, TemperatureMethod,
+};
+use crate::core::algorithms::planning_wrapper::PlanningWrapper;
+use crate::core::algorithms::self_consistency::{SelfConsistency, ToolVoteStrategy};
+use crate::core::lms::step_generation::{StepGeneration, StepToken};
+use crate::core::lms::LmClient;
+use crate::core::reward_models::{HttpProcessRewardModel, LlmJudgeRewardModel};
 
 use super::error::AppError;
 use super::state::{AlgorithmConfig, AppState};
@@ -33,7 +32,7 @@ pub async fn configure(
 ) -> Result<Json<ConfigResponse>, AppError> {
     let alg_name = config.alg.clone();
 
-    let algorithm: Arc<dyn crate::algorithms::ScalingAlgorithm> = match alg_name.as_str() {
+    let algorithm: Arc<dyn ScalingAlgorithm> = match alg_name.as_str() {
         "self-consistency" => {
             let tool_vote = config.tool_vote.as_deref().map(|tv| match tv {
                 "tool_name" => ToolVoteStrategy::Name,
@@ -68,18 +67,17 @@ pub async fn configure(
                 let judge_temp = config.judge_temperature.unwrap_or(0.0);
                 let judge_max = config.judge_max_tokens.unwrap_or(4096);
 
-                let judge_client = LiteLLMClient::new(
-                    judge_model,
-                    "openai",
+                let judge_base_url = config.judge_base_url.as_deref()
+                    .unwrap_or(&config.endpoint);
+
+                let judge_client = LmClient::new(
+                    judge_base_url,
                     config.judge_api_key.as_deref().or(config.api_key.as_deref()),
-                    config.judge_base_url.as_deref().or(Some(&config.endpoint)),
-                    None,
+                    judge_model,
                     8,
                     3,
                     None,
                     None,
-                    None,
-                    std::collections::HashMap::new(),
                 )
                 .map_err(|e| AppError::BadRequest(format!("failed to create judge client: {}", e)))?;
 
@@ -228,7 +226,7 @@ pub async fn configure(
                 .as_deref()
                 .ok_or_else(|| AppError::BadRequest("inner_alg required for planning-wrapper".into()))?;
 
-            let inner: Box<dyn crate::algorithms::ScalingAlgorithm> = match inner_alg_name {
+            let inner: Box<dyn ScalingAlgorithm> = match inner_alg_name {
                 "self-consistency" => {
                     let tool_vote = config.tool_vote.as_deref().map(|tv| match tv {
                         "tool_name" => ToolVoteStrategy::Name,
@@ -278,35 +276,16 @@ pub async fn configure(
 
     let max_concurrency = config.max_concurrent_requests.unwrap_or(64);
 
-    let backend: std::sync::Arc<dyn crate::api::lm::AbstractLanguageModel> = if config.provider == "litellm" {
-        let litellm_client = LiteLLMClient::new(
-            &config.model,
-            "openai",
-            config.api_key.as_deref(),
-            Some(&config.endpoint),
-            config.system_prompt.clone(),
-            max_concurrency,
-            8,
-            config.temperature,
-            config.max_tokens,
-            config.stop.clone(),
-            std::collections::HashMap::new(),
-        )
-        .map_err(|e| AppError::BadRequest(format!("failed to create LiteLLM client: {}", e)))?;
-        std::sync::Arc::new(LmBackend::LiteLLM(litellm_client)) as std::sync::Arc<dyn crate::api::lm::AbstractLanguageModel>
-    } else {
-        let lm_client = LmClient::new(
-            &config.endpoint,
-            config.api_key.as_deref(),
-            &config.model,
-            max_concurrency,
-            8,
-            config.system_prompt.clone(),
-            config.include_stop_str_in_output,
-        )
-        .map_err(|e| AppError::BadRequest(format!("failed to create LM client: {}", e)))?;
-        std::sync::Arc::new(LmBackend::OpenAI(lm_client)) as std::sync::Arc<dyn crate::api::lm::AbstractLanguageModel>
-    };
+    let lm_client = LmClient::new(
+        &config.endpoint,
+        config.api_key.as_deref(),
+        &config.model,
+        max_concurrency,
+        8,
+        config.system_prompt.clone(),
+        config.include_stop_str_in_output,
+    )
+    .map_err(|e| AppError::BadRequest(format!("failed to create LM client: {}", e)))?;
 
     let model_name = config.model.clone();
 
@@ -320,7 +299,7 @@ pub async fn configure(
 
     {
         let mut clients_lock = state.clients.write().await;
-        clients_lock.insert(model_name.clone(), backend);
+        clients_lock.insert(model_name.clone(), Arc::new(lm_client));
     }
 
     info!(model = %model_name, algorithm = %alg_name, "configured");
@@ -367,8 +346,6 @@ pub async fn chat_completions(
         )));
     }
 
-    // Clone Arc'd values and drop locks before the inference await to avoid
-    // holding RwLock read guards across network I/O.
     let algorithm = {
         let alg_lock = state.algorithm.read().await;
         let alg_config = alg_lock.as_ref().ok_or(AppError::NotConfigured)?;
@@ -391,7 +368,7 @@ pub async fn chat_completions(
 
     let output = algorithm
         .infer(
-            client.as_ref(),
+            &client,
             &request.messages,
             request.budget,
             request.return_response_only,

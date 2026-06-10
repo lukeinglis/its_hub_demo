@@ -5,10 +5,19 @@ use rand::distributions::WeightedIndex;
 use rand::prelude::*;
 use serde_json::Value;
 
-use crate::api::{AbstractLanguageModel, AlgorithmOutput, ProcessRewardModel, ScalingAlgorithm};
-use crate::api::types::ChatMessages;
+use crate::api::{AlgorithmOutput, ProcessRewardModel, ScalingAlgorithm};
 use crate::core::lms::step_generation::StepGeneration;
+use crate::core::lms::LmClient;
 use crate::api::types::ChatMessage;
+
+/// Convert a slice of ChatMessage into a single prompt string for step-generation.
+fn messages_to_prompt(messages: &[ChatMessage]) -> String {
+    messages
+        .iter()
+        .map(|m| format!("{}: {}", m.role, m.extract_text_content()))
+        .collect::<Vec<_>>()
+        .join("\n")
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SelectionMethod {
@@ -181,7 +190,7 @@ impl ParticleGibbs {
     #[allow(clippy::too_many_arguments)]
     async fn propagate(
         &self,
-        client: &dyn AbstractLanguageModel,
+        client: &LmClient,
         particles: &mut [Particle],
         prompt: &str,
         temperature: Option<f64>,
@@ -223,11 +232,16 @@ impl ParticleGibbs {
             particles[idx].is_stopped = *is_stopped || particles[idx].steps.len() >= max_steps;
         }
 
-        let chat_messages = ChatMessages::from_string(prompt);
+        let prompt_messages = &[ChatMessage {
+            role: "user".to_string(),
+            content: Some(crate::api::types::Content::Text(prompt.to_string())),
+            tool_calls: None,
+            tool_call_id: None,
+        }];
         for &idx in active_indices.iter() {
             let processed = self.sg.post_process(&particles[idx].steps, true);
             let steps = vec![processed];
-            let scores = self.prm.score(&chat_messages, &steps).await?;
+            let scores = self.prm.score(prompt_messages, &steps).await?;
             let score = scores.last().copied().unwrap_or(0.5);
             particles[idx].partial_log_weights.push(inv_sigmoid(score));
         }
@@ -303,7 +317,7 @@ impl ParticleGibbs {
 impl ScalingAlgorithm for ParticleGibbs {
     async fn infer(
         &self,
-        client: &dyn AbstractLanguageModel,
+        client: &LmClient,
         messages: &[ChatMessage],
         budget: u32,
         return_response_only: bool,
@@ -318,8 +332,7 @@ impl ScalingAlgorithm for ParticleGibbs {
         }
 
         let num_particles = budget / self.num_iterations;
-        let chat_messages = ChatMessages::from_messages(messages.to_vec());
-        let prompt = chat_messages.to_prompt();
+        let prompt = messages_to_prompt(messages);
 
         let mut ref_particles: Vec<Particle> = Vec::new();
         let mut responses_lst: Vec<Vec<Value>> = Vec::new();
@@ -479,7 +492,7 @@ impl ParticleFiltering {
 impl ScalingAlgorithm for ParticleFiltering {
     async fn infer(
         &self,
-        client: &dyn AbstractLanguageModel,
+        client: &LmClient,
         messages: &[ChatMessage],
         budget: u32,
         return_response_only: bool,
@@ -567,7 +580,7 @@ impl EntropicParticleFiltering {
 impl ScalingAlgorithm for EntropicParticleFiltering {
     async fn infer(
         &self,
-        client: &dyn AbstractLanguageModel,
+        client: &LmClient,
         messages: &[ChatMessage],
         budget: u32,
         return_response_only: bool,
@@ -623,7 +636,6 @@ impl ScalingAlgorithm for EntropicParticleFiltering {
 mod tests {
     use super::*;
     use std::sync::atomic::{AtomicUsize, Ordering};
-    use crate::core::lms::LmBackend;
 
     struct MockPRM {
         scores: Vec<f64>,
@@ -643,7 +655,7 @@ mod tests {
     impl ProcessRewardModel for MockPRM {
         async fn score(
             &self,
-            _prompt_or_messages: &ChatMessages,
+            _prompt_messages: &[ChatMessage],
             _steps: &[String],
         ) -> Result<Vec<f64>, anyhow::Error> {
             let idx = self.call_count.fetch_add(1, Ordering::SeqCst);
@@ -652,25 +664,23 @@ mod tests {
         }
     }
 
-    fn make_client(server_uri: &str) -> LmBackend {
-        LmBackend::OpenAI(
-            crate::client::LmClient::new(
-                &format!("{}/v1", server_uri),
-                Some("test-key"),
-                "test-model",
-                8,
-                3,
-                None,
-                None,
-            )
-            .unwrap(),
+    fn make_client(server_uri: &str) -> LmClient {
+        LmClient::new(
+            &format!("{}/v1", server_uri),
+            Some("test-key"),
+            "test-model",
+            8,
+            3,
+            None,
+            None,
         )
+        .unwrap()
     }
 
     fn user_message(text: &str) -> ChatMessage {
         ChatMessage {
             role: "user".to_string(),
-            content: Some(crate::types::Content::Text(text.to_string())),
+            content: Some(crate::api::types::Content::Text(text.to_string())),
             tool_calls: None,
             tool_call_id: None,
         }
@@ -679,7 +689,7 @@ mod tests {
     fn system_message(text: &str) -> ChatMessage {
         ChatMessage {
             role: "system".to_string(),
-            content: Some(crate::types::Content::Text(text.to_string())),
+            content: Some(crate::api::types::Content::Text(text.to_string())),
             tool_calls: None,
             tool_call_id: None,
         }
@@ -845,7 +855,7 @@ mod tests {
     #[test]
     fn test_temperature_ess() {
         let sg = StepGeneration::with_step_token(
-            crate::step_generation::StepToken::Single("\n".to_string()),
+            crate::core::lms::step_generation::StepToken::Single("\n".to_string()),
             3,
             None,
             0.8,
@@ -876,7 +886,7 @@ mod tests {
     #[test]
     fn test_temperature_entropy() {
         let sg = StepGeneration::with_step_token(
-            crate::step_generation::StepToken::Single("\n".to_string()),
+            crate::core::lms::step_generation::StepToken::Single("\n".to_string()),
             3,
             None,
             0.8,
@@ -908,7 +918,7 @@ mod tests {
     #[test]
     fn test_temperature_base() {
         let sg = StepGeneration::with_step_token(
-            crate::step_generation::StepToken::Single("\n".to_string()),
+            crate::core::lms::step_generation::StepToken::Single("\n".to_string()),
             3,
             None,
             0.8,
@@ -944,7 +954,7 @@ mod tests {
         let client = make_client(&server.uri());
 
         let sg = StepGeneration::with_step_token(
-            crate::step_generation::StepToken::Single("\n".to_string()),
+            crate::core::lms::step_generation::StepToken::Single("\n".to_string()),
             1,
             None,
             0.8,
@@ -991,7 +1001,7 @@ mod tests {
             .await;
 
         let sg = StepGeneration::with_step_token(
-            crate::step_generation::StepToken::Single("\n".to_string()),
+            crate::core::lms::step_generation::StepToken::Single("\n".to_string()),
             1,
             None,
             0.8,
@@ -1045,7 +1055,7 @@ mod tests {
             .await;
 
         let sg = StepGeneration::with_step_token(
-            crate::step_generation::StepToken::Single("\n".to_string()),
+            crate::core::lms::step_generation::StepToken::Single("\n".to_string()),
             1,
             None,
             0.8,
@@ -1104,7 +1114,7 @@ mod tests {
             .await;
 
         let sg = StepGeneration::with_step_token(
-            crate::step_generation::StepToken::Single("\n".to_string()),
+            crate::core::lms::step_generation::StepToken::Single("\n".to_string()),
             1,
             None,
             0.8,
@@ -1162,7 +1172,7 @@ mod tests {
             .await;
 
         let sg = StepGeneration::with_step_token(
-            crate::step_generation::StepToken::Single("\n".to_string()),
+            crate::core::lms::step_generation::StepToken::Single("\n".to_string()),
             1,
             None,
             0.8,
@@ -1218,7 +1228,7 @@ mod tests {
             .await;
 
         let sg = StepGeneration::with_step_token(
-            crate::step_generation::StepToken::Single("\n".to_string()),
+            crate::core::lms::step_generation::StepToken::Single("\n".to_string()),
             1,
             None,
             0.8,
@@ -1263,7 +1273,7 @@ mod tests {
             .await;
 
         let sg = StepGeneration::with_step_token(
-            crate::step_generation::StepToken::Single("\n".to_string()),
+            crate::core::lms::step_generation::StepToken::Single("\n".to_string()),
             1,
             None,
             0.8,
@@ -1305,7 +1315,7 @@ mod tests {
             .await;
 
         let sg = StepGeneration::with_step_token(
-            crate::step_generation::StepToken::Single("\n".to_string()),
+            crate::core::lms::step_generation::StepToken::Single("\n".to_string()),
             1,
             None,
             0.8,
@@ -1355,7 +1365,7 @@ mod tests {
             .await;
 
         let sg = StepGeneration::with_step_token(
-            crate::step_generation::StepToken::Single("\n".to_string()),
+            crate::core::lms::step_generation::StepToken::Single("\n".to_string()),
             1,
             None,
             0.8,
@@ -1410,7 +1420,7 @@ mod tests {
             .await;
 
         let sg = StepGeneration::with_step_token(
-            crate::step_generation::StepToken::Single("\n".to_string()),
+            crate::core::lms::step_generation::StepToken::Single("\n".to_string()),
             3,
             None,
             0.8,
@@ -1461,7 +1471,7 @@ mod tests {
             .await;
 
         let sg = StepGeneration::with_step_token(
-            crate::step_generation::StepToken::Single("\n".to_string()),
+            crate::core::lms::step_generation::StepToken::Single("\n".to_string()),
             3,
             None,
             0.8,

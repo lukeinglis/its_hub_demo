@@ -3,10 +3,19 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use serde_json::Value;
 
-use crate::api::{AbstractLanguageModel, AlgorithmOutput, ProcessRewardModel, ScalingAlgorithm};
-use crate::api::types::ChatMessages;
+use crate::api::{AlgorithmOutput, ProcessRewardModel, ScalingAlgorithm};
 use crate::core::lms::step_generation::StepGeneration;
+use crate::core::lms::LmClient;
 use crate::api::types::ChatMessage;
+
+/// Convert a slice of ChatMessage into a single prompt string for step-generation.
+fn messages_to_prompt(messages: &[ChatMessage]) -> String {
+    messages
+        .iter()
+        .map(|m| format!("{}: {}", m.role, m.extract_text_content()))
+        .collect::<Vec<_>>()
+        .join("\n")
+}
 
 #[derive(Debug, Clone)]
 pub struct Path {
@@ -57,7 +66,7 @@ impl BeamSearch {
     #[allow(clippy::too_many_arguments)]
     async fn search_one_level(
         &self,
-        client: &dyn AbstractLanguageModel,
+        client: &LmClient,
         candidates: &mut [Path],
         prompt: &str,
         temperature: Option<f64>,
@@ -101,8 +110,13 @@ impl BeamSearch {
             score_inputs.push(self.sg.post_process(&c.steps, true));
         }
 
-        let chat_messages = ChatMessages::from_string(prompt);
-        let scores = self.score_batch(&chat_messages, &score_inputs).await?;
+        let prompt_messages = &[ChatMessage {
+            role: "user".to_string(),
+            content: Some(crate::api::types::Content::Text(prompt.to_string())),
+            tool_calls: None,
+            tool_call_id: None,
+        }];
+        let scores = self.score_batch(prompt_messages, &score_inputs).await?;
 
         let mut i = 0;
         for (c, &stopped) in candidates.iter_mut().zip(was_stopped.iter()) {
@@ -119,7 +133,7 @@ impl BeamSearch {
     #[allow(clippy::too_many_arguments)]
     async fn forward_steps(
         &self,
-        client: &dyn AbstractLanguageModel,
+        client: &LmClient,
         prompts: &[&str],
         steps_so_far: &[&[String]],
         temperature: Option<f64>,
@@ -142,13 +156,13 @@ impl BeamSearch {
 
     async fn score_batch(
         &self,
-        chat_messages: &ChatMessages,
+        prompt_messages: &[ChatMessage],
         responses: &[String],
     ) -> Result<Vec<f64>, anyhow::Error> {
         let mut scores = Vec::with_capacity(responses.len());
         for response in responses {
             let steps = vec![response.clone()];
-            let step_scores = self.prm.score(chat_messages, &steps).await?;
+            let step_scores = self.prm.score(prompt_messages, &steps).await?;
             let score = step_scores.last().copied().unwrap_or(0.0);
             scores.push(score);
         }
@@ -160,7 +174,7 @@ impl BeamSearch {
 impl ScalingAlgorithm for BeamSearch {
     async fn infer(
         &self,
-        client: &dyn AbstractLanguageModel,
+        client: &LmClient,
         messages: &[ChatMessage],
         budget: u32,
         return_response_only: bool,
@@ -181,8 +195,7 @@ impl ScalingAlgorithm for BeamSearch {
 
         let num_beams = budget / bw;
 
-        let chat_messages = ChatMessages::from_messages(messages.to_vec());
-        let prompt = chat_messages.to_prompt();
+        let prompt = messages_to_prompt(messages);
 
         let mut candidates: Vec<Path> = (0..num_beams).map(|_| Path::new()).collect();
 
@@ -258,7 +271,6 @@ impl ScalingAlgorithm for BeamSearch {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core::lms::LmBackend;
     use std::sync::atomic::{AtomicUsize, Ordering};
 
     struct MockPRM {
@@ -279,7 +291,7 @@ mod tests {
     impl ProcessRewardModel for MockPRM {
         async fn score(
             &self,
-            _prompt_or_messages: &ChatMessages,
+            _prompt_messages: &[ChatMessage],
             _steps: &[String],
         ) -> Result<Vec<f64>, anyhow::Error> {
             let idx = self.call_count.fetch_add(1, Ordering::SeqCst);
@@ -288,25 +300,23 @@ mod tests {
         }
     }
 
-    fn make_client(server_uri: &str) -> LmBackend {
-        LmBackend::OpenAI(
-            crate::client::LmClient::new(
-                &format!("{}/v1", server_uri),
-                Some("test-key"),
-                "test-model",
-                8,
-                3,
-                None,
-                None,
-            )
-            .unwrap(),
+    fn make_client(server_uri: &str) -> LmClient {
+        LmClient::new(
+            &format!("{}/v1", server_uri),
+            Some("test-key"),
+            "test-model",
+            8,
+            3,
+            None,
+            None,
         )
+        .unwrap()
     }
 
     fn user_message(text: &str) -> ChatMessage {
         ChatMessage {
             role: "user".to_string(),
-            content: Some(crate::types::Content::Text(text.to_string())),
+            content: Some(crate::api::types::Content::Text(text.to_string())),
             tool_calls: None,
             tool_call_id: None,
         }
@@ -315,7 +325,7 @@ mod tests {
     fn system_message(text: &str) -> ChatMessage {
         ChatMessage {
             role: "system".to_string(),
-            content: Some(crate::types::Content::Text(text.to_string())),
+            content: Some(crate::api::types::Content::Text(text.to_string())),
             tool_calls: None,
             tool_call_id: None,
         }
@@ -417,7 +427,7 @@ mod tests {
         let client = make_client(&server.uri());
 
         let sg = StepGeneration::with_step_token(
-            crate::step_generation::StepToken::Single("\n".to_string()),
+            crate::core::lms::step_generation::StepToken::Single("\n".to_string()),
             1,
             None,
             0.8,
@@ -446,7 +456,7 @@ mod tests {
         let client = make_client(&server.uri());
 
         let sg = StepGeneration::with_step_token(
-            crate::step_generation::StepToken::Single("\n".to_string()),
+            crate::core::lms::step_generation::StepToken::Single("\n".to_string()),
             1,
             None,
             0.8,
@@ -483,7 +493,7 @@ mod tests {
             .await;
 
         let sg = StepGeneration::with_step_token(
-            crate::step_generation::StepToken::Single("\n".to_string()),
+            crate::core::lms::step_generation::StepToken::Single("\n".to_string()),
             1,
             None,
             0.8,
@@ -526,7 +536,7 @@ mod tests {
             .await;
 
         let sg = StepGeneration::with_step_token(
-            crate::step_generation::StepToken::Single("\n".to_string()),
+            crate::core::lms::step_generation::StepToken::Single("\n".to_string()),
             1,
             None,
             0.8,
@@ -585,7 +595,7 @@ mod tests {
             .await;
 
         let sg = StepGeneration::with_step_token(
-            crate::step_generation::StepToken::Single("\n".to_string()),
+            crate::core::lms::step_generation::StepToken::Single("\n".to_string()),
             1,
             None,
             0.8,
@@ -627,7 +637,7 @@ mod tests {
             .await;
 
         let sg = StepGeneration::with_step_token(
-            crate::step_generation::StepToken::Single("\n".to_string()),
+            crate::core::lms::step_generation::StepToken::Single("\n".to_string()),
             1,
             None,
             0.8,
@@ -688,7 +698,7 @@ mod tests {
             .await;
 
         let sg = StepGeneration::with_step_token(
-            crate::step_generation::StepToken::Single("\n".to_string()),
+            crate::core::lms::step_generation::StepToken::Single("\n".to_string()),
             1,
             None,
             0.8,
@@ -740,7 +750,7 @@ mod tests {
             .await;
 
         let sg = StepGeneration::with_step_token(
-            crate::step_generation::StepToken::Single("\n".to_string()),
+            crate::core::lms::step_generation::StepToken::Single("\n".to_string()),
             10,
             None,
             0.8,
@@ -763,7 +773,7 @@ mod tests {
     #[test]
     fn test_post_process_integration() {
         let sg = StepGeneration::with_step_token(
-            crate::step_generation::StepToken::Single("\n".to_string()),
+            crate::core::lms::step_generation::StepToken::Single("\n".to_string()),
             5,
             None,
             0.8,
@@ -782,7 +792,7 @@ mod tests {
     #[test]
     fn test_beam_search_construction() {
         let sg = StepGeneration::with_step_token(
-            crate::step_generation::StepToken::Single("\n".to_string()),
+            crate::core::lms::step_generation::StepToken::Single("\n".to_string()),
             5,
             None,
             0.8,
@@ -798,7 +808,7 @@ mod tests {
     #[test]
     fn test_build_stop_string_with_step_token() {
         let sg = StepGeneration::with_step_token(
-            crate::step_generation::StepToken::Single("\n".to_string()),
+            crate::core::lms::step_generation::StepToken::Single("\n".to_string()),
             5,
             None,
             0.8,
@@ -822,7 +832,7 @@ mod tests {
     #[test]
     fn test_contains_stop_token() {
         let sg = StepGeneration::with_step_token(
-            crate::step_generation::StepToken::Single("\n".to_string()),
+            crate::core::lms::step_generation::StepToken::Single("\n".to_string()),
             5,
             Some("END".to_string()),
             0.8,
