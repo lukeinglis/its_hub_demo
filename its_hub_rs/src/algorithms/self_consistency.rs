@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use async_trait::async_trait;
 use rand::Rng;
-use regex::Regex;
+use regex::{Regex, RegexBuilder};
 use serde_json::Value;
 use tracing::warn;
 
@@ -32,6 +32,7 @@ pub enum Projection {
 pub struct SelfConsistency {
     projection: Projection,
     tool_vote: Option<ToolVoteStrategy>,
+    replace_error_with_message: Option<String>,
 }
 
 impl SelfConsistency {
@@ -39,10 +40,25 @@ impl SelfConsistency {
         regex_patterns: Option<Vec<String>>,
         tool_vote: Option<ToolVoteStrategy>,
     ) -> Result<Self, anyhow::Error> {
+        Self::with_error_replacement(regex_patterns, tool_vote, None)
+    }
+
+    pub fn with_error_replacement(
+        regex_patterns: Option<Vec<String>>,
+        tool_vote: Option<ToolVoteStrategy>,
+        replace_error_with_message: Option<String>,
+    ) -> Result<Self, anyhow::Error> {
         let projection = match regex_patterns {
             Some(patterns) if !patterns.is_empty() => {
-                let compiled: Result<Vec<Regex>, _> =
-                    patterns.iter().map(|p| Regex::new(p)).collect();
+                let compiled: Result<Vec<Regex>, _> = patterns
+                    .iter()
+                    .map(|p| {
+                        RegexBuilder::new(p)
+                            .case_insensitive(true)
+                            .dot_matches_new_line(true)
+                            .build()
+                    })
+                    .collect();
                 Projection::Regex(compiled?)
             }
             _ => Projection::Default,
@@ -51,6 +67,7 @@ impl SelfConsistency {
         Ok(Self {
             projection,
             tool_vote,
+            replace_error_with_message,
         })
     }
 
@@ -122,7 +139,22 @@ impl SelfConsistency {
 
         match strategy {
             ToolVoteStrategy::Name => ProjectedValue::Single(function_name),
-            ToolVoteStrategy::Args { .. } => ProjectedValue::Single(Some(canonical_args)),
+            ToolVoteStrategy::Args { .. } => {
+                let mut pairs: Vec<Option<String>> = Vec::new();
+                if let Value::Object(map) = &filtered_args {
+                    let mut sorted_keys: Vec<&String> = map.keys().collect();
+                    sorted_keys.sort();
+                    for key in sorted_keys {
+                        let val = &map[key];
+                        pairs.push(Some(format!("{}={}", key, canonical_json(val))));
+                    }
+                }
+                if pairs.is_empty() {
+                    ProjectedValue::Tuple(vec![])
+                } else {
+                    ProjectedValue::Tuple(pairs)
+                }
+            }
             ToolVoteStrategy::Hierarchical { .. } => {
                 ProjectedValue::Tuple(vec![function_name, Some(canonical_args)])
             }
@@ -237,12 +269,31 @@ impl ScalingAlgorithm for SelfConsistency {
             .fan_out(messages, budget, temperature, max_tokens, tools, tool_choice)
             .await;
 
+        let fallback_msg = self
+            .replace_error_with_message
+            .as_deref()
+            .unwrap_or("Error during generation");
+
         let mut responses = Vec::new();
+        let mut all_failed = true;
         for result in results {
             match result {
-                Ok(msg) => responses.push(msg),
-                Err(e) => return Err(anyhow::anyhow!("fan-out request failed: {}", e)),
+                Ok(msg) => {
+                    all_failed = false;
+                    responses.push(msg);
+                }
+                Err(e) => {
+                    warn!(error = %e, "fan-out request failed, substituting error response");
+                    responses.push(serde_json::json!({
+                        "role": "assistant",
+                        "content": format!("{}: {}", fallback_msg, e)
+                    }));
+                }
             }
+        }
+
+        if all_failed {
+            anyhow::bail!("all fan-out requests failed");
         }
 
         self.process_responses(responses, return_response_only)
@@ -623,6 +674,14 @@ mod tests {
 
         assert_eq!(pv1, pv2, "excluded timestamp should make these equal");
         assert_ne!(pv1, pv3, "different city should differ");
+
+        match &pv1 {
+            ProjectedValue::Tuple(pairs) => {
+                assert_eq!(pairs.len(), 1);
+                assert_eq!(pairs[0], Some("city=\"London\"".to_string()));
+            }
+            _ => panic!("tool_args should return Tuple"),
+        }
     }
 
     #[test]

@@ -7,6 +7,7 @@ use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION, CONTENT_TYPE};
 use serde_json::Value;
 use tokio::sync::Semaphore;
 use tokio::task::JoinSet;
+use rand::Rng;
 use tracing::{debug, warn};
 
 use crate::types::{ChatMessage, LmClientError};
@@ -204,7 +205,8 @@ impl LmClient {
                         error = %e,
                         "retryable error, backing off"
                     );
-                    tokio::time::sleep(delay).await;
+                    let jitter = Duration::from_millis(rand::thread_rng().gen_range(0..1000));
+                    tokio::time::sleep(delay + jitter).await;
                     delay = (delay * 2).min(max_delay);
                 }
             }
@@ -281,7 +283,8 @@ async fn retry_single_request(
                     return Err(e);
                 }
                 warn!(attempt, error = %e, "retryable connection error, backing off");
-                tokio::time::sleep(delay).await;
+                let jitter = Duration::from_millis(rand::thread_rng().gen_range(0..1000));
+                tokio::time::sleep(delay + jitter).await;
                 delay = (delay * 2).min(max_delay);
                 continue;
             }
@@ -299,7 +302,8 @@ async fn retry_single_request(
                 return Err(err);
             }
             warn!(attempt, error = %err, "retryable HTTP error, backing off");
-            tokio::time::sleep(delay).await;
+            let jitter = Duration::from_millis(rand::thread_rng().gen_range(0..1000));
+            tokio::time::sleep(delay + jitter).await;
             delay = (delay * 2).min(max_delay);
             continue;
         }

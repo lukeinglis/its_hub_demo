@@ -108,11 +108,25 @@ pub fn dedupe_with_inverse(items: &[String]) -> (Vec<String>, Vec<usize>) {
 
 pub struct BestOfN {
     orm: Box<dyn OutcomeRewardModel>,
+    replace_error_with_message: Option<String>,
 }
 
 impl BestOfN {
     pub fn new(orm: Box<dyn OutcomeRewardModel>) -> Self {
-        Self { orm }
+        Self {
+            orm,
+            replace_error_with_message: None,
+        }
+    }
+
+    pub fn with_error_replacement(
+        orm: Box<dyn OutcomeRewardModel>,
+        replace_error_with_message: Option<String>,
+    ) -> Self {
+        Self {
+            orm,
+            replace_error_with_message,
+        }
     }
 
     fn process_responses(
@@ -156,12 +170,31 @@ impl ScalingAlgorithm for BestOfN {
             .fan_out(messages, budget, temperature, max_tokens, tools, tool_choice)
             .await;
 
+        let fallback_msg = self
+            .replace_error_with_message
+            .as_deref()
+            .unwrap_or("Error during generation");
+
         let mut responses = Vec::new();
+        let mut all_failed = true;
         for result in results {
             match result {
-                Ok(msg) => responses.push(msg),
-                Err(e) => return Err(anyhow::anyhow!("fan-out request failed: {}", e)),
+                Ok(msg) => {
+                    all_failed = false;
+                    responses.push(msg);
+                }
+                Err(e) => {
+                    tracing::warn!(error = %e, "fan-out request failed, substituting error response");
+                    responses.push(serde_json::json!({
+                        "role": "assistant",
+                        "content": format!("{}: {}", fallback_msg, e)
+                    }));
+                }
             }
+        }
+
+        if all_failed {
+            anyhow::bail!("all fan-out requests failed");
         }
 
         if responses.is_empty() {

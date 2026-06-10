@@ -98,6 +98,27 @@ pub async fn chat_completions(
         return Err(AppError::StreamingNotSupported);
     }
 
+    if request.messages.is_empty() {
+        return Err(AppError::BadRequest("messages must not be empty".into()));
+    }
+
+    if let Some(t) = request.temperature {
+        if !(0.0..=2.0).contains(&t) {
+            return Err(AppError::BadRequest(format!(
+                "temperature must be between 0.0 and 2.0, got {}",
+                t
+            )));
+        }
+    }
+
+    if let Some(m) = request.max_tokens {
+        if m == 0 {
+            return Err(AppError::BadRequest(
+                "max_tokens must be greater than 0".into(),
+            ));
+        }
+    }
+
     if request.budget < 1 || request.budget > 1000 {
         return Err(AppError::BadRequest(format!(
             "budget must be between 1 and 1000, got {}",

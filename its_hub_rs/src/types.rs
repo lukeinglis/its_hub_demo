@@ -33,7 +33,8 @@ pub struct ToolCall {
     pub id: String,
     #[serde(rename = "type")]
     pub call_type: String,
-    pub function: ToolFunction,
+    #[serde(default)]
+    pub function: Option<ToolFunction>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -53,7 +54,7 @@ impl ChatMessage {
                 .filter(|p| p.part_type == "text")
                 .filter_map(|p| p.text.as_deref())
                 .collect::<Vec<_>>()
-                .join(""),
+                .join(" "),
         }
     }
 }
@@ -254,37 +255,40 @@ pub fn extract_content_from_lm_response(message: &serde_json::Value) -> String {
             result.push_str(s);
         }
         Some(serde_json::Value::Array(parts)) => {
-            for part in parts {
-                if part.get("type").and_then(|t| t.as_str()) == Some("text") {
-                    if let Some(text) = part.get("text").and_then(|t| t.as_str()) {
-                        result.push_str(text);
-                    }
-                }
-            }
+            let text_parts: Vec<&str> = parts
+                .iter()
+                .filter(|part| part.get("type").and_then(|t| t.as_str()) == Some("text"))
+                .filter_map(|part| part.get("text").and_then(|t| t.as_str()))
+                .collect();
+            result.push_str(&text_parts.join(" "));
         }
         _ => {}
     }
 
     if let Some(serde_json::Value::Array(tool_calls)) = message.get("tool_calls") {
-        for tc in tool_calls {
-            let name = tc
-                .get("function")
-                .and_then(|f| f.get("name"))
-                .and_then(|n| n.as_str())
-                .unwrap_or("");
-            let args = tc
-                .get("function")
-                .and_then(|f| f.get("arguments"))
-                .map(|a| {
-                    if let serde_json::Value::String(s) = a {
-                        s.clone()
-                    } else {
-                        serde_json::to_string(a).unwrap_or_default()
-                    }
-                })
-                .unwrap_or_default();
-            result.push_str(&format!("[Tool call: {} Tool args: {}]", name, args));
-        }
+        let tool_descriptions: Vec<String> = tool_calls
+            .iter()
+            .map(|tc| {
+                let name = tc
+                    .get("function")
+                    .and_then(|f| f.get("name"))
+                    .and_then(|n| n.as_str())
+                    .unwrap_or("");
+                let args = tc
+                    .get("function")
+                    .and_then(|f| f.get("arguments"))
+                    .map(|a| {
+                        if let serde_json::Value::String(s) = a {
+                            s.clone()
+                        } else {
+                            serde_json::to_string(a).unwrap_or_default()
+                        }
+                    })
+                    .unwrap_or_default();
+                format!("[Tool call: {} Tool args: {}]", name, args)
+            })
+            .collect();
+        result.push_str(&tool_descriptions.join(" "));
     }
 
     result
@@ -416,7 +420,7 @@ mod tests {
             content: Some(Content::Parts(vec![
                 ContentPart {
                     part_type: "text".to_string(),
-                    text: Some("hello ".to_string()),
+                    text: Some("hello".to_string()),
                 },
                 ContentPart {
                     part_type: "image_url".to_string(),
@@ -452,7 +456,7 @@ mod tests {
                 {"type": "text", "text": "part2"}
             ]
         });
-        assert_eq!(extract_content_from_lm_response(&msg), "part1part2");
+        assert_eq!(extract_content_from_lm_response(&msg), "part1 part2");
     }
 
     #[test]
