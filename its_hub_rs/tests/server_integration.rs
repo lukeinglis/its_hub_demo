@@ -7,6 +7,36 @@ use wiremock::{Mock, MockServer, ResponseTemplate};
 use its_hub_rs::server;
 use its_hub_rs::server::state::AppState;
 
+// Helper to configure self-consistency with a mock backend
+async fn configure_sc(client: &reqwest::Client, base_url: &str, backend_uri: &str) {
+    configure_sc_with(client, base_url, backend_uri, json!({})).await;
+}
+
+async fn configure_sc_with(
+    client: &reqwest::Client,
+    base_url: &str,
+    backend_uri: &str,
+    extra: serde_json::Value,
+) {
+    let mut payload = json!({
+        "endpoint": format!("{}/v1", backend_uri),
+        "model": "test-model",
+        "alg": "self-consistency"
+    });
+    if let (Some(base), Some(extra)) = (payload.as_object_mut(), extra.as_object()) {
+        for (k, v) in extra {
+            base.insert(k.clone(), v.clone());
+        }
+    }
+    let resp = client
+        .post(format!("{}/configure", base_url))
+        .json(&payload)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), 200, "configure should succeed");
+}
+
 async fn start_test_server() -> (String, Arc<AppState>) {
     let state = Arc::new(AppState::new());
     let app = server::app(state.clone());
@@ -467,4 +497,182 @@ async fn best_of_n_without_rm_endpoint_returns_400() {
         .unwrap();
 
     assert_eq!(resp.status(), 400);
+}
+
+#[tokio::test]
+async fn test_tool_args_vote_config() {
+    let (base_url, _state) = start_test_server().await;
+    let client = reqwest::Client::new();
+    let backend = MockServer::start().await;
+
+    let resp = client
+        .post(format!("{}/configure", base_url))
+        .json(&json!({
+            "endpoint": format!("{}/v1", backend.uri()),
+            "model": "test-model",
+            "alg": "self-consistency",
+            "tool_vote": "tool_args",
+            "exclude_tool_args": ["timestamp"]
+        }))
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), 200);
+}
+
+#[tokio::test]
+async fn test_tool_hierarchical_vote_config() {
+    let (base_url, _state) = start_test_server().await;
+    let client = reqwest::Client::new();
+    let backend = MockServer::start().await;
+
+    let resp = client
+        .post(format!("{}/configure", base_url))
+        .json(&json!({
+            "endpoint": format!("{}/v1", backend.uri()),
+            "model": "test-model",
+            "alg": "self-consistency",
+            "tool_vote": "tool_hierarchical"
+        }))
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), 200);
+}
+
+#[tokio::test]
+async fn test_invalid_tool_vote_defaults_to_name() {
+    let (base_url, _state) = start_test_server().await;
+    let client = reqwest::Client::new();
+    let backend = MockServer::start().await;
+
+    let resp = client
+        .post(format!("{}/configure", base_url))
+        .json(&json!({
+            "endpoint": format!("{}/v1", backend.uri()),
+            "model": "test-model",
+            "alg": "self-consistency",
+            "tool_vote": "invalid_value"
+        }))
+        .send()
+        .await
+        .unwrap();
+
+    // Current handler defaults invalid tool_vote to Name strategy (200)
+    assert_eq!(resp.status(), 200);
+}
+
+#[tokio::test]
+async fn test_empty_messages_400() {
+    let (base_url, _state) = start_test_server().await;
+    let client = reqwest::Client::new();
+    let backend = MockServer::start().await;
+
+    configure_sc(&client, &base_url, &backend.uri()).await;
+
+    let resp = client
+        .post(format!("{}/v1/chat/completions", base_url))
+        .json(&json!({
+            "model": "test-model",
+            "messages": []
+        }))
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), 400);
+}
+
+#[tokio::test]
+async fn test_temperature_out_of_range_400() {
+    let (base_url, _state) = start_test_server().await;
+    let client = reqwest::Client::new();
+    let backend = MockServer::start().await;
+
+    configure_sc(&client, &base_url, &backend.uri()).await;
+
+    let resp = client
+        .post(format!("{}/v1/chat/completions", base_url))
+        .json(&json!({
+            "model": "test-model",
+            "messages": [{"role": "user", "content": "hi"}],
+            "temperature": 5.0
+        }))
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), 400);
+}
+
+#[tokio::test]
+async fn test_system_prompt_in_config() {
+    let (base_url, _state) = start_test_server().await;
+    let client = reqwest::Client::new();
+    let backend = MockServer::start().await;
+
+    Mock::given(method("POST"))
+        .and(path("/v1/chat/completions"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(make_chat_response("ok")))
+        .mount(&backend)
+        .await;
+
+    configure_sc_with(
+        &client,
+        &base_url,
+        &backend.uri(),
+        json!({"system_prompt": "You are a math tutor."}),
+    )
+    .await;
+
+    let resp = client
+        .post(format!("{}/v1/chat/completions", base_url))
+        .json(&json!({
+            "model": "test-model",
+            "messages": [{"role": "user", "content": "What is 2+2?"}],
+            "budget": 1
+        }))
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), 200);
+    let body: serde_json::Value = resp.json().await.unwrap();
+    assert_eq!(body["choices"][0]["message"]["content"], "ok");
+}
+
+#[tokio::test]
+async fn test_replace_error_with_message_config() {
+    let (base_url, _state) = start_test_server().await;
+    let client = reqwest::Client::new();
+    let backend = MockServer::start().await;
+
+    Mock::given(method("POST"))
+        .and(path("/v1/chat/completions"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(make_chat_response("ok")))
+        .mount(&backend)
+        .await;
+
+    configure_sc_with(
+        &client,
+        &base_url,
+        &backend.uri(),
+        json!({"replace_error_with_message": "Custom error msg"}),
+    )
+    .await;
+
+    let resp = client
+        .post(format!("{}/v1/chat/completions", base_url))
+        .json(&json!({
+            "model": "test-model",
+            "messages": [{"role": "user", "content": "test"}],
+            "budget": 1
+        }))
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), 200);
 }

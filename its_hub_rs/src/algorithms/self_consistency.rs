@@ -1022,6 +1022,44 @@ mod tests {
     }
 
     #[test]
+    fn test_regex_case_insensitive() {
+        let sc = SelfConsistency::new(
+            Some(vec![r"answer:\s*(\w+)".into()]),
+            None,
+        )
+        .unwrap();
+
+        let lower = content_response("answer: yes");
+        let upper = content_response("ANSWER: YES");
+        let mixed = content_response("Answer: Yes");
+
+        let p_lower = sc.project_content(&lower);
+        let p_upper = sc.project_content(&upper);
+        let p_mixed = sc.project_content(&mixed);
+
+        assert_eq!(p_lower, ProjectedValue::Tuple(vec![Some("yes".into())]));
+        assert_eq!(p_upper, ProjectedValue::Tuple(vec![Some("YES".into())]));
+        assert_eq!(p_mixed, ProjectedValue::Tuple(vec![Some("Yes".into())]));
+    }
+
+    #[test]
+    fn test_regex_dotall() {
+        let sc = SelfConsistency::new(
+            Some(vec![r"<answer>(.*)</answer>".into()]),
+            None,
+        )
+        .unwrap();
+
+        let response = content_response("<answer>line1\nline2\nline3</answer>");
+        let projected = sc.project_content(&response);
+
+        assert_eq!(
+            projected,
+            ProjectedValue::Tuple(vec![Some("line1\nline2\nline3".into())])
+        );
+    }
+
+    #[test]
     fn custom_projection_function() {
         let sc = SelfConsistency::with_custom_projection(
             Box::new(|response| {

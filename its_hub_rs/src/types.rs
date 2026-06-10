@@ -662,4 +662,44 @@ mod tests {
         let deserialized: ModelsResponse = serde_json::from_str(&json_str).unwrap();
         assert_eq!(mr, deserialized);
     }
+
+    #[test]
+    fn test_multimodal_join_with_space() {
+        let msg = ChatMessage {
+            role: "user".to_string(),
+            content: Some(Content::Parts(vec![
+                ContentPart {
+                    part_type: "text".to_string(),
+                    text: Some("Describe this image:".to_string()),
+                },
+                ContentPart {
+                    part_type: "image_url".to_string(),
+                    text: None,
+                },
+                ContentPart {
+                    part_type: "text".to_string(),
+                    text: Some("in detail.".to_string()),
+                },
+            ])),
+            tool_calls: None,
+            tool_call_id: None,
+        };
+        let extracted = msg.extract_text_content();
+        assert_eq!(extracted, "Describe this image: in detail.");
+        assert!(extracted.contains(' '), "text parts must be space-separated");
+    }
+
+    #[test]
+    fn test_tool_call_optional_function() {
+        let tc_json = r#"{"id":"call_1","type":"function"}"#;
+        let tc: ToolCall = serde_json::from_str(tc_json).unwrap();
+        assert_eq!(tc.id, "call_1");
+        assert_eq!(tc.call_type, "function");
+        assert!(tc.function.is_none());
+
+        let tc_with_fn = r#"{"id":"call_2","type":"function","function":{"name":"get_weather","arguments":{}}}"#;
+        let tc2: ToolCall = serde_json::from_str(tc_with_fn).unwrap();
+        assert!(tc2.function.is_some());
+        assert_eq!(tc2.function.unwrap().name, "get_weather");
+    }
 }
