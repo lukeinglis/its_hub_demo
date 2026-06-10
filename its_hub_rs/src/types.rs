@@ -154,6 +154,20 @@ pub struct ConfigRequest {
     pub return_response_only: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub include_stop_str_in_output: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub step_token: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub stop_token: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub num_iterations: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub beam_width: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub inner_alg: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub temperature_method: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub prm_endpoint: Option<String>,
 }
 
 fn default_provider() -> String {
@@ -537,6 +551,13 @@ mod tests {
         assert!(cfg.replace_error_with_message.is_none());
         assert!(cfg.return_response_only.is_none());
         assert!(cfg.include_stop_str_in_output.is_none());
+        assert!(cfg.step_token.is_none());
+        assert!(cfg.stop_token.is_none());
+        assert!(cfg.num_iterations.is_none());
+        assert!(cfg.beam_width.is_none());
+        assert!(cfg.inner_alg.is_none());
+        assert!(cfg.temperature_method.is_none());
+        assert!(cfg.prm_endpoint.is_none());
     }
 
     #[test]
@@ -583,6 +604,13 @@ mod tests {
             replace_error_with_message: Some("Generation failed".to_string()),
             return_response_only: Some(true),
             include_stop_str_in_output: Some(true),
+            step_token: Some("\n\n".to_string()),
+            stop_token: Some("END".to_string()),
+            num_iterations: Some(3),
+            beam_width: Some(4),
+            inner_alg: Some("self-consistency".to_string()),
+            temperature_method: Some("ess".to_string()),
+            prm_endpoint: Some("http://localhost:8300".to_string()),
         };
         let json_str = serde_json::to_string(&cfg).unwrap();
         let deserialized: ConfigRequest = serde_json::from_str(&json_str).unwrap();

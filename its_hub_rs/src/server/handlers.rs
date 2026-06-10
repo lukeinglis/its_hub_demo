@@ -6,10 +6,18 @@ use axum::Json;
 use serde_json::json;
 use tracing::info;
 
+use crate::algorithms::beam_search::BeamSearch;
 use crate::algorithms::best_of_n::{BestOfN, HttpOrmClient};
+use crate::algorithms::particle_gibbs::{
+    EntropicParticleFiltering, ParticleFiltering, ParticleGibbs, ResamplingMethod,
+    SelectionMethod, TemperatureMethod,
+};
+use crate::algorithms::planning_wrapper::PlanningWrapper;
 use crate::algorithms::self_consistency::{SelfConsistency, ToolVoteStrategy};
 use crate::algorithms::AlgorithmOutput;
 use crate::client::LmClient;
+use crate::integration::reward_models::HttpProcessRewardModel;
+use crate::step_generation::{StepGeneration, StepToken};
 use crate::types::{
     ChatCompletionChoice, ChatCompletionRequest, ChatCompletionResponse, ChatCompletionUsage,
     ConfigRequest, ConfigResponse, ModelInfo, ModelsResponse,
@@ -57,9 +65,171 @@ pub async fn configure(
                 config.replace_error_with_message.clone(),
             ))
         }
+        "beam-search" => {
+            let step_token_str = config
+                .step_token
+                .as_deref()
+                .ok_or_else(|| AppError::BadRequest("step_token required for beam-search".into()))?;
+            let prm_endpoint = config
+                .prm_endpoint
+                .as_deref()
+                .ok_or_else(|| AppError::BadRequest("prm_endpoint required for beam-search".into()))?;
+            let beam_width = config.beam_width.unwrap_or(2) as usize;
+
+            let sg = StepGeneration::with_step_token(
+                StepToken::Single(step_token_str.to_string()),
+                config.n.unwrap_or(10),
+                config.stop_token.clone(),
+                config.temperature.unwrap_or(0.8),
+                config.include_stop_str_in_output.unwrap_or(false),
+                None,
+            );
+            let prm = Arc::new(HttpProcessRewardModel::new(prm_endpoint));
+            Box::new(BeamSearch::new(sg, prm, beam_width))
+        }
+        "particle-filtering" => {
+            let step_token_str = config
+                .step_token
+                .as_deref()
+                .ok_or_else(|| AppError::BadRequest("step_token required for particle-filtering".into()))?;
+            let prm_endpoint = config
+                .prm_endpoint
+                .as_deref()
+                .ok_or_else(|| AppError::BadRequest("prm_endpoint required for particle-filtering".into()))?;
+
+            let sg = StepGeneration::with_step_token(
+                StepToken::Single(step_token_str.to_string()),
+                config.n.unwrap_or(10),
+                config.stop_token.clone(),
+                config.temperature.unwrap_or(0.8),
+                config.include_stop_str_in_output.unwrap_or(false),
+                None,
+            );
+            let prm = Arc::new(HttpProcessRewardModel::new(prm_endpoint));
+            Box::new(ParticleFiltering::new(
+                sg,
+                prm,
+                SelectionMethod::Argmax,
+                ResamplingMethod::Systematic,
+            ))
+        }
+        "particle-gibbs" => {
+            let step_token_str = config
+                .step_token
+                .as_deref()
+                .ok_or_else(|| AppError::BadRequest("step_token required for particle-gibbs".into()))?;
+            let prm_endpoint = config
+                .prm_endpoint
+                .as_deref()
+                .ok_or_else(|| AppError::BadRequest("prm_endpoint required for particle-gibbs".into()))?;
+            let num_iterations = config.num_iterations.unwrap_or(2) as usize;
+
+            let sg = StepGeneration::with_step_token(
+                StepToken::Single(step_token_str.to_string()),
+                config.n.unwrap_or(10),
+                config.stop_token.clone(),
+                config.temperature.unwrap_or(0.8),
+                config.include_stop_str_in_output.unwrap_or(false),
+                None,
+            );
+            let prm = Arc::new(HttpProcessRewardModel::new(prm_endpoint));
+            Box::new(ParticleGibbs::new(
+                sg,
+                prm,
+                num_iterations,
+                SelectionMethod::Argmax,
+                1,
+                false,
+                0.5,
+                0.5,
+                ResamplingMethod::Systematic,
+                TemperatureMethod::Ess,
+            ))
+        }
+        "entropic-particle-filtering" => {
+            let step_token_str = config
+                .step_token
+                .as_deref()
+                .ok_or_else(|| AppError::BadRequest("step_token required for entropic-particle-filtering".into()))?;
+            let prm_endpoint = config
+                .prm_endpoint
+                .as_deref()
+                .ok_or_else(|| AppError::BadRequest("prm_endpoint required for entropic-particle-filtering".into()))?;
+
+            let temp_method = match config.temperature_method.as_deref() {
+                Some("entropy") => TemperatureMethod::Entropy,
+                Some("base") => TemperatureMethod::Base,
+                _ => TemperatureMethod::Ess,
+            };
+
+            let sg = StepGeneration::with_step_token(
+                StepToken::Single(step_token_str.to_string()),
+                config.n.unwrap_or(10),
+                config.stop_token.clone(),
+                config.temperature.unwrap_or(0.8),
+                config.include_stop_str_in_output.unwrap_or(false),
+                None,
+            );
+            let prm = Arc::new(HttpProcessRewardModel::new(prm_endpoint));
+            Box::new(EntropicParticleFiltering::new(
+                sg,
+                prm,
+                SelectionMethod::Argmax,
+                ResamplingMethod::Systematic,
+                temp_method,
+                0.5,
+                0.5,
+            ))
+        }
+        "planning-wrapper" => {
+            let inner_alg_name = config
+                .inner_alg
+                .as_deref()
+                .ok_or_else(|| AppError::BadRequest("inner_alg required for planning-wrapper".into()))?;
+
+            let inner: Box<dyn crate::algorithms::ScalingAlgorithm> = match inner_alg_name {
+                "self-consistency" => {
+                    let tool_vote = config.tool_vote.as_deref().map(|tv| match tv {
+                        "tool_name" => ToolVoteStrategy::Name,
+                        "tool_args" => ToolVoteStrategy::Args {
+                            exclude: config.exclude_tool_args.clone().unwrap_or_default(),
+                        },
+                        "tool_hierarchical" => ToolVoteStrategy::Hierarchical {
+                            exclude: config.exclude_tool_args.clone().unwrap_or_default(),
+                        },
+                        _ => ToolVoteStrategy::Name,
+                    });
+                    let sc = SelfConsistency::with_error_replacement(
+                        config.regex_patterns.clone(),
+                        tool_vote,
+                        config.replace_error_with_message.clone(),
+                    )
+                    .map_err(|e| AppError::BadRequest(format!("invalid regex pattern: {}", e)))?;
+                    Box::new(sc)
+                }
+                "best-of-n" => {
+                    let rm_endpoint = config.rm_endpoint.as_deref().ok_or_else(|| {
+                        AppError::BadRequest("rm_endpoint required for best-of-n inner algorithm".into())
+                    })?;
+                    let orm = HttpOrmClient::new(rm_endpoint);
+                    Box::new(BestOfN::with_error_replacement(
+                        Box::new(orm),
+                        config.replace_error_with_message.clone(),
+                    ))
+                }
+                other => {
+                    return Err(AppError::BadRequest(format!(
+                        "unsupported inner algorithm for planning-wrapper: {}",
+                        other
+                    )));
+                }
+            };
+            Box::new(PlanningWrapper::new(inner))
+        }
         other => {
             return Err(AppError::BadRequest(format!(
-                "unsupported algorithm: {}. Supported: self-consistency, best-of-n",
+                "unsupported algorithm: {}. Supported: self-consistency, best-of-n, beam-search, \
+                 particle-filtering, particle-gibbs, entropic-particle-filtering, planning-wrapper",
                 other
             )));
         }

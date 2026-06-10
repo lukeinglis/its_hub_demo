@@ -243,6 +243,51 @@ impl LmClient {
         }
     }
 
+    pub async fn generate_batch(
+        &self,
+        messages_batch: &[Vec<ChatMessage>],
+        temperature: Option<f64>,
+        max_tokens: Option<u32>,
+        stop: Option<&str>,
+        tools: Option<&Value>,
+        tool_choice: Option<&Value>,
+    ) -> Vec<Result<Value, LmClientError>> {
+        let permits = std::cmp::min(messages_batch.len(), self.max_concurrency);
+        let semaphore = Arc::new(Semaphore::new(permits));
+
+        let bodies: Vec<Value> = messages_batch
+            .iter()
+            .map(|msgs| self.build_request_body(msgs, temperature, max_tokens, stop, tools, tool_choice))
+            .collect();
+
+        let mut join_set = JoinSet::new();
+
+        for (i, body) in bodies.into_iter().enumerate() {
+            let sem = semaphore.clone();
+            let url = self.chat_completion_url();
+            let http = self.http.clone();
+            let max_retries = self.max_retries;
+
+            join_set.spawn(async move {
+                let _permit = sem.acquire().await.unwrap();
+                debug!(task = i, "starting batch request");
+                retry_single_request(&http, &url, &body, max_retries).await
+            });
+        }
+
+        let mut results = Vec::with_capacity(messages_batch.len());
+        while let Some(join_result) = join_set.join_next().await {
+            match join_result {
+                Ok(result) => results.push(result),
+                Err(e) => results.push(Err(LmClientError::Connection(format!(
+                    "task panicked: {}",
+                    e
+                )))),
+            }
+        }
+        results
+    }
+
     pub async fn fan_out(
         &self,
         messages: &[ChatMessage],
