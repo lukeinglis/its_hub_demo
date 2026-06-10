@@ -188,6 +188,19 @@ pub struct ConfigRequest {
     pub judge_max_tokens: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub enable_judge_logging: Option<bool>,
+    // --- Gateway-specific fields ---
+    /// When true, algorithm errors fall back to passthrough. Default: true.
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub passthrough_on_error: Option<bool>,
+    /// Enable token cache for response caching.
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub cache_enabled: Option<bool>,
+    /// TTL in seconds for cached responses. Default: 300.
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub cache_ttl_seconds: Option<u64>,
+    /// Maximum number of cache entries. Default: 10000.
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub cache_max_entries: Option<usize>,
 }
 
 impl std::fmt::Debug for ConfigRequest {
@@ -229,6 +242,10 @@ impl std::fmt::Debug for ConfigRequest {
             .field("judge_temperature", &self.judge_temperature)
             .field("judge_max_tokens", &self.judge_max_tokens)
             .field("enable_judge_logging", &self.enable_judge_logging)
+            .field("passthrough_on_error", &self.passthrough_on_error)
+            .field("cache_enabled", &self.cache_enabled)
+            .field("cache_ttl_seconds", &self.cache_ttl_seconds)
+            .field("cache_max_entries", &self.cache_max_entries)
             .finish()
     }
 }
@@ -553,6 +570,10 @@ mod tests {
         assert!(cfg.judge_temperature.is_none());
         assert!(cfg.judge_max_tokens.is_none());
         assert!(cfg.enable_judge_logging.is_none());
+        assert!(cfg.passthrough_on_error.is_none());
+        assert!(cfg.cache_enabled.is_none());
+        assert!(cfg.cache_ttl_seconds.is_none());
+        assert!(cfg.cache_max_entries.is_none());
     }
 
     #[test]
@@ -616,6 +637,10 @@ mod tests {
             judge_temperature: Some(0.0),
             judge_max_tokens: Some(4096),
             enable_judge_logging: Some(true),
+            passthrough_on_error: Some(true),
+            cache_enabled: Some(true),
+            cache_ttl_seconds: Some(300),
+            cache_max_entries: Some(10000),
         };
         let json_str = serde_json::to_string(&cfg).unwrap();
         let deserialized: ConfigRequest = serde_json::from_str(&json_str).unwrap();

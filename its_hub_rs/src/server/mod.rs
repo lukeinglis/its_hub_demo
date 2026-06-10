@@ -1,5 +1,6 @@
 pub mod error;
 pub mod handlers;
+pub mod passthrough;
 pub mod state;
 
 use std::sync::Arc;
@@ -21,6 +22,8 @@ pub fn app(state: Arc<AppState>) -> Router {
         .route("/v1/chat/completions", post(handlers::chat_completions))
         .route("/v1/models", get(handlers::list_models))
         .route("/health", get(handlers::health))
+        .route("/health/live", get(handlers::health_live))
+        .route("/health/ready", get(handlers::health_ready))
         .layer(CorsLayer::permissive())
         .layer(TimeoutLayer::with_status_code(
             StatusCode::REQUEST_TIMEOUT,

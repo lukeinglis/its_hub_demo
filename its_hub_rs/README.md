@@ -1,6 +1,8 @@
 # its-hub-rs
 
-Rust rewrite of the [its_hub](../README.md) inference-time scaling library for LLMs. Provides an OpenAI-compatible HTTP API that sits in front of any LLM backend and applies inference-time scaling algorithms to improve response quality by spending more compute at inference time.
+Rust inference-time scaling (ITS) gateway for LLMs. Sits in the Envoy AI Gateway request path, applying scaling algorithms to improve response quality by spending more compute at inference time.
+
+This is a gateway microservice, not a library rewrite. It provides production features the Python `its_hub` library does not have: graceful degradation via passthrough, a concurrent token cache, Envoy integration headers, and Kubernetes-style health probes.
 
 ## Quick Start
 
@@ -22,11 +24,64 @@ cargo test
 ./target/release/its-hub-rs --host 0.0.0.0 --port 8108
 ```
 
+## Gateway Features
+
+### Envoy Integration
+
+The gateway receives traffic routed by Envoy's body-based routing. Envoy headers override request parameters:
+
+| Header | Effect |
+|---|---|
+| `x-its-algorithm` | Override the configured algorithm for this request |
+| `x-its-budget` | Override the budget parameter for this request |
+
+Response headers added to every chat completion response:
+
+| Header | Example | Description |
+|---|---|---|
+| `x-its-algorithm-used` | `self-consistency` | Which algorithm actually ran |
+| `x-its-cache-hit` | `true` / `false` | Whether the response came from cache |
+| `x-its-latency-ms` | `123` | Processing time in milliseconds |
+
+### Passthrough / Graceful Degradation
+
+When the ITS algorithm fails and `passthrough_on_error` is enabled (the default), the gateway forwards the request directly to the upstream vLLM backend without disruption. This ensures availability even during algorithm errors.
+
+Configure via `/configure`:
+```json
+{"passthrough_on_error": true}
+```
+
+### Token Cache
+
+LRU response cache keyed by (model, messages, temperature, max_tokens). Thread-safe via `Arc<RwLock<>>` for concurrent access.
+
+Configure via `/configure`:
+```json
+{
+  "cache_enabled": true,
+  "cache_ttl_seconds": 300,
+  "cache_max_entries": 10000
+}
+```
+
+Cache statistics are exposed in the `/health` endpoint response.
+
+### Health Probes
+
+Three health endpoints for Kubernetes integration:
+
+| Endpoint | Behavior |
+|---|---|
+| `GET /health` | Combined status: algorithm, models, cache stats, passthrough config |
+| `GET /health/live` | Liveness probe: always returns 200 if process is running |
+| `GET /health/ready` | Readiness probe: returns 200 only if algorithm is configured and a model is connected; 503 otherwise |
+
 ## Usage
 
 ### Configure
 
-Send a `POST /configure` request to set the backend model and scaling algorithm:
+Send a `POST /configure` request to set the backend model, scaling algorithm, and gateway options:
 
 ```bash
 curl -X POST http://localhost:8108/configure \
@@ -34,7 +89,10 @@ curl -X POST http://localhost:8108/configure \
   -d '{
     "endpoint": "http://localhost:8100/v1",
     "model": "your-model-name",
-    "alg": "self-consistency"
+    "alg": "self-consistency",
+    "passthrough_on_error": true,
+    "cache_enabled": true,
+    "cache_ttl_seconds": 300
   }'
 ```
 
@@ -68,14 +126,15 @@ The `budget` parameter controls how many parallel generations the algorithm uses
 
 ## Architecture
 
-- `src/algorithms/`: All scaling algorithm implementations behind the `ScalingAlgorithm` trait.
-- `src/client/`: LM backend clients (direct OpenAI/vLLM and LiteLLM multi-provider).
-- `src/integration/`: Reward model integrations (HTTP PRM, LLM-as-a-judge ORM).
-- `src/server/`: Axum HTTP server with `/configure`, `/v1/chat/completions`, `/v1/models`, and `/health` endpoints.
-- `src/types.rs`: Shared request/response types matching OpenAI's chat completion schema.
-- `src/step_generation.rs`: Incremental text generation with configurable step tokens.
-- `src/chat_messages.rs`: Prompt/message abstraction used by PRM scoring.
+- `src/core/algorithms/`: All scaling algorithm implementations behind the `ScalingAlgorithm` trait.
+- `src/core/cache.rs`: LRU token cache with TTL eviction and hit/miss statistics.
+- `src/core/lms/`: LM backend client (OpenAI/vLLM compatible).
+- `src/core/reward_models/`: Reward model integrations (HTTP PRM, LLM-as-a-judge ORM).
+- `src/server/handlers.rs`: Axum HTTP server with `/configure`, `/v1/chat/completions`, `/v1/models`, `/health`, `/health/live`, `/health/ready`.
+- `src/server/passthrough.rs`: Passthrough handler for graceful degradation.
+- `src/server/state.rs`: Shared application state with cache, passthrough config.
+- `src/api/types.rs`: Shared request/response types matching OpenAI's chat completion schema.
 
 ## Relationship to Python Version
 
-This crate is a port of the Python `its_hub` library. The Python version lives in the repository root and uses `openai`, `litellm`, and `reward_hub` packages. This Rust version reimplements the same algorithms and server API with the goal of lower latency, smaller memory footprint, and single-binary deployment. Both versions expose the same HTTP API and can be used interchangeably.
+This crate is a production gateway companion to the Python `its_hub` library. The Python version lives in the repository root and is used for research, prototyping, and benchmarking. This Rust gateway reimplements the same algorithms and server API with lower latency, a concurrent token cache, Envoy integration, and single-binary deployment for production use behind Envoy AI Gateway.

@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use reqwest::header::HeaderValue;
 use serde_json::json;
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
@@ -700,7 +701,7 @@ async fn test_chat_completions_with_system_message() {
     assert_eq!(body["choices"][0]["message"]["content"], "system aware response");
 }
 
-// --- Chat completions algorithm error ---
+// --- Chat completions algorithm error (passthrough disabled) ---
 
 #[tokio::test]
 async fn test_chat_completions_algorithm_error() {
@@ -714,7 +715,14 @@ async fn test_chat_completions_algorithm_error() {
         .mount(&backend)
         .await;
 
-    configure_sc(&client, &base_url, &backend.uri()).await;
+    // Must disable passthrough so it returns 500 instead of retrying via passthrough
+    configure_sc_with(
+        &client,
+        &base_url,
+        &backend.uri(),
+        json!({"passthrough_on_error": false}),
+    )
+    .await;
 
     let resp = client
         .post(format!("{}/v1/chat/completions", base_url))
@@ -956,4 +964,433 @@ async fn test_replace_error_with_message_config() {
         .unwrap();
 
     assert_eq!(resp.status(), 200);
+}
+
+// =========================================================================
+// Gateway feature tests
+// =========================================================================
+
+// --- Passthrough on algorithm error ---
+
+#[tokio::test]
+async fn test_passthrough_on_algorithm_error() {
+    let (base_url, _state) = start_test_server().await;
+    let client = reqwest::Client::new();
+
+    // Backend that fails on first 3 requests (the fan-out), then succeeds (the passthrough)
+    let backend = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/v1/chat/completions"))
+        .respond_with(ResponseTemplate::new(500).set_body_string("server error"))
+        .up_to_n_times(3)
+        .mount(&backend)
+        .await;
+
+    Mock::given(method("POST"))
+        .and(path("/v1/chat/completions"))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(make_chat_response("passthrough response")),
+        )
+        .mount(&backend)
+        .await;
+
+    // passthrough_on_error defaults to true
+    configure_sc(&client, &base_url, &backend.uri()).await;
+
+    let resp = client
+        .post(format!("{}/v1/chat/completions", base_url))
+        .json(&json!({
+            "model": "test-model",
+            "messages": [{"role": "user", "content": "test"}],
+            "budget": 3
+        }))
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), 200);
+    let body: serde_json::Value = resp.json().await.unwrap();
+    assert_eq!(
+        body["choices"][0]["message"]["content"],
+        "passthrough response"
+    );
+}
+
+#[tokio::test]
+async fn test_passthrough_disabled() {
+    let (base_url, _state) = start_test_server().await;
+    let client = reqwest::Client::new();
+
+    let backend = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/v1/chat/completions"))
+        .respond_with(ResponseTemplate::new(500).set_body_string("server error"))
+        .mount(&backend)
+        .await;
+
+    configure_sc_with(
+        &client,
+        &base_url,
+        &backend.uri(),
+        json!({"passthrough_on_error": false}),
+    )
+    .await;
+
+    let resp = client
+        .post(format!("{}/v1/chat/completions", base_url))
+        .json(&json!({
+            "model": "test-model",
+            "messages": [{"role": "user", "content": "test"}],
+            "budget": 3
+        }))
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), 500);
+}
+
+// --- Token cache tests ---
+
+#[tokio::test]
+async fn test_cache_hit() {
+    let (base_url, _state) = start_test_server().await;
+    let client = reqwest::Client::new();
+
+    let backend = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/v1/chat/completions"))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(make_chat_response("cached answer")),
+        )
+        .mount(&backend)
+        .await;
+
+    configure_sc_with(
+        &client,
+        &base_url,
+        &backend.uri(),
+        json!({"cache_enabled": true, "cache_ttl_seconds": 300}),
+    )
+    .await;
+
+    let payload = json!({
+        "model": "test-model",
+        "messages": [{"role": "user", "content": "What is 2+2?"}],
+        "budget": 1
+    });
+
+    // First request: cache miss
+    let resp1 = client
+        .post(format!("{}/v1/chat/completions", base_url))
+        .json(&payload)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(resp1.status(), 200);
+    assert_eq!(
+        resp1.headers().get("x-its-cache-hit").unwrap(),
+        &HeaderValue::from_static("false")
+    );
+
+    // Second request: cache hit (same payload)
+    let resp2 = client
+        .post(format!("{}/v1/chat/completions", base_url))
+        .json(&payload)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(resp2.status(), 200);
+    assert_eq!(
+        resp2.headers().get("x-its-cache-hit").unwrap(),
+        &HeaderValue::from_static("true")
+    );
+    let body: serde_json::Value = resp2.json().await.unwrap();
+    assert_eq!(body["choices"][0]["message"]["content"], "cached answer");
+}
+
+#[tokio::test]
+async fn test_cache_miss() {
+    let (base_url, _state) = start_test_server().await;
+    let client = reqwest::Client::new();
+
+    let backend = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/v1/chat/completions"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(make_chat_response("response")))
+        .mount(&backend)
+        .await;
+
+    configure_sc_with(
+        &client,
+        &base_url,
+        &backend.uri(),
+        json!({"cache_enabled": true, "cache_ttl_seconds": 300}),
+    )
+    .await;
+
+    // Two different requests: both should be cache misses
+    let resp1 = client
+        .post(format!("{}/v1/chat/completions", base_url))
+        .json(&json!({
+            "model": "test-model",
+            "messages": [{"role": "user", "content": "question 1"}],
+            "budget": 1
+        }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(
+        resp1.headers().get("x-its-cache-hit").unwrap(),
+        &HeaderValue::from_static("false")
+    );
+
+    let resp2 = client
+        .post(format!("{}/v1/chat/completions", base_url))
+        .json(&json!({
+            "model": "test-model",
+            "messages": [{"role": "user", "content": "question 2"}],
+            "budget": 1
+        }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(
+        resp2.headers().get("x-its-cache-hit").unwrap(),
+        &HeaderValue::from_static("false")
+    );
+}
+
+#[tokio::test]
+async fn test_cache_ttl_expiry() {
+    let (base_url, _state) = start_test_server().await;
+    let client = reqwest::Client::new();
+
+    let backend = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/v1/chat/completions"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(make_chat_response("expired")))
+        .mount(&backend)
+        .await;
+
+    // TTL = 0 means immediate expiry
+    configure_sc_with(
+        &client,
+        &base_url,
+        &backend.uri(),
+        json!({"cache_enabled": true, "cache_ttl_seconds": 0}),
+    )
+    .await;
+
+    let payload = json!({
+        "model": "test-model",
+        "messages": [{"role": "user", "content": "test"}],
+        "budget": 1
+    });
+
+    // First request
+    let resp1 = client
+        .post(format!("{}/v1/chat/completions", base_url))
+        .json(&payload)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(resp1.status(), 200);
+
+    // Short sleep so entry expires
+    tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+
+    // Second request should be a miss because TTL expired
+    let resp2 = client
+        .post(format!("{}/v1/chat/completions", base_url))
+        .json(&payload)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(
+        resp2.headers().get("x-its-cache-hit").unwrap(),
+        &HeaderValue::from_static("false")
+    );
+}
+
+#[tokio::test]
+async fn test_cache_stats_in_health() {
+    let (base_url, _state) = start_test_server().await;
+    let client = reqwest::Client::new();
+
+    let backend = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/v1/chat/completions"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(make_chat_response("ok")))
+        .mount(&backend)
+        .await;
+
+    configure_sc_with(
+        &client,
+        &base_url,
+        &backend.uri(),
+        json!({"cache_enabled": true, "cache_ttl_seconds": 300}),
+    )
+    .await;
+
+    // Make a request to populate cache stats
+    client
+        .post(format!("{}/v1/chat/completions", base_url))
+        .json(&json!({
+            "model": "test-model",
+            "messages": [{"role": "user", "content": "test"}],
+            "budget": 1
+        }))
+        .send()
+        .await
+        .unwrap();
+
+    let health: serde_json::Value = client
+        .get(format!("{}/health", base_url))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+
+    assert!(health["cache"].is_object());
+    assert!(health["cache"]["entries"].is_number());
+    assert!(health["cache"]["max_entries"].is_number());
+    assert!(health["cache"]["hits"].is_number());
+    assert!(health["cache"]["misses"].is_number());
+    assert!(health["cache"]["hit_rate"].is_number());
+    assert!(health["cache"]["ttl_seconds"].is_number());
+}
+
+// --- Envoy header tests ---
+
+#[tokio::test]
+async fn test_envoy_headers_override() {
+    let (base_url, _state) = start_test_server().await;
+    let client = reqwest::Client::new();
+
+    let backend = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/v1/chat/completions"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(make_chat_response("42")))
+        .mount(&backend)
+        .await;
+
+    configure_sc(&client, &base_url, &backend.uri()).await;
+
+    // Override algorithm via header (self-consistency matches configured, so it uses it)
+    let resp = client
+        .post(format!("{}/v1/chat/completions", base_url))
+        .header("x-its-algorithm", "self-consistency")
+        .header("x-its-budget", "2")
+        .json(&json!({
+            "model": "test-model",
+            "messages": [{"role": "user", "content": "What is 6*7?"}],
+            "budget": 5
+        }))
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), 200);
+    assert_eq!(
+        resp.headers().get("x-its-algorithm-used").unwrap(),
+        &HeaderValue::from_static("self-consistency")
+    );
+}
+
+#[tokio::test]
+async fn test_envoy_response_headers() {
+    let (base_url, _state) = start_test_server().await;
+    let client = reqwest::Client::new();
+
+    let backend = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/v1/chat/completions"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(make_chat_response("hello")))
+        .mount(&backend)
+        .await;
+
+    configure_sc(&client, &base_url, &backend.uri()).await;
+
+    let resp = client
+        .post(format!("{}/v1/chat/completions", base_url))
+        .json(&json!({
+            "model": "test-model",
+            "messages": [{"role": "user", "content": "hi"}],
+            "budget": 1
+        }))
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), 200);
+    assert!(resp.headers().contains_key("x-its-algorithm-used"));
+    assert!(resp.headers().contains_key("x-its-latency-ms"));
+    assert!(resp.headers().contains_key("x-its-cache-hit"));
+
+    let latency_str = resp
+        .headers()
+        .get("x-its-latency-ms")
+        .unwrap()
+        .to_str()
+        .unwrap();
+    let latency: u64 = latency_str.parse().unwrap();
+    assert!(latency < 60000, "latency should be reasonable");
+}
+
+// --- Health probe tests ---
+
+#[tokio::test]
+async fn test_liveness_always_200() {
+    let (base_url, _state) = start_test_server().await;
+    let client = reqwest::Client::new();
+
+    // Even before configure, liveness should return 200
+    let resp = client
+        .get(format!("{}/health/live", base_url))
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), 200);
+    let body: serde_json::Value = resp.json().await.unwrap();
+    assert_eq!(body["status"], "alive");
+}
+
+#[tokio::test]
+async fn test_readiness_503_when_unconfigured() {
+    let (base_url, _state) = start_test_server().await;
+    let client = reqwest::Client::new();
+
+    let resp = client
+        .get(format!("{}/health/ready", base_url))
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), 503);
+    let body: serde_json::Value = resp.json().await.unwrap();
+    assert_eq!(body["status"], "not_ready");
+    assert_eq!(body["algorithm_configured"], false);
+}
+
+#[tokio::test]
+async fn test_readiness_200_when_configured() {
+    let (base_url, _state) = start_test_server().await;
+    let client = reqwest::Client::new();
+    let backend = MockServer::start().await;
+
+    configure_sc(&client, &base_url, &backend.uri()).await;
+
+    let resp = client
+        .get(format!("{}/health/ready", base_url))
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), 200);
+    let body: serde_json::Value = resp.json().await.unwrap();
+    assert_eq!(body["status"], "ready");
 }

@@ -4,6 +4,7 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 
 use crate::api::algorithm::ScalingAlgorithm;
+use crate::core::cache::TokenCache;
 use crate::core::lms::LmClient;
 
 pub struct AlgorithmConfig {
@@ -23,6 +24,12 @@ impl Clone for AlgorithmConfig {
 pub struct AppState {
     pub algorithm: RwLock<Option<AlgorithmConfig>>,
     pub clients: RwLock<HashMap<String, Arc<LmClient>>>,
+    /// When true, algorithm errors fall back to passthrough instead of 500.
+    pub passthrough_on_error: RwLock<bool>,
+    /// Optional token cache for response caching.
+    pub cache: RwLock<Option<Arc<TokenCache>>>,
+    /// Whether caching is enabled.
+    pub cache_enabled: RwLock<bool>,
 }
 
 impl Default for AppState {
@@ -36,6 +43,9 @@ impl AppState {
         Self {
             algorithm: RwLock::new(None),
             clients: RwLock::new(HashMap::new()),
+            passthrough_on_error: RwLock::new(true), // default: safe for production
+            cache: RwLock::new(None),
+            cache_enabled: RwLock::new(false),
         }
     }
 }
