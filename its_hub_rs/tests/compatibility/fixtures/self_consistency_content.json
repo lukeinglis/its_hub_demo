@@ -1,0 +1,69 @@
+{
+  "description": "Self-consistency with content voting, clear majority (3 of 5 say '42')",
+  "config": {
+    "endpoint": "__MOCK__",
+    "model": "test-model",
+    "alg": "self-consistency"
+  },
+  "request": {
+    "model": "test-model",
+    "messages": [
+      {"role": "system", "content": "You are a helpful math assistant."},
+      {"role": "user", "content": "What is 6 * 7?"}
+    ],
+    "budget": 5
+  },
+  "mock_responses": [
+    {
+      "id": "chatcmpl-001",
+      "object": "chat.completion",
+      "created": 1700000000,
+      "model": "test-model",
+      "choices": [{"index": 0, "message": {"role": "assistant", "content": "The answer is 42"}, "finish_reason": "stop"}],
+      "usage": {"prompt_tokens": 20, "completion_tokens": 5, "total_tokens": 25}
+    },
+    {
+      "id": "chatcmpl-002",
+      "object": "chat.completion",
+      "created": 1700000001,
+      "model": "test-model",
+      "choices": [{"index": 0, "message": {"role": "assistant", "content": "The answer is 42"}, "finish_reason": "stop"}],
+      "usage": {"prompt_tokens": 20, "completion_tokens": 5, "total_tokens": 25}
+    },
+    {
+      "id": "chatcmpl-003",
+      "object": "chat.completion",
+      "created": 1700000002,
+      "model": "test-model",
+      "choices": [{"index": 0, "message": {"role": "assistant", "content": "The answer is 42"}, "finish_reason": "stop"}],
+      "usage": {"prompt_tokens": 20, "completion_tokens": 5, "total_tokens": 25}
+    },
+    {
+      "id": "chatcmpl-004",
+      "object": "chat.completion",
+      "created": 1700000003,
+      "model": "test-model",
+      "choices": [{"index": 0, "message": {"role": "assistant", "content": "I think it is 43"}, "finish_reason": "stop"}],
+      "usage": {"prompt_tokens": 20, "completion_tokens": 6, "total_tokens": 26}
+    },
+    {
+      "id": "chatcmpl-005",
+      "object": "chat.completion",
+      "created": 1700000004,
+      "model": "test-model",
+      "choices": [{"index": 0, "message": {"role": "assistant", "content": "I think it is 43"}, "finish_reason": "stop"}],
+      "usage": {"prompt_tokens": 20, "completion_tokens": 6, "total_tokens": 26}
+    }
+  ],
+  "expected": {
+    "selected_content": "The answer is 42",
+    "response_schema": {
+      "required_fields": ["id", "object", "created", "model", "choices", "usage"],
+      "id_prefix": "chatcmpl-",
+      "object_value": "chat.completion",
+      "choices_length": 1,
+      "choice_fields": ["index", "message", "finish_reason"],
+      "usage_fields": ["prompt_tokens", "completion_tokens", "total_tokens"]
+    }
+  }
+}

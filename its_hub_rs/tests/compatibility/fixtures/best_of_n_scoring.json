@@ -1,0 +1,57 @@
+{
+  "description": "Best-of-N with ORM scoring, highest-scored response selected",
+  "config": {
+    "endpoint": "__MOCK__",
+    "model": "test-model",
+    "alg": "best-of-n",
+    "rm_endpoint": "__ORM_MOCK__",
+    "rm_name": "test-rm"
+  },
+  "request": {
+    "model": "test-model",
+    "messages": [
+      {"role": "user", "content": "Solve: 2 + 2"}
+    ],
+    "budget": 3
+  },
+  "mock_responses": [
+    {
+      "id": "chatcmpl-b01",
+      "object": "chat.completion",
+      "created": 1700000000,
+      "model": "test-model",
+      "choices": [{"index": 0, "message": {"role": "assistant", "content": "The answer is 4"}, "finish_reason": "stop"}],
+      "usage": {"prompt_tokens": 10, "completion_tokens": 4, "total_tokens": 14}
+    },
+    {
+      "id": "chatcmpl-b02",
+      "object": "chat.completion",
+      "created": 1700000001,
+      "model": "test-model",
+      "choices": [{"index": 0, "message": {"role": "assistant", "content": "2 + 2 = 5"}, "finish_reason": "stop"}],
+      "usage": {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15}
+    },
+    {
+      "id": "chatcmpl-b03",
+      "object": "chat.completion",
+      "created": 1700000002,
+      "model": "test-model",
+      "choices": [{"index": 0, "message": {"role": "assistant", "content": "It equals 4"}, "finish_reason": "stop"}],
+      "usage": {"prompt_tokens": 10, "completion_tokens": 3, "total_tokens": 13}
+    }
+  ],
+  "orm_scores": {
+    "scores": [0.95, 0.1, 0.85]
+  },
+  "expected": {
+    "selected_content": "The answer is 4",
+    "response_schema": {
+      "required_fields": ["id", "object", "created", "model", "choices", "usage"],
+      "id_prefix": "chatcmpl-",
+      "object_value": "chat.completion",
+      "choices_length": 1,
+      "choice_fields": ["index", "message", "finish_reason"],
+      "usage_fields": ["prompt_tokens", "completion_tokens", "total_tokens"]
+    }
+  }
+}
