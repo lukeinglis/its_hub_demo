@@ -170,7 +170,7 @@ impl ScalingAlgorithm for BestOfN {
 
         let response_contents: Vec<String> = responses
             .iter()
-            .map(|r| extract_content_from_lm_response(r))
+            .map(extract_content_from_lm_response)
             .collect();
 
         let (unique_responses, inverse_idx) = dedupe_with_inverse(&response_contents);
@@ -388,7 +388,7 @@ mod tests {
         let responses = vec![content_response("only one")];
         let contents: Vec<String> = responses
             .iter()
-            .map(|r| extract_content_from_lm_response(r))
+            .map(extract_content_from_lm_response)
             .collect();
         let (uniques, _) = dedupe_with_inverse(&contents);
         assert_eq!(uniques.len(), 1);
@@ -444,7 +444,7 @@ mod tests {
         ];
         let contents: Vec<String> = responses
             .iter()
-            .map(|r| extract_content_from_lm_response(r))
+            .map(extract_content_from_lm_response)
             .collect();
         let (uniques, inverse_idx) = dedupe_with_inverse(&contents);
 
@@ -506,7 +506,7 @@ mod tests {
         let responses = vec![r1, r2];
         let contents: Vec<String> = responses
             .iter()
-            .map(|r| extract_content_from_lm_response(r))
+            .map(extract_content_from_lm_response)
             .collect();
         let (uniques, inverse_idx) = dedupe_with_inverse(&contents);
         assert_eq!(uniques.len(), 2);

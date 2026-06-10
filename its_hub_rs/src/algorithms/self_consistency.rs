@@ -63,13 +63,13 @@ impl SelfConsistency {
                 let results: Vec<Option<String>> = patterns
                     .iter()
                     .map(|pattern| {
-                        pattern.captures(&content).map(|caps| {
+                        pattern.captures(&content).and_then(|caps| {
                             if caps.len() > 1 {
                                 caps.get(1).map(|m| m.as_str().trim().to_string())
                             } else {
                                 caps.get(0).map(|m| m.as_str().trim().to_string())
                             }
-                        }).flatten()
+                        })
                     })
                     .collect();
                 ProjectedValue::Tuple(results)
@@ -142,7 +142,7 @@ impl SelfConsistency {
             .iter()
             .filter(|r| has_tool_calls(r))
             .count();
-        let required_majority = (responses.len() + 1) / 2;
+        let required_majority = responses.len().div_ceil(2);
         let has_majority_tool_calls = tool_call_count >= required_majority;
 
         if tool_call_count > 0 && self.tool_vote.is_none() {

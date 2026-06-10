@@ -16,6 +16,12 @@ pub struct AppState {
     pub clients: RwLock<HashMap<String, Arc<LmClient>>>,
 }
 
+impl Default for AppState {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl AppState {
     pub fn new() -> Self {
         Self {

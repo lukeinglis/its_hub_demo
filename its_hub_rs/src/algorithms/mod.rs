@@ -14,6 +14,7 @@ pub enum AlgorithmOutput {
 }
 
 #[async_trait]
+#[allow(clippy::too_many_arguments)]
 pub trait ScalingAlgorithm: Send + Sync {
     async fn infer(
         &self,
