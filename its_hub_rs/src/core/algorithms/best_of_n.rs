@@ -10,6 +10,84 @@ use crate::core::lms::LmBackend;
 use crate::api::types::{extract_content_from_lm_response, ChatMessage};
 
 
+/// Build a canonical deduplication key from a full response Value.
+///
+/// Matches Python v1's `_response_to_hashable_key()`: considers both text
+/// content and tool_calls so two responses with identical text but different
+/// tool calls are treated as distinct.
+fn response_to_canonical_key(response: &Value) -> String {
+    // --- content ---
+    let content_str = match response.get("content") {
+        Some(Value::String(s)) => s.clone(),
+        Some(Value::Array(parts)) => {
+            let text_parts: Vec<&str> = parts
+                .iter()
+                .filter(|p| p.get("type").and_then(|t| t.as_str()) == Some("text"))
+                .filter_map(|p| p.get("text").and_then(|t| t.as_str()))
+                .collect();
+            text_parts.join(" ")
+        }
+        _ => String::new(),
+    };
+
+    // --- tool_calls ---
+    let tool_calls_str = match response.get("tool_calls") {
+        Some(Value::Array(tcs)) if !tcs.is_empty() => {
+            let parts: Vec<String> = tcs
+                .iter()
+                .filter_map(|tc| tc.get("function"))
+                .map(|func| {
+                    let name = func
+                        .get("name")
+                        .and_then(|n| n.as_str())
+                        .unwrap_or("");
+                    let canonical_args = match func.get("arguments") {
+                        Some(Value::String(s)) => {
+                            match serde_json::from_str::<Value>(s) {
+                                Ok(parsed) => canon_json(&parsed),
+                                Err(_) => s.clone(),
+                            }
+                        }
+                        Some(v) => canon_json(v),
+                        None => "{}".to_string(),
+                    };
+                    format!("{}:{}", name, canonical_args)
+                })
+                .collect();
+            parts.join("|")
+        }
+        _ => String::new(),
+    };
+
+    format!("{}||{}", content_str, tool_calls_str)
+}
+
+/// Serialize a serde_json::Value with sorted object keys (recursive).
+fn canon_json(v: &Value) -> String {
+    match v {
+        Value::Object(map) => {
+            let mut keys: Vec<&String> = map.keys().collect();
+            keys.sort();
+            let entries: Vec<String> = keys
+                .iter()
+                .map(|k| {
+                    format!(
+                        "{}:{}",
+                        canon_json(&Value::String((*k).clone())),
+                        canon_json(&map[*k])
+                    )
+                })
+                .collect();
+            format!("{{{}}}", entries.join(","))
+        }
+        Value::Array(arr) => {
+            let items: Vec<String> = arr.iter().map(canon_json).collect();
+            format!("[{}]", items.join(","))
+        }
+        _ => serde_json::to_string(v).unwrap_or_default(),
+    }
+}
+
 pub struct HttpOrmClient {
     http: reqwest::Client,
     endpoint: String,
@@ -80,22 +158,29 @@ impl OutcomeRewardModel for HttpOrmClient {
     }
 }
 
-pub fn dedupe_with_inverse(items: &[String]) -> (Vec<String>, Vec<usize>) {
-    let mut uniques: Vec<String> = Vec::new();
+/// Deduplicate response Values using canonical keys that consider both text
+/// content and tool_calls, matching Python v1 semantics.
+///
+/// Returns `(unique_indices, inverse)` where `unique_indices` lists the index
+/// of each first-occurrence response in the original slice, and `inverse[i]`
+/// maps original position `i` to its position in the uniques list.
+pub fn dedupe_with_inverse(responses: &[Value]) -> (Vec<usize>, Vec<usize>) {
+    let mut unique_indices: Vec<usize> = Vec::new();
     let mut index_of: HashMap<String, usize> = HashMap::new();
     let mut inverse: Vec<usize> = Vec::new();
 
-    for item in items {
-        let j = index_of.get(item).copied().unwrap_or_else(|| {
-            let j = uniques.len();
-            index_of.insert(item.clone(), j);
-            uniques.push(item.clone());
+    for (i, response) in responses.iter().enumerate() {
+        let key = response_to_canonical_key(response);
+        let j = index_of.get(&key).copied().unwrap_or_else(|| {
+            let j = unique_indices.len();
+            index_of.insert(key, j);
+            unique_indices.push(i);
             j
         });
         inverse.push(j);
     }
 
-    (uniques, inverse)
+    (unique_indices, inverse)
 }
 
 pub struct BestOfN {
@@ -193,19 +278,20 @@ impl ScalingAlgorithm for BestOfN {
             anyhow::bail!("No responses to process");
         }
 
-        let response_contents: Vec<String> = responses
-            .iter()
-            .map(extract_content_from_lm_response)
-            .collect();
+        let (unique_indices, inverse_idx) = dedupe_with_inverse(&responses);
 
-        let (unique_responses, inverse_idx) = dedupe_with_inverse(&response_contents);
-
-        if unique_responses.len() == 1 {
+        if unique_indices.len() == 1 {
             let scores = vec![1.0; responses.len()];
             return Ok(self.process_responses(responses, scores, 0, return_response_only));
         }
 
-        let unique_scores = self.orm.score_batch(messages, &unique_responses).await?;
+        // Extract text content only for the unique responses to send to the ORM
+        let unique_contents: Vec<String> = unique_indices
+            .iter()
+            .map(|&i| extract_content_from_lm_response(&responses[i]))
+            .collect();
+
+        let unique_scores = self.orm.score_batch(messages, &unique_contents).await?;
 
         let scores: Vec<f64> = inverse_idx
             .iter()
@@ -231,55 +317,59 @@ mod tests {
     use super::*;
     use serde_json::json;
 
+    fn content_response(content: &str) -> Value {
+        json!({"role": "assistant", "content": content})
+    }
+
     #[test]
     fn dedupe_basic() {
-        let items: Vec<String> = vec!["a", "b", "a", "c", "b"]
+        let items: Vec<Value> = vec!["a", "b", "a", "c", "b"]
             .into_iter()
-            .map(String::from)
+            .map(content_response)
             .collect();
-        let (uniques, inverse) = dedupe_with_inverse(&items);
-        assert_eq!(uniques, vec!["a", "b", "c"]);
+        let (unique_indices, inverse) = dedupe_with_inverse(&items);
+        assert_eq!(unique_indices, vec![0, 1, 3]);
         assert_eq!(inverse, vec![0, 1, 0, 2, 1]);
     }
 
     #[test]
     fn dedupe_single_unique() {
-        let items: Vec<String> = vec!["a", "a", "a"]
+        let items: Vec<Value> = vec!["a", "a", "a"]
             .into_iter()
-            .map(String::from)
+            .map(content_response)
             .collect();
-        let (uniques, inverse) = dedupe_with_inverse(&items);
-        assert_eq!(uniques, vec!["a"]);
+        let (unique_indices, inverse) = dedupe_with_inverse(&items);
+        assert_eq!(unique_indices, vec![0]);
         assert_eq!(inverse, vec![0, 0, 0]);
     }
 
     #[test]
     fn dedupe_all_unique() {
-        let items: Vec<String> = vec!["a", "b", "c"]
+        let items: Vec<Value> = vec!["a", "b", "c"]
             .into_iter()
-            .map(String::from)
+            .map(content_response)
             .collect();
-        let (uniques, inverse) = dedupe_with_inverse(&items);
-        assert_eq!(uniques, vec!["a", "b", "c"]);
+        let (unique_indices, inverse) = dedupe_with_inverse(&items);
+        assert_eq!(unique_indices, vec![0, 1, 2]);
         assert_eq!(inverse, vec![0, 1, 2]);
     }
 
     #[test]
     fn dedupe_empty() {
-        let items: Vec<String> = vec![];
-        let (uniques, inverse) = dedupe_with_inverse(&items);
-        assert!(uniques.is_empty());
+        let items: Vec<Value> = vec![];
+        let (unique_indices, inverse) = dedupe_with_inverse(&items);
+        assert!(unique_indices.is_empty());
         assert!(inverse.is_empty());
     }
 
     #[test]
     fn dedupe_preserves_first_occurrence_order() {
-        let items: Vec<String> = vec!["c", "b", "a", "b", "c"]
+        let items: Vec<Value> = vec!["c", "b", "a", "b", "c"]
             .into_iter()
-            .map(String::from)
+            .map(content_response)
             .collect();
-        let (uniques, inverse) = dedupe_with_inverse(&items);
-        assert_eq!(uniques, vec!["c", "b", "a"]);
+        let (unique_indices, inverse) = dedupe_with_inverse(&items);
+        assert_eq!(unique_indices, vec![0, 1, 2]);
         assert_eq!(inverse, vec![0, 1, 2, 1, 0]);
     }
 
@@ -298,17 +388,13 @@ mod tests {
         }
     }
 
-    fn content_response(content: &str) -> Value {
-        json!({"role": "assistant", "content": content})
-    }
-
     #[test]
     fn score_mapping_through_inverse_index() {
-        let contents: Vec<String> = vec!["a", "b", "a", "c", "b"]
+        let responses: Vec<Value> = vec!["a", "b", "a", "c", "b"]
             .into_iter()
-            .map(String::from)
+            .map(content_response)
             .collect();
-        let (_, inverse_idx) = dedupe_with_inverse(&contents);
+        let (_, inverse_idx) = dedupe_with_inverse(&responses);
         let unique_scores = vec![0.3, 0.9, 0.5];
         let scores: Vec<f64> = inverse_idx
             .iter()
@@ -380,13 +466,6 @@ mod tests {
             }
         }
 
-        let contents: Vec<String> = vec!["same", "same", "same"]
-            .into_iter()
-            .map(String::from)
-            .collect();
-        let (uniques, _) = dedupe_with_inverse(&contents);
-        assert_eq!(uniques.len(), 1);
-
         let responses = vec![
             content_response("same"),
             content_response("same"),
@@ -412,12 +491,8 @@ mod tests {
         let bon = BestOfN::new(Box::new(orm));
 
         let responses = vec![content_response("only one")];
-        let contents: Vec<String> = responses
-            .iter()
-            .map(extract_content_from_lm_response)
-            .collect();
-        let (uniques, _) = dedupe_with_inverse(&contents);
-        assert_eq!(uniques.len(), 1);
+        let (unique_indices, _) = dedupe_with_inverse(&responses);
+        assert_eq!(unique_indices.len(), 1);
 
         let scores = vec![1.0];
         let result = bon.process_responses(responses, scores, 0, true);
@@ -468,13 +543,9 @@ mod tests {
             content_response("b"),
             content_response("a"),
         ];
-        let contents: Vec<String> = responses
-            .iter()
-            .map(extract_content_from_lm_response)
-            .collect();
-        let (uniques, inverse_idx) = dedupe_with_inverse(&contents);
+        let (unique_indices, inverse_idx) = dedupe_with_inverse(&responses);
 
-        assert_eq!(uniques, vec!["a", "b"]);
+        assert_eq!(unique_indices, vec![0, 1]);
         assert_eq!(inverse_idx, vec![0, 1, 0, 1, 0]);
 
         let unique_scores = vec![0.3, 0.9];
@@ -530,12 +601,8 @@ mod tests {
         });
 
         let responses = vec![r1, r2];
-        let contents: Vec<String> = responses
-            .iter()
-            .map(extract_content_from_lm_response)
-            .collect();
-        let (uniques, inverse_idx) = dedupe_with_inverse(&contents);
-        assert_eq!(uniques.len(), 2);
+        let (unique_indices, inverse_idx) = dedupe_with_inverse(&responses);
+        assert_eq!(unique_indices.len(), 2);
 
         let unique_scores = vec![0.5, 0.8];
         let scores: Vec<f64> = inverse_idx
@@ -557,6 +624,75 @@ mod tests {
             }
             _ => panic!("expected ResponseOnly"),
         }
+    }
+
+
+    // --- New tests for full-response deduplication ---
+
+    #[test]
+    fn test_dedup_same_text_different_tool_calls() {
+        let r1 = json!({
+            "role": "assistant",
+            "content": "I'll check the weather.",
+            "tool_calls": [{"id": "call_1", "type": "function", "function": {"name": "get_weather", "arguments": "{\"city\":\"London\"}"}}]
+        });
+        let r2 = json!({
+            "role": "assistant",
+            "content": "I'll check the weather.",
+            "tool_calls": [{"id": "call_2", "type": "function", "function": {"name": "get_weather", "arguments": "{\"city\":\"Paris\"}"}}]
+        });
+        let responses = vec![r1, r2];
+        let (unique_indices, inverse) = dedupe_with_inverse(&responses);
+        assert_eq!(unique_indices.len(), 2, "same text + different tool calls must not be deduped");
+        assert_eq!(inverse, vec![0, 1]);
+    }
+
+    #[test]
+    fn test_dedup_same_text_same_tool_calls() {
+        let r1 = json!({
+            "role": "assistant",
+            "content": "I'll check the weather.",
+            "tool_calls": [{"id": "call_1", "type": "function", "function": {"name": "get_weather", "arguments": "{\"city\":\"London\"}"}}]
+        });
+        let r2 = json!({
+            "role": "assistant",
+            "content": "I'll check the weather.",
+            "tool_calls": [{"id": "call_2", "type": "function", "function": {"name": "get_weather", "arguments": "{\"city\":\"London\"}"}}]
+        });
+        let responses = vec![r1, r2];
+        let (unique_indices, inverse) = dedupe_with_inverse(&responses);
+        assert_eq!(unique_indices.len(), 1, "same text + same tool calls must be deduped");
+        assert_eq!(inverse, vec![0, 0]);
+    }
+
+    #[test]
+    fn test_dedup_no_tool_calls() {
+        let responses = vec![
+            content_response("hello world"),
+            content_response("different answer"),
+            content_response("hello world"),
+        ];
+        let (unique_indices, inverse) = dedupe_with_inverse(&responses);
+        assert_eq!(unique_indices.len(), 2);
+        assert_eq!(inverse, vec![0, 1, 0]);
+    }
+
+    #[test]
+    fn test_dedup_tool_call_args_key_order_canonicalized() {
+        let r1 = json!({
+            "role": "assistant",
+            "content": null,
+            "tool_calls": [{"id": "call_1", "type": "function", "function": {"name": "search", "arguments": "{\"query\":\"rust\",\"limit\":10}"}}]
+        });
+        let r2 = json!({
+            "role": "assistant",
+            "content": null,
+            "tool_calls": [{"id": "call_2", "type": "function", "function": {"name": "search", "arguments": "{\"limit\":10,\"query\":\"rust\"}"}}]
+        });
+        let responses = vec![r1, r2];
+        let (unique_indices, inverse) = dedupe_with_inverse(&responses);
+        assert_eq!(unique_indices.len(), 1, "same tool call with reordered args must be deduped");
+        assert_eq!(inverse, vec![0, 0]);
     }
 
     #[tokio::test]
