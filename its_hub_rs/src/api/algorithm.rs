@@ -6,7 +6,7 @@ use async_trait::async_trait;
 use serde_json::Value;
 
 use crate::api::types::ChatMessage;
-use crate::core::lms::LmBackend;
+use crate::api::lm::AbstractLanguageModel;
 
 #[derive(Debug, Clone)]
 pub enum AlgorithmOutput {
@@ -19,7 +19,7 @@ pub enum AlgorithmOutput {
 pub trait ScalingAlgorithm: Send + Sync {
     async fn infer(
         &self,
-        client: &LmBackend,
+        client: &dyn AbstractLanguageModel,
         messages: &[ChatMessage],
         budget: u32,
         return_response_only: bool,

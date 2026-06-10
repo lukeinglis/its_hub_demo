@@ -3,8 +3,7 @@ use serde_json::Value;
 
 use async_trait::async_trait;
 
-use crate::api::{AlgorithmOutput, ScalingAlgorithm};
-use crate::core::lms::LmBackend;
+use crate::api::{AbstractLanguageModel, AlgorithmOutput, ScalingAlgorithm};
 use crate::api::types::{extract_content_from_lm_response, ChatMessage, Content};
 
 const PLANNING_TEMPLATE: &str = r#"Before solving this problem, I want you to first create a plan with different approaches to explore. This will help generate diverse solution strategies.
@@ -171,7 +170,7 @@ impl PlanningWrapper {
 impl ScalingAlgorithm for PlanningWrapper {
     async fn infer(
         &self,
-        client: &LmBackend,
+        client: &dyn AbstractLanguageModel,
         messages: &[ChatMessage],
         budget: u32,
         return_response_only: bool,
@@ -195,7 +194,7 @@ impl ScalingAlgorithm for PlanningWrapper {
         }];
 
         let plan_response = client
-            .chat_completion(&planning_messages, temperature, max_tokens, None, None, None)
+            .agenerate_single(&planning_messages, None, max_tokens, temperature, None, None, None)
             .await?;
         let plan = extract_content_from_lm_response(&plan_response);
 
@@ -294,6 +293,7 @@ impl ScalingAlgorithm for PlanningWrapper {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::core::lms::LmBackend;
     use serde_json::json;
 
     #[test]

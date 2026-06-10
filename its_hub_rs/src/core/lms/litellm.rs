@@ -377,6 +377,40 @@ impl LiteLLMClient {
     }
 }
 
+
+#[async_trait::async_trait]
+impl crate::api::lm::AbstractLanguageModel for LiteLLMClient {
+    async fn agenerate_single(
+        &self,
+        messages: &[ChatMessage],
+        stop: Option<&str>,
+        max_tokens: Option<u32>,
+        temperature: Option<f64>,
+        _include_stop_str_in_output: Option<bool>,
+        tools: Option<&Value>,
+        tool_choice: Option<&Value>,
+    ) -> Result<Value, LmClientError> {
+        self.chat_completion(messages, temperature, max_tokens, stop, tools, tool_choice)
+            .await
+    }
+
+    async fn fan_out(
+        &self,
+        messages: &[ChatMessage],
+        budget: u32,
+        temperature: Option<f64>,
+        max_tokens: Option<u32>,
+        tools: Option<&Value>,
+        tool_choice: Option<&Value>,
+    ) -> Vec<Result<Value, LmClientError>> {
+        LiteLLMClient::fan_out(self, messages, budget, temperature, max_tokens, tools, tool_choice)
+            .await
+    }
+
+    fn model_name(&self) -> &str {
+        LiteLLMClient::model_name(self)
+    }
+}
 async fn retry_single_request(
     http: &reqwest::Client,
     url: &str,

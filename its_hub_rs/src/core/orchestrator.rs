@@ -1,8 +1,4 @@
 //! LMOrchestrator: manages parallel execution of LM requests with concurrency limits.
-//!
-//! Port of Python's `its_hub.core.orchestrator.LMOrchestrator`.
-//! Uses `tokio::sync::Semaphore` instead of Python's threading.Semaphore
-//! and `tokio::task::JoinSet` instead of asyncio.TaskGroup.
 
 use std::sync::Arc;
 
@@ -11,18 +7,16 @@ use tokio::sync::Semaphore;
 
 #[allow(unused_imports)]
 use crate::api::errors::LmClientError;
+use crate::api::lm::AbstractLanguageModel;
 use crate::api::types::ChatMessage;
-use crate::core::lms::LmBackend;
 
 /// Abstract orchestrator for managing parallel LM generation.
-///
-/// Mirrors Python's `AbstractOrchestrator` from `its_hub/api/orchestrator.py`.
 #[async_trait::async_trait]
 #[allow(clippy::too_many_arguments)]
 pub trait AbstractOrchestrator: Send + Sync {
     async fn agenerate(
         &self,
-        backend: &LmBackend,
+        backend: &dyn AbstractLanguageModel,
         messages_lst: &[Vec<ChatMessage>],
         stop: Option<&str>,
         max_tokens: Option<u32>,
@@ -33,37 +27,24 @@ pub trait AbstractOrchestrator: Send + Sync {
 }
 
 /// Orchestrator for managing parallel LM generation with concurrency limits.
-///
-/// Mirrors Python's `LMOrchestrator` from `its_hub/core/orchestrator.py`.
-/// The concurrency limit is enforced using a tokio semaphore, which is
-/// thread-safe and async-native (no executor pool needed unlike Python).
 pub struct LMOrchestrator {
     max_concurrency: usize,
     semaphore: Option<Arc<Semaphore>>,
 }
 
 impl LMOrchestrator {
-    /// Create a new orchestrator.
-    ///
-    /// `max_concurrency` controls the maximum number of concurrent requests.
-    /// Use 0 for unlimited concurrency (internally maps to no semaphore).
-    ///
-    /// # Panics
-    /// Panics if max_concurrency is negative (not applicable in Rust since usize).
     pub fn new(max_concurrency: usize) -> Self {
         let semaphore = if max_concurrency > 0 {
             Some(Arc::new(Semaphore::new(max_concurrency)))
         } else {
             None
         };
-
         Self {
             max_concurrency,
             semaphore,
         }
     }
 
-    /// Get the configured max concurrency.
     pub fn max_concurrency(&self) -> usize {
         self.max_concurrency
     }
@@ -77,16 +58,9 @@ impl Default for LMOrchestrator {
 
 #[async_trait::async_trait]
 impl AbstractOrchestrator for LMOrchestrator {
-    /// Generate responses for a batch of message lists asynchronously.
-    ///
-    /// Each element in `messages_lst` is a separate conversation to process.
-    /// Results are returned in the same order as the input.
-    ///
-    /// Mirrors Python's `LMOrchestrator.agenerate()` using JoinSet for
-    /// parallel execution (equivalent to asyncio.TaskGroup).
     async fn agenerate(
         &self,
-        backend: &LmBackend,
+        backend: &dyn AbstractLanguageModel,
         messages_lst: &[Vec<ChatMessage>],
         stop: Option<&str>,
         max_tokens: Option<u32>,
@@ -99,19 +73,15 @@ impl AbstractOrchestrator for LMOrchestrator {
         }
 
         let mut results = Vec::with_capacity(messages_lst.len());
-
-        // Sequential execution with semaphore-based concurrency limiting.
-        // The semaphore ensures we don't exceed max_concurrency outstanding requests.
         for msgs in messages_lst {
             if let Some(ref sem) = self.semaphore {
                 let _permit = sem.acquire().await.unwrap();
             }
             let result = backend
-                .chat_completion(msgs, temperature, max_tokens, stop, tools, tool_choice)
+                .agenerate_single(msgs, stop, max_tokens, temperature, None, tools, tool_choice)
                 .await;
             results.push(result);
         }
-
         results
     }
 }
@@ -144,8 +114,6 @@ mod tests {
     #[tokio::test]
     async fn test_orchestrator_empty_batch() {
         let orch = LMOrchestrator::new(4);
-        // We need a backend but with empty input it should return immediately
-        // Create a mock backend
         let client = crate::core::lms::LmClient::new(
             "http://localhost:9999/v1",
             None,
@@ -156,7 +124,7 @@ mod tests {
             None,
         )
         .unwrap();
-        let backend = LmBackend::OpenAI(client);
+        let backend = crate::core::lms::LmBackend::OpenAI(client);
 
         let results = orch
             .agenerate(&backend, &[], None, None, None, None, None)
@@ -198,7 +166,7 @@ mod tests {
             None,
         )
         .unwrap();
-        let backend = LmBackend::OpenAI(client);
+        let backend = crate::core::lms::LmBackend::OpenAI(client);
 
         let orch = LMOrchestrator::new(4);
 

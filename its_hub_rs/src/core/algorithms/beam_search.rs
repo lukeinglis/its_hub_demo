@@ -3,9 +3,8 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use serde_json::Value;
 
-use crate::api::{AlgorithmOutput, ProcessRewardModel, ScalingAlgorithm};
+use crate::api::{AbstractLanguageModel, AlgorithmOutput, ProcessRewardModel, ScalingAlgorithm};
 use crate::api::types::ChatMessages;
-use crate::core::lms::LmBackend;
 use crate::core::lms::step_generation::StepGeneration;
 use crate::api::types::ChatMessage;
 
@@ -58,7 +57,7 @@ impl BeamSearch {
     #[allow(clippy::too_many_arguments)]
     async fn search_one_level(
         &self,
-        client: &LmBackend,
+        client: &dyn AbstractLanguageModel,
         candidates: &mut [Path],
         prompt: &str,
         temperature: Option<f64>,
@@ -120,7 +119,7 @@ impl BeamSearch {
     #[allow(clippy::too_many_arguments)]
     async fn forward_steps(
         &self,
-        client: &LmBackend,
+        client: &dyn AbstractLanguageModel,
         prompts: &[&str],
         steps_so_far: &[&[String]],
         temperature: Option<f64>,
@@ -161,7 +160,7 @@ impl BeamSearch {
 impl ScalingAlgorithm for BeamSearch {
     async fn infer(
         &self,
-        client: &LmBackend,
+        client: &dyn AbstractLanguageModel,
         messages: &[ChatMessage],
         budget: u32,
         return_response_only: bool,
@@ -259,6 +258,7 @@ impl ScalingAlgorithm for BeamSearch {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::core::lms::LmBackend;
     use std::sync::atomic::{AtomicUsize, Ordering};
 
     struct MockPRM {

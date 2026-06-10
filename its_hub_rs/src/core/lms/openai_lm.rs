@@ -9,6 +9,7 @@ use rand::Rng;
 use tracing::{debug, warn};
 
 use crate::api::errors::LmClientError;
+use crate::api::lm::AbstractLanguageModel;
 use crate::api::types::ChatMessage;
 
 use super::litellm::LiteLLMClient;
@@ -67,6 +68,35 @@ impl LmBackend {
                 c.fan_out(messages, budget, temperature, max_tokens, tools, tool_choice)
                     .await
             }
+        }
+    }
+}
+
+
+#[async_trait::async_trait]
+impl AbstractLanguageModel for LmBackend {
+    async fn agenerate_single(
+        &self, messages: &[ChatMessage], stop: Option<&str>,
+        max_tokens: Option<u32>, temperature: Option<f64>,
+        _include_stop_str_in_output: Option<bool>,
+        tools: Option<&Value>, tool_choice: Option<&Value>,
+    ) -> Result<Value, LmClientError> {
+        self.chat_completion(messages, temperature, max_tokens, stop, tools, tool_choice).await
+    }
+    async fn fan_out(
+        &self, messages: &[ChatMessage], budget: u32,
+        temperature: Option<f64>, max_tokens: Option<u32>,
+        tools: Option<&Value>, tool_choice: Option<&Value>,
+    ) -> Vec<Result<Value, LmClientError>> {
+        match self {
+            LmBackend::OpenAI(c) => c.fan_out(messages, budget, temperature, max_tokens, tools, tool_choice).await,
+            LmBackend::LiteLLM(c) => c.fan_out(messages, budget, temperature, max_tokens, tools, tool_choice).await,
+        }
+    }
+    fn model_name(&self) -> &str {
+        match self {
+            LmBackend::OpenAI(c) => c.model_name(),
+            LmBackend::LiteLLM(c) => c.model_name(),
         }
     }
 }

@@ -1,8 +1,7 @@
 use async_trait::async_trait;
 use serde_json::Value;
 
-use crate::api::{AlgorithmOutput, ScalingAlgorithm};
-use crate::core::lms::LmBackend;
+use crate::api::{AbstractLanguageModel, AlgorithmOutput, ScalingAlgorithm};
 use crate::api::types::ChatMessage;
 
 /// Placeholder for a Metropolis-Hastings sampling algorithm.
@@ -26,7 +25,7 @@ impl Default for MetropolisHastings {
 impl ScalingAlgorithm for MetropolisHastings {
     async fn infer(
         &self,
-        _client: &LmBackend,
+        _client: &dyn AbstractLanguageModel,
         _messages: &[ChatMessage],
         _budget: u32,
         _return_response_only: bool,

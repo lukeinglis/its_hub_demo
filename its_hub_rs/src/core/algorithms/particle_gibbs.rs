@@ -5,9 +5,8 @@ use rand::distributions::WeightedIndex;
 use rand::prelude::*;
 use serde_json::Value;
 
-use crate::api::{AlgorithmOutput, ProcessRewardModel, ScalingAlgorithm};
+use crate::api::{AbstractLanguageModel, AlgorithmOutput, ProcessRewardModel, ScalingAlgorithm};
 use crate::api::types::ChatMessages;
-use crate::core::lms::LmBackend;
 use crate::core::lms::step_generation::StepGeneration;
 use crate::api::types::ChatMessage;
 
@@ -182,7 +181,7 @@ impl ParticleGibbs {
     #[allow(clippy::too_many_arguments)]
     async fn propagate(
         &self,
-        client: &LmBackend,
+        client: &dyn AbstractLanguageModel,
         particles: &mut [Particle],
         prompt: &str,
         temperature: Option<f64>,
@@ -304,7 +303,7 @@ impl ParticleGibbs {
 impl ScalingAlgorithm for ParticleGibbs {
     async fn infer(
         &self,
-        client: &LmBackend,
+        client: &dyn AbstractLanguageModel,
         messages: &[ChatMessage],
         budget: u32,
         return_response_only: bool,
@@ -480,7 +479,7 @@ impl ParticleFiltering {
 impl ScalingAlgorithm for ParticleFiltering {
     async fn infer(
         &self,
-        client: &LmBackend,
+        client: &dyn AbstractLanguageModel,
         messages: &[ChatMessage],
         budget: u32,
         return_response_only: bool,
@@ -568,7 +567,7 @@ impl EntropicParticleFiltering {
 impl ScalingAlgorithm for EntropicParticleFiltering {
     async fn infer(
         &self,
-        client: &LmBackend,
+        client: &dyn AbstractLanguageModel,
         messages: &[ChatMessage],
         budget: u32,
         return_response_only: bool,
@@ -624,6 +623,7 @@ impl ScalingAlgorithm for EntropicParticleFiltering {
 mod tests {
     use super::*;
     use std::sync::atomic::{AtomicUsize, Ordering};
+    use crate::core::lms::LmBackend;
 
     struct MockPRM {
         scores: Vec<f64>,

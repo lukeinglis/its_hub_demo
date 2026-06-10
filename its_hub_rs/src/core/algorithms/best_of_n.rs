@@ -5,8 +5,7 @@ use reqwest::header::{HeaderValue, CONTENT_TYPE};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::api::{AlgorithmOutput, OutcomeRewardModel, ScalingAlgorithm};
-use crate::core::lms::LmBackend;
+use crate::api::{AbstractLanguageModel, AlgorithmOutput, OutcomeRewardModel, ScalingAlgorithm};
 use crate::api::types::{extract_content_from_lm_response, ChatMessage};
 
 
@@ -234,7 +233,7 @@ impl BestOfN {
 impl ScalingAlgorithm for BestOfN {
     async fn infer(
         &self,
-        client: &LmBackend,
+        client: &dyn AbstractLanguageModel,
         messages: &[ChatMessage],
         budget: u32,
         return_response_only: bool,

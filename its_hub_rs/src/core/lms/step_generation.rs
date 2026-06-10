@@ -1,6 +1,6 @@
 use serde_json::Value;
 
-use crate::core::lms::LmBackend;
+use crate::api::lm::AbstractLanguageModel;
 use crate::api::types::{ChatMessage, Content};
 
 /// Strips `suffix` from the end of `s` if present.
@@ -225,7 +225,7 @@ impl StepGeneration {
     #[allow(clippy::too_many_arguments)]
     pub async fn forward_step(
         &self,
-        client: &LmBackend,
+        client: &dyn AbstractLanguageModel,
         prompt: &str,
         steps_so_far: &[String],
         temperature: Option<f64>,
@@ -254,11 +254,12 @@ impl StepGeneration {
         let stop_str = self.build_stop_string();
 
         let response = client
-            .chat_completion(
+            .agenerate_single(
                 &messages,
-                Some(temp),
-                max_tokens,
                 stop_str.as_deref(),
+                max_tokens,
+                Some(temp),
+                None,
                 tools,
                 tool_choice,
             )

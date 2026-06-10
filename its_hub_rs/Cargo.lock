@@ -737,6 +737,7 @@ dependencies = [
  "async-trait",
  "axum",
  "clap",
+ "futures",
  "rand 0.8.6",
  "regex",
  "reqwest",

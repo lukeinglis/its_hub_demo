@@ -278,7 +278,7 @@ pub async fn configure(
 
     let max_concurrency = config.max_concurrent_requests.unwrap_or(64);
 
-    let backend: LmBackend = if config.provider == "litellm" {
+    let backend: std::sync::Arc<dyn crate::api::lm::AbstractLanguageModel> = if config.provider == "litellm" {
         let litellm_client = LiteLLMClient::new(
             &config.model,
             "openai",
@@ -293,7 +293,7 @@ pub async fn configure(
             std::collections::HashMap::new(),
         )
         .map_err(|e| AppError::BadRequest(format!("failed to create LiteLLM client: {}", e)))?;
-        LmBackend::LiteLLM(litellm_client)
+        std::sync::Arc::new(LmBackend::LiteLLM(litellm_client)) as std::sync::Arc<dyn crate::api::lm::AbstractLanguageModel>
     } else {
         let lm_client = LmClient::new(
             &config.endpoint,
@@ -305,7 +305,7 @@ pub async fn configure(
             config.include_stop_str_in_output,
         )
         .map_err(|e| AppError::BadRequest(format!("failed to create LM client: {}", e)))?;
-        LmBackend::OpenAI(lm_client)
+        std::sync::Arc::new(LmBackend::OpenAI(lm_client)) as std::sync::Arc<dyn crate::api::lm::AbstractLanguageModel>
     };
 
     let model_name = config.model.clone();
@@ -320,7 +320,7 @@ pub async fn configure(
 
     {
         let mut clients_lock = state.clients.write().await;
-        clients_lock.insert(model_name.clone(), Arc::new(backend));
+        clients_lock.insert(model_name.clone(), backend);
     }
 
     info!(model = %model_name, algorithm = %alg_name, "configured");
@@ -391,7 +391,7 @@ pub async fn chat_completions(
 
     let output = algorithm
         .infer(
-            &client,
+            client.as_ref(),
             &request.messages,
             request.budget,
             request.return_response_only,

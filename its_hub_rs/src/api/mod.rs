@@ -4,12 +4,14 @@
 
 pub mod algorithm;
 pub mod errors;
+pub mod lm;
 pub mod reward_models;
 pub mod types;
 
 // Re-export key items for convenience
 pub use algorithm::{AlgorithmOutput, ScalingAlgorithm};
 pub use errors::LmClientError;
+pub use lm::AbstractLanguageModel;
 pub use reward_models::{OutcomeRewardModel, ProcessRewardModel};
 pub use types::{
     ChatCompletionChoice, ChatCompletionRequest, ChatCompletionResponse, ChatCompletionUsage,
