@@ -1,4 +1,5 @@
 pub mod error;
+pub mod litellm;
 
 use std::sync::Arc;
 use std::time::Duration;
