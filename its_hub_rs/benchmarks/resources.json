@@ -1,0 +1,7 @@
+{
+  "rust_binary_size_bytes": 10926832,
+  "rust_rss_idle_kb":   9136,
+  "rust_rss_after_bench_kb":  15872,
+  "rust_startup_ms": 252,
+  "mock_vllm_rss_kb":  20064
+}
