@@ -1,0 +1,24 @@
+name: Rust Gateway CI
+on:
+  push:
+    paths: ['its_hub_rs/**']
+  pull_request:
+    paths: ['its_hub_rs/**']
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Build
+        working-directory: its_hub_rs
+        run: cargo build --verbose
+      - name: Test
+        working-directory: its_hub_rs
+        run: cargo test --verbose
+      - name: Clippy
+        working-directory: its_hub_rs
+        run: cargo clippy -- -D warnings
+      - name: Format check
+        working-directory: its_hub_rs
+        run: cargo fmt --check
