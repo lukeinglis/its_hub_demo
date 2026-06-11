@@ -194,11 +194,11 @@ impl ScalingAlgorithm for PlanningWrapper {
             tool_call_id: None,
         }];
 
-        let plan_response = client
+        let plan_result = client
             .chat_completion(&planning_messages, temperature, max_tokens, None, None, None)
             .await
             .map_err(|e| anyhow::anyhow!("planning generation failed: {}", e))?;
-        let plan = extract_content_from_lm_response(&plan_response);
+        let plan = extract_content_from_lm_response(&plan_result.message);
 
         let approaches = extract_approaches(&plan);
 
@@ -248,8 +248,8 @@ impl ScalingAlgorithm for PlanningWrapper {
                 .await?;
 
             let (selected, metadata) = match result {
-                AlgorithmOutput::Full { selected, metadata } => (selected, metadata),
-                AlgorithmOutput::ResponseOnly(v) => (v, serde_json::json!({})),
+                AlgorithmOutput::Full { selected, metadata, .. } => (selected, metadata),
+                AlgorithmOutput::ResponseOnly { message, .. } => (message, serde_json::json!({})),
             };
 
             let score = get_result_score(&metadata);
@@ -274,7 +274,7 @@ impl ScalingAlgorithm for PlanningWrapper {
         let selected = best_selected.unwrap_or(Value::Null);
 
         if return_response_only {
-            Ok(AlgorithmOutput::ResponseOnly(selected))
+            Ok(AlgorithmOutput::ResponseOnly { message: selected, usage: None })
         } else {
             let metadata = serde_json::json!({
                 "algorithm": "planning-wrapper",
@@ -287,7 +287,7 @@ impl ScalingAlgorithm for PlanningWrapper {
                 "best_score": best_score,
                 "inner_metadata": best_metadata,
             });
-            Ok(AlgorithmOutput::Full { selected, metadata })
+            Ok(AlgorithmOutput::Full { selected, metadata, usage: None })
         }
     }
 }
@@ -492,7 +492,7 @@ mod tests {
             .unwrap();
 
         match result {
-            AlgorithmOutput::Full { selected, metadata } => {
+            AlgorithmOutput::Full { selected, metadata, .. } => {
                 assert!(selected.get("content").is_some());
                 assert_eq!(metadata["algorithm"], "planning-wrapper");
                 assert!(metadata.get("plan").is_some());
@@ -501,7 +501,7 @@ mod tests {
                 let approaches = metadata["approaches"].as_array().unwrap();
                 assert!(!approaches.is_empty());
             }
-            AlgorithmOutput::ResponseOnly(_) => {
+            AlgorithmOutput::ResponseOnly { .. } => {
                 panic!("expected Full output");
             }
         }
@@ -564,7 +564,7 @@ mod tests {
             .unwrap();
 
         match result {
-            AlgorithmOutput::ResponseOnly(v) => {
+            AlgorithmOutput::ResponseOnly { message: v, .. } => {
                 assert!(v.get("content").is_some() || v.get("role").is_some());
             }
             AlgorithmOutput::Full { .. } => {

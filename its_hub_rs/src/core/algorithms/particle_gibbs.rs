@@ -440,9 +440,10 @@ impl ScalingAlgorithm for ParticleGibbs {
         };
 
         if return_response_only {
-            Ok(AlgorithmOutput::ResponseOnly(
-                last_responses[selected_index].clone(),
-            ))
+            Ok(AlgorithmOutput::ResponseOnly {
+                message: last_responses[selected_index].clone(),
+                usage: None,
+            })
         } else {
             let metadata = serde_json::json!({
                 "algorithm": "particle-gibbs",
@@ -455,6 +456,7 @@ impl ScalingAlgorithm for ParticleGibbs {
             Ok(AlgorithmOutput::Full {
                 selected: last_responses[selected_index].clone(),
                 metadata,
+                usage: None,
             })
         }
     }
@@ -524,7 +526,10 @@ impl ScalingAlgorithm for ParticleFiltering {
                     .collect();
 
                 if return_response_only {
-                    Ok(AlgorithmOutput::ResponseOnly(responses[selected_index].clone()))
+                    Ok(AlgorithmOutput::ResponseOnly {
+                        message: responses[selected_index].clone(),
+                        usage: None,
+                    })
                 } else {
                     let flat_metadata = serde_json::json!({
                         "algorithm": "particle-filtering",
@@ -536,6 +541,7 @@ impl ScalingAlgorithm for ParticleFiltering {
                     Ok(AlgorithmOutput::Full {
                         selected: responses[selected_index].clone(),
                         metadata: flat_metadata,
+                        usage: None,
                     })
                 }
             }
@@ -612,7 +618,10 @@ impl ScalingAlgorithm for EntropicParticleFiltering {
                     .collect();
 
                 if return_response_only {
-                    Ok(AlgorithmOutput::ResponseOnly(responses[selected_index].clone()))
+                    Ok(AlgorithmOutput::ResponseOnly {
+                        message: responses[selected_index].clone(),
+                        usage: None,
+                    })
                 } else {
                     let flat_metadata = serde_json::json!({
                         "algorithm": "entropic-particle-filtering",
@@ -624,6 +633,7 @@ impl ScalingAlgorithm for EntropicParticleFiltering {
                     Ok(AlgorithmOutput::Full {
                         selected: responses[selected_index].clone(),
                         metadata: flat_metadata,
+                        usage: None,
                     })
                 }
             }
@@ -1031,7 +1041,7 @@ mod tests {
             .unwrap();
 
         match result {
-            AlgorithmOutput::ResponseOnly(val) => {
+            AlgorithmOutput::ResponseOnly { message: val, .. } => {
                 assert!(val.get("content").is_some());
                 assert_eq!(val["role"], "assistant");
             }
@@ -1085,7 +1095,7 @@ mod tests {
             .unwrap();
 
         match result {
-            AlgorithmOutput::Full { selected, metadata } => {
+            AlgorithmOutput::Full { selected, metadata, .. } => {
                 assert_eq!(selected["role"], "assistant");
                 assert_eq!(metadata["algorithm"], "particle-gibbs");
                 assert!(metadata.get("responses_lst").is_some());
@@ -1205,7 +1215,7 @@ mod tests {
             .unwrap();
 
         match result {
-            AlgorithmOutput::ResponseOnly(val) => {
+            AlgorithmOutput::ResponseOnly { message: val, .. } => {
                 assert_eq!(val["role"], "assistant");
             }
             _ => panic!("expected ResponseOnly"),
@@ -1247,7 +1257,7 @@ mod tests {
             .unwrap();
 
         match result {
-            AlgorithmOutput::Full { selected, metadata } => {
+            AlgorithmOutput::Full { selected, metadata, .. } => {
                 assert_eq!(selected["role"], "assistant");
                 assert_eq!(metadata["algorithm"], "particle-filtering");
                 let responses = metadata["responses"].as_array().unwrap();
@@ -1292,7 +1302,7 @@ mod tests {
             .unwrap();
 
         match result {
-            AlgorithmOutput::ResponseOnly(val) => {
+            AlgorithmOutput::ResponseOnly { message: val, .. } => {
                 assert_eq!(val["role"], "assistant");
             }
             _ => panic!("expected ResponseOnly"),
@@ -1342,7 +1352,7 @@ mod tests {
             .unwrap();
 
         match result {
-            AlgorithmOutput::ResponseOnly(val) => {
+            AlgorithmOutput::ResponseOnly { message: val, .. } => {
                 assert_eq!(val["role"], "assistant");
             }
             _ => panic!("expected ResponseOnly"),
@@ -1392,7 +1402,7 @@ mod tests {
             .unwrap();
 
         match result {
-            AlgorithmOutput::Full { selected, metadata } => {
+            AlgorithmOutput::Full { selected, metadata, .. } => {
                 assert_eq!(selected["role"], "assistant");
                 assert_eq!(metadata["algorithm"], "entropic-particle-filtering");
                 let responses = metadata["responses"].as_array().unwrap();

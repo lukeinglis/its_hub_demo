@@ -21,7 +21,7 @@ pub async fn passthrough_to_upstream(
     client: &LmClient,
     request: &ChatCompletionRequest,
 ) -> Result<ChatCompletionResponse, AppError> {
-    let message = client
+    let result = client
         .chat_completion(
             &request.messages,
             request.temperature,
@@ -40,6 +40,12 @@ pub async fn passthrough_to_upstream(
         .map(|d| d.as_secs())
         .unwrap_or(0);
 
+    let usage = result.usage.unwrap_or(ChatCompletionUsage {
+        prompt_tokens: 0,
+        completion_tokens: 0,
+        total_tokens: 0,
+    });
+
     Ok(ChatCompletionResponse {
         id: format!("chatcmpl-{}", uuid::Uuid::new_v4()),
         object: "chat.completion".to_string(),
@@ -47,14 +53,10 @@ pub async fn passthrough_to_upstream(
         model: request.model.clone(),
         choices: vec![ChatCompletionChoice {
             index: 0,
-            message,
+            message: result.message,
             finish_reason: "stop".to_string(),
         }],
-        usage: ChatCompletionUsage {
-            prompt_tokens: 0,
-            completion_tokens: 0,
-            total_tokens: 0,
-        },
+        usage,
         metadata: Some(json!({"passthrough": true})),
     })
 }

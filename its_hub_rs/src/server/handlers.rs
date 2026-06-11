@@ -23,7 +23,7 @@ use crate::core::algorithms::planning_wrapper::PlanningWrapper;
 use crate::core::algorithms::self_consistency::{SelfConsistency, ToolVoteStrategy};
 use crate::core::cache::{CacheKey, TokenCache};
 use crate::core::lms::step_generation::{StepGeneration, StepToken};
-use crate::core::lms::LmClient;
+use crate::core::lms::{EndpointType, LmClient};
 use crate::core::reward_models::{HttpProcessRewardModel, LlmJudgeRewardModel};
 
 use super::error::AppError;
@@ -315,6 +315,12 @@ pub async fn configure(
 
     let max_concurrency = config.max_concurrent_requests.unwrap_or(64);
 
+    // Map the provider config field to an explicit EndpointType
+    let endpoint_type = match config.provider.as_str() {
+        "openai" => Some(EndpointType::OpenAI),
+        _ => Some(EndpointType::Vllm),
+    };
+
     let lm_client = LmClient::with_timeout(
         &config.endpoint,
         config.api_key.as_deref(),
@@ -324,6 +330,7 @@ pub async fn configure(
         config.system_prompt.clone(),
         config.include_stop_str_in_output,
         config.request_timeout_seconds,
+        endpoint_type,
     )
     .map_err(|e| AppError::BadRequest(format!("failed to create LM client: {}", e)))?;
 
@@ -578,9 +585,9 @@ pub async fn chat_completions(
         }
     };
 
-    let (selected, metadata) = match output {
-        AlgorithmOutput::ResponseOnly(msg) => (msg, None),
-        AlgorithmOutput::Full { selected, metadata } => (selected, Some(metadata)),
+    let (selected, metadata, usage) = match output {
+        AlgorithmOutput::ResponseOnly { message, usage } => (message, None, usage),
+        AlgorithmOutput::Full { selected, metadata, usage } => (selected, Some(metadata), usage),
     };
 
     let created = SystemTime::now()
@@ -598,11 +605,11 @@ pub async fn chat_completions(
             message: selected,
             finish_reason: "stop".to_string(),
         }],
-        usage: ChatCompletionUsage {
+        usage: usage.unwrap_or(ChatCompletionUsage {
             prompt_tokens: 0,
             completion_tokens: 0,
             total_tokens: 0,
-        },
+        }),
         metadata,
     };
 
@@ -671,8 +678,8 @@ pub async fn health_live() -> impl IntoResponse {
     (StatusCode::OK, Json(json!({"status": "alive"})))
 }
 
-/// Readiness probe: returns 200 only if an algorithm is configured and
-/// at least one model client is registered.
+/// Readiness probe: returns 200 only if an algorithm is configured,
+/// at least one model client is registered, and the upstream is reachable.
 pub async fn health_ready(State(state): State<Arc<AppState>>) -> impl IntoResponse {
     let gw = state.gateway.read().await;
 
@@ -680,16 +687,56 @@ pub async fn health_ready(State(state): State<Arc<AppState>>) -> impl IntoRespon
     let num_models = gw.as_ref().map(|g| g.clients.len()).unwrap_or(0);
     let has_models = num_models > 0;
 
-    if has_algorithm && has_models {
-        (StatusCode::OK, Json(json!({"status": "ready"})))
-    } else {
-        (
+    if !has_algorithm || !has_models {
+        return (
             StatusCode::SERVICE_UNAVAILABLE,
             Json(json!({
                 "status": "not_ready",
                 "algorithm_configured": has_algorithm,
                 "models_connected": num_models,
             })),
-        )
+        );
     }
+
+    // Optionally check upstream connectivity with a short timeout
+    if let Some(gw_config) = gw.as_ref() {
+        if let Some(client) = gw_config.clients.values().next() {
+            let upstream_url = format!("{}/models", client.endpoint());
+            let probe = reqwest::Client::builder()
+                .timeout(std::time::Duration::from_secs(2))
+                .build()
+                .ok()
+                .map(|c| c.get(&upstream_url).send());
+            if let Some(fut) = probe {
+                match fut.await {
+                    Ok(resp) if resp.status().is_success() || resp.status().as_u16() == 404 => {
+                        // 404 is acceptable: endpoint exists but /models may not be implemented
+                    }
+                    Ok(resp) if resp.status().is_server_error() => {
+                        warn!(status = %resp.status(), "upstream returned server error during readiness probe");
+                        return (
+                            StatusCode::SERVICE_UNAVAILABLE,
+                            Json(json!({
+                                "status": "not_ready",
+                                "reason": "upstream unreachable",
+                            })),
+                        );
+                    }
+                    Err(e) => {
+                        warn!(error = %e, "upstream connectivity check failed during readiness probe");
+                        return (
+                            StatusCode::SERVICE_UNAVAILABLE,
+                            Json(json!({
+                                "status": "not_ready",
+                                "reason": "upstream unreachable",
+                            })),
+                        );
+                    }
+                    _ => {} // other status codes (e.g. 401, 403) mean the upstream is reachable
+                }
+            }
+        }
+    }
+
+    (StatusCode::OK, Json(json!({"status": "ready"})))
 }

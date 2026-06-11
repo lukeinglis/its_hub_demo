@@ -214,7 +214,10 @@ impl BestOfN {
         return_response_only: bool,
     ) -> AlgorithmOutput {
         if return_response_only {
-            AlgorithmOutput::ResponseOnly(responses[selected_index].clone())
+            AlgorithmOutput::ResponseOnly {
+                message: responses[selected_index].clone(),
+                usage: None,
+            }
         } else {
             let metadata = serde_json::json!({
                 "algorithm": "best-of-n",
@@ -225,6 +228,7 @@ impl BestOfN {
             AlgorithmOutput::Full {
                 selected: responses[selected_index].clone(),
                 metadata,
+                usage: None,
             }
         }
     }
@@ -247,6 +251,8 @@ impl ScalingAlgorithm for BestOfN {
             .fan_out(messages, budget, temperature, max_tokens, tools, tool_choice)
             .await;
 
+        let usage = crate::core::lms::CompletionResult::aggregate_usage(&results);
+
         let fallback_msg = self
             .replace_error_with_message
             .as_deref()
@@ -256,9 +262,9 @@ impl ScalingAlgorithm for BestOfN {
         let mut all_failed = true;
         for result in results {
             match result {
-                Ok(msg) => {
+                Ok(cr) => {
                     all_failed = false;
-                    responses.push(msg);
+                    responses.push(cr.message);
                 }
                 Err(e) => {
                     tracing::warn!(error = %e, "fan-out request failed, substituting error response");
@@ -308,7 +314,12 @@ impl ScalingAlgorithm for BestOfN {
             .position(|&s| s.is_finite() && s == max_score)
             .unwrap_or(0);
 
-        Ok(self.process_responses(responses, scores, selected_index, return_response_only))
+        let mut output = self.process_responses(responses, scores, selected_index, return_response_only);
+        match &mut output {
+            AlgorithmOutput::ResponseOnly { usage: ref mut u, .. } => *u = Some(usage),
+            AlgorithmOutput::Full { usage: ref mut u, .. } => *u = Some(usage),
+        }
+        Ok(output)
     }
 }
 
@@ -444,7 +455,7 @@ mod tests {
 
         let result = bon.process_responses(responses, scores_mapped, selected_index, true);
         match result {
-            AlgorithmOutput::ResponseOnly(selected) => {
+            AlgorithmOutput::ResponseOnly { message: selected, .. } => {
                 assert_eq!(selected["content"], "answer_b");
             }
             _ => panic!("expected ResponseOnly"),
@@ -475,7 +486,7 @@ mod tests {
         let bon = BestOfN::new(Box::new(ShouldNotBeCalled));
         let result = bon.process_responses(responses, scores.clone(), 0, true);
         match result {
-            AlgorithmOutput::ResponseOnly(selected) => {
+            AlgorithmOutput::ResponseOnly { message: selected, .. } => {
                 assert_eq!(selected["content"], "same");
             }
             _ => panic!("expected ResponseOnly"),
@@ -497,7 +508,7 @@ mod tests {
         let scores = vec![1.0];
         let result = bon.process_responses(responses, scores, 0, true);
         match result {
-            AlgorithmOutput::ResponseOnly(selected) => {
+            AlgorithmOutput::ResponseOnly { message: selected, .. } => {
                 assert_eq!(selected["content"], "only one");
             }
             _ => panic!("expected ResponseOnly"),
@@ -518,7 +529,7 @@ mod tests {
         let scores = vec![0.4, 0.8];
         let result = bon.process_responses(responses, scores, 1, false);
         match result {
-            AlgorithmOutput::Full { selected, metadata } => {
+            AlgorithmOutput::Full { selected, metadata, .. } => {
                 assert_eq!(selected["content"], "better");
                 assert_eq!(metadata["algorithm"], "best-of-n");
                 assert_eq!(metadata["selected_index"], 1);
@@ -561,7 +572,7 @@ mod tests {
 
         let result = bon.process_responses(responses, scores, selected_index, true);
         match result {
-            AlgorithmOutput::ResponseOnly(selected) => {
+            AlgorithmOutput::ResponseOnly { message: selected, .. } => {
                 assert_eq!(selected["content"], "b");
             }
             _ => panic!("expected ResponseOnly"),
@@ -616,7 +627,7 @@ mod tests {
 
         let result = bon.process_responses(responses, scores, selected_index, true);
         match result {
-            AlgorithmOutput::ResponseOnly(selected) => {
+            AlgorithmOutput::ResponseOnly { message: selected, .. } => {
                 let name = selected["tool_calls"][0]["function"]["name"]
                     .as_str()
                     .unwrap();

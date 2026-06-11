@@ -9,12 +9,41 @@ use rand::Rng;
 use tracing::{debug, warn};
 
 use crate::api::errors::LmClientError;
-use crate::api::types::ChatMessage;
+use crate::api::types::{ChatCompletionUsage, ChatMessage};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EndpointType {
     OpenAI,
     Vllm,
+}
+
+/// Result of a single upstream chat completion, carrying both the message
+/// and any usage statistics reported by the upstream provider.
+#[derive(Debug, Clone)]
+pub struct CompletionResult {
+    pub message: Value,
+    pub usage: Option<ChatCompletionUsage>,
+}
+
+impl CompletionResult {
+    /// Sum usage across multiple completion results, skipping errors.
+    pub fn aggregate_usage(results: &[Result<CompletionResult, LmClientError>]) -> ChatCompletionUsage {
+        let mut prompt_tokens = 0u32;
+        let mut completion_tokens = 0u32;
+        let mut total_tokens = 0u32;
+        for cr in results.iter().flatten() {
+            if let Some(ref u) = cr.usage {
+                prompt_tokens = prompt_tokens.saturating_add(u.prompt_tokens);
+                completion_tokens = completion_tokens.saturating_add(u.completion_tokens);
+                total_tokens = total_tokens.saturating_add(u.total_tokens);
+            }
+        }
+        ChatCompletionUsage {
+            prompt_tokens,
+            completion_tokens,
+            total_tokens,
+        }
+    }
 }
 
 pub struct LmClient {
@@ -47,6 +76,7 @@ impl LmClient {
             system_prompt,
             include_stop_str_in_output,
             None,
+            None,
         )
     }
 
@@ -60,6 +90,7 @@ impl LmClient {
         system_prompt: Option<String>,
         include_stop_str_in_output: Option<bool>,
         timeout_seconds: Option<u64>,
+        endpoint_type_override: Option<EndpointType>,
     ) -> Result<Self, LmClientError> {
         let timeout_secs = timeout_seconds.unwrap_or(30);
         let mut default_headers = HeaderMap::new();
@@ -81,11 +112,13 @@ impl LmClient {
             .build()
             .map_err(|e| LmClientError::Connection(format!("failed to create HTTP client: {}", e)))?;
 
-        let endpoint_type = if endpoint.contains("openai") {
-            EndpointType::OpenAI
-        } else {
-            EndpointType::Vllm
-        };
+        let endpoint_type = endpoint_type_override.unwrap_or_else(|| {
+            if endpoint.contains("openai") {
+                EndpointType::OpenAI
+            } else {
+                EndpointType::Vllm
+            }
+        });
 
         Ok(Self {
             http,
@@ -97,6 +130,11 @@ impl LmClient {
             system_prompt,
             include_stop_str_in_output,
         })
+    }
+
+    /// Return the base endpoint URL (for health checks and connectivity probes).
+    pub fn endpoint(&self) -> &str {
+        &self.endpoint
     }
 
     pub fn model_name(&self) -> &str {
@@ -189,7 +227,7 @@ impl LmClient {
         body
     }
 
-    async fn single_request(&self, body: &Value) -> Result<Value, LmClientError> {
+    async fn single_request(&self, body: &Value) -> Result<CompletionResult, LmClientError> {
         let url = self.chat_completion_url();
         let response = self
             .http
@@ -222,7 +260,11 @@ impl LmClient {
                 LmClientError::Connection("response missing choices[0].message".to_string())
             })?;
 
-        Ok(message)
+        let usage = response_json
+            .get("usage")
+            .and_then(|u| serde_json::from_value::<ChatCompletionUsage>(u.clone()).ok());
+
+        Ok(CompletionResult { message, usage })
     }
 
     pub async fn chat_completion(
@@ -233,12 +275,12 @@ impl LmClient {
         stop: Option<&str>,
         tools: Option<&Value>,
         tool_choice: Option<&Value>,
-    ) -> Result<Value, LmClientError> {
+    ) -> Result<CompletionResult, LmClientError> {
         let body = self.build_request_body(messages, temperature, max_tokens, stop, tools, tool_choice);
         self.request_with_retry(&body).await
     }
 
-    async fn request_with_retry(&self, body: &Value) -> Result<Value, LmClientError> {
+    async fn request_with_retry(&self, body: &Value) -> Result<CompletionResult, LmClientError> {
         let mut attempt = 0u32;
         let mut delay = Duration::from_millis(500);
         let max_delay = Duration::from_secs(60);
@@ -273,7 +315,7 @@ impl LmClient {
         stop: Option<&str>,
         tools: Option<&Value>,
         tool_choice: Option<&Value>,
-    ) -> Vec<Result<Value, LmClientError>> {
+    ) -> Vec<Result<CompletionResult, LmClientError>> {
         let permits = std::cmp::min(messages_batch.len(), self.max_concurrency);
         let semaphore = Arc::new(Semaphore::new(permits));
 
@@ -329,7 +371,7 @@ impl LmClient {
         max_tokens: Option<u32>,
         tools: Option<&Value>,
         tool_choice: Option<&Value>,
-    ) -> Vec<Result<Value, LmClientError>> {
+    ) -> Vec<Result<CompletionResult, LmClientError>> {
         let body = self.build_request_body(messages, temperature, max_tokens, None, tools, tool_choice);
         let permits = std::cmp::min(budget as usize, self.max_concurrency);
         let semaphore = Arc::new(Semaphore::new(permits));
@@ -370,7 +412,7 @@ async fn retry_single_request(
     url: &str,
     body: &Value,
     max_retries: u32,
-) -> Result<Value, LmClientError> {
+) -> Result<CompletionResult, LmClientError> {
     let mut attempt = 0u32;
     let mut delay = Duration::from_millis(500);
     let max_delay = Duration::from_secs(60);
@@ -430,7 +472,11 @@ async fn retry_single_request(
                 LmClientError::Connection("response missing choices[0].message".to_string())
             })?;
 
-        return Ok(message);
+        let usage = response_json
+            .get("usage")
+            .and_then(|u| serde_json::from_value::<ChatCompletionUsage>(u.clone()).ok());
+
+        return Ok(CompletionResult { message, usage });
     }
 }
 
@@ -491,9 +537,14 @@ mod tests {
             .chat_completion(&test_messages(), None, None, None, None, None)
             .await;
 
-        let msg = result.unwrap();
-        assert_eq!(msg["content"], "Hi there!");
-        assert_eq!(msg["role"], "assistant");
+        let cr = result.unwrap();
+        assert_eq!(cr.message["content"], "Hi there!");
+        assert_eq!(cr.message["role"], "assistant");
+        // Verify usage is parsed from upstream response
+        let usage = cr.usage.unwrap();
+        assert_eq!(usage.prompt_tokens, 10);
+        assert_eq!(usage.completion_tokens, 5);
+        assert_eq!(usage.total_tokens, 15);
     }
 
     #[tokio::test]
@@ -568,8 +619,8 @@ mod tests {
             .chat_completion(&test_messages(), None, None, None, None, None)
             .await;
 
-        let msg = result.unwrap();
-        assert_eq!(msg["content"], "Finally!");
+        let cr = result.unwrap();
+        assert_eq!(cr.message["content"], "Finally!");
     }
 
     #[tokio::test]
@@ -610,8 +661,8 @@ mod tests {
             .chat_completion(&test_messages(), None, None, None, None, None)
             .await;
 
-        let msg = result.unwrap();
-        assert_eq!(msg["content"], "recovered");
+        let cr = result.unwrap();
+        assert_eq!(cr.message["content"], "recovered");
     }
 
     #[tokio::test]
@@ -642,7 +693,7 @@ mod tests {
         assert_eq!(results.len(), 5);
         for r in &results {
             assert!(r.is_ok());
-            assert_eq!(r.as_ref().unwrap()["content"], "response");
+            assert_eq!(r.as_ref().unwrap().message["content"], "response");
         }
     }
 
@@ -678,6 +729,7 @@ mod tests {
 
     #[tokio::test]
     async fn endpoint_type_detection() {
+        // URL-based fallback detection still works
         let vllm = LmClient::new(
             "http://localhost:8100/v1",
             None,
@@ -701,6 +753,39 @@ mod tests {
         )
         .unwrap();
         assert_eq!(openai.endpoint_type(), EndpointType::OpenAI);
+    }
+
+    #[test]
+    fn endpoint_type_override_takes_precedence() {
+        // Explicit override: mark a non-openai URL as OpenAI
+        let client = LmClient::with_timeout(
+            "http://localhost:8100/v1",
+            None,
+            "model",
+            8,
+            3,
+            None,
+            None,
+            None,
+            Some(EndpointType::OpenAI),
+        )
+        .unwrap();
+        assert_eq!(client.endpoint_type(), EndpointType::OpenAI);
+
+        // Explicit override: mark an openai URL as Vllm
+        let client2 = LmClient::with_timeout(
+            "https://api.openai.com/v1",
+            Some("key"),
+            "gpt-4",
+            8,
+            3,
+            None,
+            None,
+            None,
+            Some(EndpointType::Vllm),
+        )
+        .unwrap();
+        assert_eq!(client2.endpoint_type(), EndpointType::Vllm);
     }
 
     #[test]

@@ -73,7 +73,7 @@ async fn test_self_consistency_infer_flat() {
         .unwrap();
 
     match result {
-        its_hub_rs::AlgorithmOutput::ResponseOnly(selected) => {
+        its_hub_rs::AlgorithmOutput::ResponseOnly { message: selected, .. } => {
             assert_eq!(selected["content"].as_str().unwrap(), "42");
         }
         _ => panic!("expected ResponseOnly"),
@@ -205,7 +205,7 @@ async fn test_best_of_n_infer_with_mock_orm() {
         .unwrap();
 
     match result {
-        its_hub_rs::AlgorithmOutput::ResponseOnly(selected) => {
+        its_hub_rs::AlgorithmOutput::ResponseOnly { message: selected, .. } => {
             let content = selected["content"].as_str().unwrap();
             assert!(
                 ["answer_a", "answer_b", "answer_c"].contains(&content),
@@ -307,7 +307,7 @@ async fn test_best_of_n_dedup_skips_scoring() {
         .unwrap();
 
     match result {
-        its_hub_rs::AlgorithmOutput::ResponseOnly(selected) => {
+        its_hub_rs::AlgorithmOutput::ResponseOnly { message: selected, .. } => {
             assert_eq!(selected["content"].as_str().unwrap(), "same");
         }
         _ => panic!("expected ResponseOnly"),
@@ -412,7 +412,7 @@ fn test_self_consistency_flat_projection_process_responses() {
 
     let result = sc.process_responses(responses, false).unwrap();
     match result {
-        AlgorithmOutput::Full { selected, metadata } => {
+        AlgorithmOutput::Full { selected, metadata, .. } => {
             assert_eq!(selected["content"].as_str().unwrap(), "answer1");
             assert_eq!(metadata["algorithm"], "self-consistency");
             let counts = metadata["response_counts"].as_object().unwrap();
@@ -448,7 +448,7 @@ fn test_self_consistency_hierarchical_projection_process_responses() {
 
     let result = sc.process_responses(responses, true).unwrap();
     match result {
-        AlgorithmOutput::ResponseOnly(selected) => {
+        AlgorithmOutput::ResponseOnly { message: selected, .. } => {
             let content = selected["content"].as_str().unwrap();
             assert!(
                 content.contains("algebra"),
@@ -528,7 +528,7 @@ async fn test_self_consistency_with_multimodal_content() {
         .unwrap();
 
     match result {
-        its_hub_rs::AlgorithmOutput::ResponseOnly(selected) => {
+        its_hub_rs::AlgorithmOutput::ResponseOnly { message: selected, .. } => {
             assert!(selected.get("content").is_some());
         }
         _ => panic!("expected ResponseOnly"),
@@ -556,7 +556,7 @@ fn test_best_of_n_result_structure() {
 
     let result = bon.process_responses(responses, scores, 1, false);
     match result {
-        AlgorithmOutput::Full { selected, metadata } => {
+        AlgorithmOutput::Full { selected, metadata, .. } => {
             assert_eq!(selected["content"], "response2");
             assert_eq!(metadata["algorithm"], "best-of-n");
             assert_eq!(metadata["selected_index"], 1);
@@ -620,7 +620,7 @@ async fn test_best_of_n_with_multimodal_content() {
         .unwrap();
 
     match result {
-        its_hub_rs::AlgorithmOutput::ResponseOnly(selected) => {
+        its_hub_rs::AlgorithmOutput::ResponseOnly { message: selected, .. } => {
             assert!(selected.get("content").is_some());
         }
         _ => panic!("expected ResponseOnly"),
@@ -775,7 +775,7 @@ async fn test_beam_search_return_response_only_modes() {
         .infer(&client, &messages, 2, true, None, None, None, None)
         .await
         .unwrap();
-    assert!(matches!(result1, its_hub_rs::AlgorithmOutput::ResponseOnly(_)));
+    assert!(matches!(result1, its_hub_rs::AlgorithmOutput::ResponseOnly { .. }));
 
     let bs2 = make_bs();
     let result2 = bs2
@@ -940,7 +940,7 @@ async fn test_particle_filtering_flattened_output() {
         .unwrap();
 
     match result {
-        its_hub_rs::AlgorithmOutput::Full { selected, metadata } => {
+        its_hub_rs::AlgorithmOutput::Full { selected, metadata, .. } => {
             assert_eq!(selected["role"], "assistant");
             assert_eq!(metadata["algorithm"], "particle-filtering");
             let responses = metadata["responses"].as_array().unwrap();
@@ -1030,7 +1030,7 @@ async fn test_planning_wrapper_with_self_consistency() {
         .unwrap();
 
     match result {
-        its_hub_rs::AlgorithmOutput::Full { selected, metadata } => {
+        its_hub_rs::AlgorithmOutput::Full { selected, metadata, .. } => {
             assert!(selected.get("content").is_some());
             assert_eq!(metadata["algorithm"], "planning-wrapper");
             assert!(metadata.get("plan").is_some());
@@ -1126,7 +1126,7 @@ async fn test_planning_wrapper_with_best_of_n() {
         .unwrap();
 
     match result {
-        its_hub_rs::AlgorithmOutput::ResponseOnly(selected) => {
+        its_hub_rs::AlgorithmOutput::ResponseOnly { message: selected, .. } => {
             assert!(selected.get("content").is_some());
         }
         _ => panic!("expected ResponseOnly"),
@@ -1199,7 +1199,7 @@ async fn test_fallback_to_content_voting_when_no_tool_calls() {
 
     let result = sc.process_responses(responses, true).unwrap();
     match result {
-        AlgorithmOutput::ResponseOnly(selected) => {
+        AlgorithmOutput::ResponseOnly { message: selected, .. } => {
             let content = selected["content"].as_str().unwrap();
             assert_eq!(content, "Answer: 42");
         }
@@ -1431,13 +1431,13 @@ async fn test_generate_scenarios_simple_chat() {
     .unwrap();
 
     let messages = vec![user_message("Hello, world!")];
-    let response = client
+    let result = client
         .chat_completion(&messages, Some(0.7), None, None, None, None)
         .await
         .unwrap();
 
-    assert_eq!(response["content"].as_str().unwrap(), "Hello!");
-    assert_eq!(response["role"].as_str().unwrap(), "assistant");
+    assert_eq!(result.message["content"].as_str().unwrap(), "Hello!");
+    assert_eq!(result.message["role"].as_str().unwrap(), "assistant");
 }
 
 #[tokio::test]
@@ -1462,13 +1462,13 @@ async fn test_generate_scenarios_with_system_prompt() {
     .unwrap();
 
     let messages = vec![user_message("What is 2+2?")];
-    let response = client
+    let result = client
         .chat_completion(&messages, Some(0.7), None, None, None, None)
         .await
         .unwrap();
 
-    assert_eq!(response["role"].as_str().unwrap(), "assistant");
-    assert!(response.get("content").is_some());
+    assert_eq!(result.message["role"].as_str().unwrap(), "assistant");
+    assert!(result.message.get("content").is_some());
 }
 
 // --- Self-consistency with tool_call responses via integration test ---
@@ -1514,7 +1514,7 @@ async fn test_self_consistency_with_tool_call_responses() {
         .unwrap();
 
     match result {
-        its_hub_rs::AlgorithmOutput::Full { selected, metadata } => {
+        its_hub_rs::AlgorithmOutput::Full { selected, metadata, .. } => {
             let tool_name = selected["tool_calls"][0]["function"]["name"]
                 .as_str()
                 .unwrap();

@@ -325,8 +325,9 @@ impl LlmJudgeRewardModel {
                 .await;
 
             let score = match result {
-                Ok(msg) => {
-                    let content = msg
+                Ok(cr) => {
+                    let content = cr
+                        .message
                         .get("content")
                         .and_then(|c| c.as_str())
                         .unwrap_or("");
@@ -378,8 +379,9 @@ impl LlmJudgeRewardModel {
             .await;
 
         match result {
-            Ok(msg) => {
-                let content = msg
+            Ok(cr) => {
+                let content = cr
+                    .message
                     .get("content")
                     .and_then(|c| c.as_str())
                     .unwrap_or("");

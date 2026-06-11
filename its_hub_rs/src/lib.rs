@@ -24,5 +24,5 @@ pub use core::algorithms::planning_wrapper::PlanningWrapper;
 pub use core::algorithms::self_consistency::{create_regex_projection_function, SelfConsistency};
 pub use api::{AlgorithmOutput, ProcessRewardModel, ScalingAlgorithm};
 pub use core::cache::{CacheKey, CacheStats, TokenCache};
-pub use core::lms::LmClient;
+pub use core::lms::{CompletionResult, LmClient};
 pub use core::reward_models::{HttpProcessRewardModel, JudgeMode, LlmJudgeRewardModel};

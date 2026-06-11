@@ -362,9 +362,10 @@ async fn end_to_end_self_consistency() {
     assert_eq!(choices[0]["finish_reason"], "stop");
     assert_eq!(choices[0]["message"]["content"], "42");
 
-    assert_eq!(body["usage"]["prompt_tokens"], 0);
-    assert_eq!(body["usage"]["completion_tokens"], 0);
-    assert_eq!(body["usage"]["total_tokens"], 0);
+    // Usage is now aggregated from upstream responses (3 fan-out requests x 10/5/15 each)
+    assert!(body["usage"]["prompt_tokens"].as_u64().unwrap() > 0);
+    assert!(body["usage"]["completion_tokens"].as_u64().unwrap() > 0);
+    assert!(body["usage"]["total_tokens"].as_u64().unwrap() > 0);
 }
 
 #[tokio::test]

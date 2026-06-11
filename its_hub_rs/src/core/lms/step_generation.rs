@@ -252,7 +252,7 @@ impl StepGeneration {
         let temp = temperature.unwrap_or(self.temperature);
         let stop_str = self.build_stop_string();
 
-        let response = client
+        let result = client
             .chat_completion(
                 &messages,
                 Some(temp),
@@ -264,7 +264,8 @@ impl StepGeneration {
             .await
             .map_err(|e| anyhow::anyhow!("LM generation failed: {}", e))?;
 
-        let content = response
+        let content = result
+            .message
             .get("content")
             .and_then(|v| v.as_str())
             .unwrap_or("")

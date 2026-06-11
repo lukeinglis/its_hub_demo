@@ -252,9 +252,10 @@ impl SelfConsistency {
         let selected_index = eligible_indices[filtered_selected_index];
 
         if return_response_only {
-            Ok(AlgorithmOutput::ResponseOnly(
-                responses[selected_index].clone(),
-            ))
+            Ok(AlgorithmOutput::ResponseOnly {
+                message: responses[selected_index].clone(),
+                usage: None,
+            })
         } else {
             let counts_value = counts_to_json(&counts);
             let metadata = serde_json::json!({
@@ -266,6 +267,7 @@ impl SelfConsistency {
             Ok(AlgorithmOutput::Full {
                 selected: responses[selected_index].clone(),
                 metadata,
+                usage: None,
             })
         }
     }
@@ -288,6 +290,8 @@ impl ScalingAlgorithm for SelfConsistency {
             .fan_out(messages, budget, temperature, max_tokens, tools, tool_choice)
             .await;
 
+        let usage = crate::core::lms::CompletionResult::aggregate_usage(&results);
+
         let fallback_msg = self
             .replace_error_with_message
             .as_deref()
@@ -297,9 +301,9 @@ impl ScalingAlgorithm for SelfConsistency {
         let mut all_failed = true;
         for result in results {
             match result {
-                Ok(msg) => {
+                Ok(cr) => {
                     all_failed = false;
-                    responses.push(msg);
+                    responses.push(cr.message);
                 }
                 Err(e) => {
                     warn!(error = %e, "fan-out request failed, substituting error response");
@@ -315,7 +319,12 @@ impl ScalingAlgorithm for SelfConsistency {
             anyhow::bail!("all fan-out requests failed");
         }
 
-        self.process_responses(responses, return_response_only)
+        let mut output = self.process_responses(responses, return_response_only)?;
+        match &mut output {
+            AlgorithmOutput::ResponseOnly { usage: ref mut u, .. } => *u = Some(usage),
+            AlgorithmOutput::Full { usage: ref mut u, .. } => *u = Some(usage),
+        }
+        Ok(output)
     }
 }
 
@@ -653,7 +662,7 @@ mod tests {
 
         let result = sc.process_responses(responses.clone(), true).unwrap();
         match result {
-            AlgorithmOutput::ResponseOnly(selected) => {
+            AlgorithmOutput::ResponseOnly { message: selected, .. } => {
                 let name = selected["tool_calls"][0]["function"]["name"]
                     .as_str()
                     .unwrap();
@@ -683,7 +692,7 @@ mod tests {
 
         let result = sc.process_responses(responses, true).unwrap();
         match result {
-            AlgorithmOutput::ResponseOnly(selected) => {
+            AlgorithmOutput::ResponseOnly { message: selected, .. } => {
                 let args = &selected["tool_calls"][0]["function"]["arguments"];
                 assert_eq!(args["x"], 1);
                 assert_eq!(args["y"], 2);
@@ -742,7 +751,7 @@ mod tests {
 
         let result = sc.process_responses(responses, true).unwrap();
         match result {
-            AlgorithmOutput::ResponseOnly(selected) => {
+            AlgorithmOutput::ResponseOnly { message: selected, .. } => {
                 let name = selected["tool_calls"][0]["function"]["name"]
                     .as_str()
                     .unwrap();
@@ -770,7 +779,7 @@ mod tests {
 
         let result = sc.process_responses(responses, true).unwrap();
         match result {
-            AlgorithmOutput::ResponseOnly(selected) => {
+            AlgorithmOutput::ResponseOnly { message: selected, .. } => {
                 assert!(has_tool_calls(&selected), "should select from tool-call responses");
                 let name = selected["tool_calls"][0]["function"]["name"]
                     .as_str()
@@ -795,7 +804,7 @@ mod tests {
 
         let result = sc.process_responses(responses, true).unwrap();
         match result {
-            AlgorithmOutput::ResponseOnly(selected) => {
+            AlgorithmOutput::ResponseOnly { message: selected, .. } => {
                 assert!(!has_tool_calls(&selected), "should select from content responses");
                 assert_eq!(selected["content"].as_str().unwrap(), "42");
             }
@@ -838,7 +847,7 @@ mod tests {
 
         let result = sc.process_responses(responses, true).unwrap();
         match result {
-            AlgorithmOutput::ResponseOnly(selected) => {
+            AlgorithmOutput::ResponseOnly { message: selected, .. } => {
                 assert_eq!(selected["content"].as_str().unwrap(), "same answer");
             }
             _ => panic!("expected ResponseOnly"),
@@ -857,7 +866,7 @@ mod tests {
 
         let result = sc.process_responses(responses, false).unwrap();
         match result {
-            AlgorithmOutput::Full { selected, metadata } => {
+            AlgorithmOutput::Full { selected, metadata, .. } => {
                 assert_eq!(selected["content"].as_str().unwrap(), "42");
                 assert_eq!(metadata["algorithm"], "self-consistency");
                 assert!(metadata.get("all_responses").is_some());
@@ -1004,7 +1013,7 @@ mod tests {
 
         let result = sc.process_responses(responses, true).unwrap();
         match result {
-            AlgorithmOutput::ResponseOnly(selected) => {
+            AlgorithmOutput::ResponseOnly { message: selected, .. } => {
                 assert_eq!(selected["content"].as_str().unwrap(), "only one");
             }
             _ => panic!("expected ResponseOnly"),
@@ -1024,7 +1033,7 @@ mod tests {
 
         let result = sc.process_responses(responses, true).unwrap();
         match result {
-            AlgorithmOutput::ResponseOnly(selected) => {
+            AlgorithmOutput::ResponseOnly { message: selected, .. } => {
                 assert!(
                     has_tool_calls(&selected),
                     "2/4 tool calls meets ceil(4/2)=2 threshold"
@@ -1129,7 +1138,7 @@ mod tests {
 
         let result = sc.process_responses(responses, true).unwrap();
         match result {
-            AlgorithmOutput::ResponseOnly(selected) => {
+            AlgorithmOutput::ResponseOnly { message: selected, .. } => {
                 assert_eq!(selected["content"].as_str().unwrap(), "hello");
             }
             _ => panic!("expected ResponseOnly"),

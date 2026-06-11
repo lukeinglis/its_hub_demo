@@ -3,13 +3,20 @@
 use async_trait::async_trait;
 use serde_json::Value;
 
-use crate::api::types::ChatMessage;
+use crate::api::types::{ChatCompletionUsage, ChatMessage};
 use crate::core::lms::LmClient;
 
 #[derive(Debug, Clone)]
 pub enum AlgorithmOutput {
-    ResponseOnly(Value),
-    Full { selected: Value, metadata: Value },
+    ResponseOnly {
+        message: Value,
+        usage: Option<ChatCompletionUsage>,
+    },
+    Full {
+        selected: Value,
+        metadata: Value,
+        usage: Option<ChatCompletionUsage>,
+    },
 }
 
 #[async_trait]
