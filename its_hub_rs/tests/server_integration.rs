@@ -1214,7 +1214,7 @@ async fn test_cache_ttl_expiry() {
 }
 
 #[tokio::test]
-async fn test_cache_stats_in_health() {
+async fn test_health_does_not_expose_internals() {
     let (base_url, _state) = start_test_server().await;
     let client = reqwest::Client::new();
 
@@ -1233,18 +1233,6 @@ async fn test_cache_stats_in_health() {
     )
     .await;
 
-    // Make a request to populate cache stats
-    client
-        .post(format!("{}/v1/chat/completions", base_url))
-        .json(&json!({
-            "model": "test-model",
-            "messages": [{"role": "user", "content": "test"}],
-            "budget": 1
-        }))
-        .send()
-        .await
-        .unwrap();
-
     let health: serde_json::Value = client
         .get(format!("{}/health", base_url))
         .send()
@@ -1254,13 +1242,13 @@ async fn test_cache_stats_in_health() {
         .await
         .unwrap();
 
-    assert!(health["cache"].is_object());
-    assert!(health["cache"]["entries"].is_number());
-    assert!(health["cache"]["max_entries"].is_number());
-    assert!(health["cache"]["hits"].is_number());
-    assert!(health["cache"]["misses"].is_number());
-    assert!(health["cache"]["hit_rate"].is_number());
-    assert!(health["cache"]["ttl_seconds"].is_number());
+    // /health should only contain status, algorithm, models
+    assert_eq!(health["status"], "ok");
+    assert!(health.get("algorithm").is_some());
+    assert!(health.get("models").is_some());
+    // Internal state should NOT be exposed
+    assert!(health.get("cache").is_none());
+    assert!(health.get("passthrough_on_error").is_none());
 }
 
 // --- Envoy header tests ---

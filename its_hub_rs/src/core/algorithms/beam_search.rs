@@ -433,7 +433,7 @@ mod tests {
             0.8,
             false,
             None,
-        );
+        ).unwrap();
         let prm = Arc::new(MockPRM::new(vec![0.5]));
         let bs = BeamSearch::new(sg, prm, 2);
 
@@ -462,7 +462,7 @@ mod tests {
             0.8,
             false,
             None,
-        );
+        ).unwrap();
         let prm = Arc::new(MockPRM::new(vec![0.5]));
         let bs = BeamSearch::new(sg, prm, 4);
 
@@ -499,7 +499,7 @@ mod tests {
             0.8,
             false,
             None,
-        );
+        ).unwrap();
         let prm = Arc::new(MockPRM::new(vec![0.7, 0.9]));
         let bs = BeamSearch::new(sg, prm, 2);
 
@@ -542,7 +542,7 @@ mod tests {
             0.8,
             false,
             None,
-        );
+        ).unwrap();
         let prm = Arc::new(MockPRM::new(vec![0.9, 0.1]));
         let bs = BeamSearch::new(sg, prm, 2);
 
@@ -601,7 +601,7 @@ mod tests {
             0.8,
             false,
             None,
-        );
+        ).unwrap();
         let prm = Arc::new(MockPRM::new(vec![0.7, 0.9]));
         let bs = BeamSearch::new(sg, prm, 2);
 
@@ -643,7 +643,7 @@ mod tests {
             0.8,
             false,
             None,
-        );
+        ).unwrap();
         let prm = Arc::new(MockPRM::new(vec![0.8, 0.6]));
         let bs = BeamSearch::new(sg, prm, 2);
 
@@ -704,7 +704,7 @@ mod tests {
             0.8,
             false,
             None,
-        );
+        ).unwrap();
         let prm = Arc::new(MockPRM::new(vec![0.9, 0.1, 0.8, 0.2]));
         let bs = BeamSearch::new(sg, prm, 2);
 
@@ -756,7 +756,7 @@ mod tests {
             0.8,
             false,
             None,
-        );
+        ).unwrap();
         let prm = Arc::new(MockPRM::new(vec![0.5]));
         let bs = BeamSearch::new(sg, prm, 2);
 
@@ -779,7 +779,7 @@ mod tests {
             0.8,
             false,
             None,
-        );
+        ).unwrap();
 
         let steps = vec!["step1".to_string(), "step2".to_string(), "step3".to_string()];
         let processed = sg.post_process(&steps, true);
@@ -798,7 +798,7 @@ mod tests {
             0.8,
             false,
             None,
-        );
+        ).unwrap();
         let prm = Arc::new(MockPRM::new(vec![0.5]));
         let bs = BeamSearch::new(sg, prm, 3);
 
@@ -814,7 +814,7 @@ mod tests {
             0.8,
             false,
             None,
-        );
+        ).unwrap();
 
         let stop = sg.build_stop_string();
         assert_eq!(stop, Some("\n".to_string()));
@@ -838,7 +838,7 @@ mod tests {
             0.8,
             false,
             None,
-        );
+        ).unwrap();
 
         assert!(sg.contains_stop_token("some text END here"));
         assert!(!sg.contains_stop_token("no stop here"));

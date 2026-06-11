@@ -27,8 +27,9 @@ use crate::core::lms::LmClient;
 use crate::core::reward_models::{HttpProcessRewardModel, LlmJudgeRewardModel};
 
 use super::error::AppError;
+use super::metrics;
 use super::passthrough::passthrough_to_upstream;
-use super::state::{AlgorithmConfig, AppState};
+use super::state::{AlgorithmConfig, AppState, GatewayConfig};
 
 /// Build an algorithm from its name using the provided config.
 /// Extracted to allow reuse for both /configure and header-based override.
@@ -130,7 +131,8 @@ fn build_algorithm(
                 config.temperature.unwrap_or(0.8),
                 config.include_stop_str_in_output.unwrap_or(false),
                 None,
-            );
+            )
+            .map_err(|e| AppError::BadRequest(format!("invalid step generation config: {}", e)))?;
             let prm = Arc::new(HttpProcessRewardModel::new(prm_endpoint));
             Ok(Arc::new(BeamSearch::new(sg, prm, beam_width)))
         }
@@ -149,7 +151,8 @@ fn build_algorithm(
                 config.temperature.unwrap_or(0.8),
                 config.include_stop_str_in_output.unwrap_or(false),
                 None,
-            );
+            )
+            .map_err(|e| AppError::BadRequest(format!("invalid step generation config: {}", e)))?;
             let prm = Arc::new(HttpProcessRewardModel::new(prm_endpoint));
             Ok(Arc::new(ParticleFiltering::new(
                 sg,
@@ -174,7 +177,8 @@ fn build_algorithm(
                 config.temperature.unwrap_or(0.8),
                 config.include_stop_str_in_output.unwrap_or(false),
                 None,
-            );
+            )
+            .map_err(|e| AppError::BadRequest(format!("invalid step generation config: {}", e)))?;
             let prm = Arc::new(HttpProcessRewardModel::new(prm_endpoint));
             Ok(Arc::new(ParticleGibbs::new(
                 sg,
@@ -214,7 +218,8 @@ fn build_algorithm(
                 config.temperature.unwrap_or(0.8),
                 config.include_stop_str_in_output.unwrap_or(false),
                 None,
-            );
+            )
+            .map_err(|e| AppError::BadRequest(format!("invalid step generation config: {}", e)))?;
             let prm = Arc::new(HttpProcessRewardModel::new(prm_endpoint));
             Ok(Arc::new(EntropicParticleFiltering::new(
                 sg,
@@ -285,15 +290,32 @@ fn build_algorithm(
 
 pub async fn configure(
     State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
     Json(config): Json<ConfigRequest>,
 ) -> Result<Json<ConfigResponse>, AppError> {
+    // Check admin token if ITS_ADMIN_TOKEN is set
+    if let Ok(expected_token) = std::env::var("ITS_ADMIN_TOKEN") {
+        if !expected_token.is_empty() {
+            let provided = headers
+                .get("authorization")
+                .and_then(|v| v.to_str().ok())
+                .and_then(|s| s.strip_prefix("Bearer "))
+                .unwrap_or("");
+            if provided != expected_token {
+                return Err(AppError::Unauthorized(
+                    "valid admin token required".to_string(),
+                ));
+            }
+        }
+    }
+
     let alg_name = config.alg.clone();
 
     let algorithm = build_algorithm(&alg_name, &config)?;
 
     let max_concurrency = config.max_concurrent_requests.unwrap_or(64);
 
-    let lm_client = LmClient::new(
+    let lm_client = LmClient::with_timeout(
         &config.endpoint,
         config.api_key.as_deref(),
         &config.model,
@@ -301,22 +323,24 @@ pub async fn configure(
         8,
         config.system_prompt.clone(),
         config.include_stop_str_in_output,
+        config.request_timeout_seconds,
     )
     .map_err(|e| AppError::BadRequest(format!("failed to create LM client: {}", e)))?;
 
     let model_name = config.model.clone();
 
+    // Atomically swap algorithm and client together
     {
-        let mut alg_lock = state.algorithm.write().await;
-        *alg_lock = Some(AlgorithmConfig {
-            name: alg_name.clone(),
-            algorithm,
+        let mut gw = state.gateway.write().await;
+        let mut clients = gw.as_ref().map(|g| g.clients.clone()).unwrap_or_default();
+        clients.insert(model_name.clone(), Arc::new(lm_client));
+        *gw = Some(GatewayConfig {
+            algorithm: AlgorithmConfig {
+                name: alg_name.clone(),
+                algorithm,
+            },
+            clients,
         });
-    }
-
-    {
-        let mut clients_lock = state.clients.write().await;
-        clients_lock.insert(model_name.clone(), Arc::new(lm_client));
     }
 
     // Update passthrough_on_error (default true)
@@ -383,10 +407,20 @@ pub async fn chat_completions(
         .get("x-its-algorithm")
         .and_then(|v| v.to_str().ok())
         .map(|s| s.to_string());
-    let header_budget = headers
-        .get("x-its-budget")
-        .and_then(|v| v.to_str().ok())
-        .and_then(|s| s.parse::<u32>().ok());
+    let header_budget = match headers.get("x-its-budget") {
+        Some(v) => {
+            let s = v.to_str().map_err(|_| {
+                AppError::BadRequest("x-its-budget header contains invalid characters".into())
+            })?;
+            Some(s.parse::<u32>().map_err(|_| {
+                AppError::BadRequest(format!(
+                    "x-its-budget header must be a valid integer, got '{}'",
+                    s
+                ))
+            })?)
+        }
+        None => None,
+    };
 
     let budget = header_budget.unwrap_or(request.budget);
     if !(1..=1000).contains(&budget) {
@@ -405,6 +439,7 @@ pub async fn chat_completions(
             &messages_val,
             request.temperature,
             request.max_tokens,
+            budget,
         ))
     } else {
         None
@@ -414,11 +449,21 @@ pub async fn chat_completions(
         let cache_lock = state.cache.read().await;
         if let Some(ref cache) = *cache_lock {
             if let Some(cached_response) = cache.get(key).await {
+                metrics::record_cache_hit();
                 let elapsed = start.elapsed().as_millis();
                 let response: ChatCompletionResponse =
                     serde_json::from_value(cached_response).map_err(|e| {
                         AppError::Algorithm(format!("failed to deserialize cached response: {}", e))
                     })?;
+                let alg_used = if let Some(ref alg_name) = header_algorithm {
+                    alg_name.clone()
+                } else {
+                    let gw = state.gateway.read().await;
+                    gw.as_ref()
+                        .map(|g| g.algorithm.name.clone())
+                        .unwrap_or_default()
+                };
+                metrics::record_request(&alg_used, 200, &start);
                 let mut response_headers = HeaderMap::new();
                 response_headers
                     .insert("x-its-cache-hit", "true".parse().unwrap());
@@ -426,67 +471,63 @@ pub async fn chat_completions(
                     "x-its-latency-ms",
                     elapsed.to_string().parse().unwrap(),
                 );
-                if let Some(ref alg_name) = header_algorithm {
-                    response_headers.insert(
-                        "x-its-algorithm-used",
-                        alg_name.parse().unwrap(),
-                    );
-                } else {
-                    let alg_lock = state.algorithm.read().await;
-                    if let Some(ref alg_config) = *alg_lock {
-                        response_headers.insert(
-                            "x-its-algorithm-used",
-                            alg_config.name.parse().unwrap(),
-                        );
-                    }
-                }
+                response_headers.insert(
+                    "x-its-algorithm-used",
+                    alg_used.parse().unwrap(),
+                );
                 return Ok((response_headers, Json(response)));
+            } else {
+                metrics::record_cache_miss();
             }
         }
     }
 
-    // Resolve which algorithm to use
-    let (algorithm, alg_name_used) = if let Some(ref alg_override) = header_algorithm {
-        // Header override: build a temporary self-consistency (or whatever) from name alone.
-        // For simplicity, only "self-consistency" can be overridden via header without
-        // full config. Others need the full /configure path. If the override matches the
-        // configured algorithm, just use that.
-        let alg_lock = state.algorithm.read().await;
-        if let Some(ref alg_config) = *alg_lock {
-            if alg_config.name == *alg_override {
-                (Arc::clone(&alg_config.algorithm), alg_config.name.clone())
+    // Resolve algorithm and client atomically from the same gateway snapshot
+    let (algorithm, alg_name_used, client) = {
+        let gw = state.gateway.read().await;
+        let gw_config = gw.as_ref().ok_or(AppError::NotConfigured)?;
+
+        let client = Arc::clone(
+            gw_config
+                .clients
+                .get(&request.model)
+                .ok_or_else(|| AppError::ModelNotFound(request.model.clone()))?,
+        );
+
+        if let Some(ref alg_override) = header_algorithm {
+            if gw_config.algorithm.name == *alg_override {
+                (
+                    Arc::clone(&gw_config.algorithm.algorithm),
+                    gw_config.algorithm.name.clone(),
+                    client,
+                )
             } else if alg_override == "self-consistency" {
                 let sc = SelfConsistency::new(None, None)
                     .map_err(|e| AppError::BadRequest(format!("invalid regex: {}", e)))?;
-                (Arc::new(sc) as Arc<dyn ScalingAlgorithm>, alg_override.clone())
+                (
+                    Arc::new(sc) as Arc<dyn ScalingAlgorithm>,
+                    alg_override.clone(),
+                    client,
+                )
             } else {
-                // Fall back to the configured algorithm if we can't build the override
                 warn!(
                     requested = %alg_override,
-                    configured = %alg_config.name,
+                    configured = %gw_config.algorithm.name,
                     "cannot build header-override algorithm, using configured"
                 );
-                (Arc::clone(&alg_config.algorithm), alg_config.name.clone())
+                (
+                    Arc::clone(&gw_config.algorithm.algorithm),
+                    gw_config.algorithm.name.clone(),
+                    client,
+                )
             }
         } else {
-            return Err(AppError::NotConfigured);
+            (
+                Arc::clone(&gw_config.algorithm.algorithm),
+                gw_config.algorithm.name.clone(),
+                client,
+            )
         }
-    } else {
-        let alg_lock = state.algorithm.read().await;
-        let alg_config = alg_lock.as_ref().ok_or(AppError::NotConfigured)?;
-        (
-            Arc::clone(&alg_config.algorithm),
-            alg_config.name.clone(),
-        )
-    };
-
-    let client = {
-        let clients_lock = state.clients.read().await;
-        Arc::clone(
-            clients_lock
-                .get(&request.model)
-                .ok_or_else(|| AppError::ModelNotFound(request.model.clone()))?,
-        )
     };
 
     let tools_value = request
@@ -494,6 +535,7 @@ pub async fn chat_completions(
         .as_ref()
         .map(|t| serde_json::Value::Array(t.clone()));
 
+    metrics::record_upstream_request();
     let result = algorithm
         .infer(
             &client,
@@ -515,6 +557,7 @@ pub async fn chat_completions(
             if passthrough_enabled {
                 warn!(error = %e, "algorithm failed, falling back to passthrough");
                 let passthrough_response = passthrough_to_upstream(&client, &request).await?;
+                metrics::record_request("passthrough", 200, &start);
                 let elapsed = start.elapsed().as_millis();
                 let mut response_headers = HeaderMap::new();
                 response_headers
@@ -529,6 +572,7 @@ pub async fn chat_completions(
                 );
                 return Ok((response_headers, Json(passthrough_response)));
             } else {
+                metrics::record_request(&alg_name_used, 500, &start);
                 return Err(AppError::Algorithm(e.to_string()));
             }
         }
@@ -572,6 +616,7 @@ pub async fn chat_completions(
         }
     }
 
+    metrics::record_request(&alg_name_used, 200, &start);
     let elapsed = start.elapsed().as_millis();
     let mut response_headers = HeaderMap::new();
     response_headers.insert("x-its-cache-hit", "false".parse().unwrap());
@@ -588,43 +633,36 @@ pub async fn chat_completions(
 }
 
 pub async fn list_models(State(state): State<Arc<AppState>>) -> Json<ModelsResponse> {
-    let clients_lock = state.clients.read().await;
-    let data: Vec<ModelInfo> = clients_lock
-        .keys()
-        .map(|model_id| ModelInfo {
-            id: model_id.clone(),
-            object: "model".to_string(),
-            owned_by: "its-hub-rs".to_string(),
+    let gw = state.gateway.read().await;
+    let data: Vec<ModelInfo> = gw
+        .as_ref()
+        .map(|g| {
+            g.clients
+                .keys()
+                .map(|model_id| ModelInfo {
+                    id: model_id.clone(),
+                    object: "model".to_string(),
+                    owned_by: "its-hub-rs".to_string(),
+                })
+                .collect()
         })
-        .collect();
+        .unwrap_or_default();
 
     Json(ModelsResponse { data })
 }
 
-/// Combined health endpoint (existing behavior, extended with cache stats).
+/// Health endpoint: returns only essential status information.
+/// Detailed stats (cache, passthrough config) are available via GET /metrics.
 pub async fn health(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
-    let alg_lock = state.algorithm.read().await;
-    let clients_lock = state.clients.read().await;
+    let gw = state.gateway.read().await;
 
-    let algorithm = alg_lock.as_ref().map(|a| a.name.clone());
-    let models = clients_lock.len();
-    let passthrough_on_error = *state.passthrough_on_error.read().await;
-
-    let cache_stats = {
-        let cache_lock = state.cache.read().await;
-        if let Some(ref cache) = *cache_lock {
-            Some(cache.stats().await)
-        } else {
-            None
-        }
-    };
+    let algorithm = gw.as_ref().map(|g| g.algorithm.name.clone());
+    let models = gw.as_ref().map(|g| g.clients.len()).unwrap_or(0);
 
     Json(json!({
         "status": "ok",
         "algorithm": algorithm,
         "models": models,
-        "passthrough_on_error": passthrough_on_error,
-        "cache": cache_stats,
     }))
 }
 
@@ -636,11 +674,11 @@ pub async fn health_live() -> impl IntoResponse {
 /// Readiness probe: returns 200 only if an algorithm is configured and
 /// at least one model client is registered.
 pub async fn health_ready(State(state): State<Arc<AppState>>) -> impl IntoResponse {
-    let alg_lock = state.algorithm.read().await;
-    let clients_lock = state.clients.read().await;
+    let gw = state.gateway.read().await;
 
-    let has_algorithm = alg_lock.is_some();
-    let has_models = !clients_lock.is_empty();
+    let has_algorithm = gw.is_some();
+    let num_models = gw.as_ref().map(|g| g.clients.len()).unwrap_or(0);
+    let has_models = num_models > 0;
 
     if has_algorithm && has_models {
         (StatusCode::OK, Json(json!({"status": "ready"})))
@@ -650,7 +688,7 @@ pub async fn health_ready(State(state): State<Arc<AppState>>) -> impl IntoRespon
             Json(json!({
                 "status": "not_ready",
                 "algorithm_configured": has_algorithm,
-                "models_connected": clients_lock.len(),
+                "models_connected": num_models,
             })),
         )
     }

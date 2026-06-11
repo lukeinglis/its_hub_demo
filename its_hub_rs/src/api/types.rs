@@ -201,6 +201,9 @@ pub struct ConfigRequest {
     /// Maximum number of cache entries. Default: 10000.
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub cache_max_entries: Option<usize>,
+    /// Upstream request timeout in seconds. Default: 30.
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub request_timeout_seconds: Option<u64>,
 }
 
 impl std::fmt::Debug for ConfigRequest {
@@ -246,6 +249,7 @@ impl std::fmt::Debug for ConfigRequest {
             .field("cache_enabled", &self.cache_enabled)
             .field("cache_ttl_seconds", &self.cache_ttl_seconds)
             .field("cache_max_entries", &self.cache_max_entries)
+            .field("request_timeout_seconds", &self.request_timeout_seconds)
             .finish()
     }
 }
@@ -574,6 +578,7 @@ mod tests {
         assert!(cfg.cache_enabled.is_none());
         assert!(cfg.cache_ttl_seconds.is_none());
         assert!(cfg.cache_max_entries.is_none());
+        assert!(cfg.request_timeout_seconds.is_none());
     }
 
     #[test]
@@ -641,6 +646,7 @@ mod tests {
             cache_enabled: Some(true),
             cache_ttl_seconds: Some(300),
             cache_max_entries: Some(10000),
+            request_timeout_seconds: Some(60),
         };
         let json_str = serde_json::to_string(&cfg).unwrap();
         let deserialized: ConfigRequest = serde_json::from_str(&json_str).unwrap();

@@ -1,11 +1,13 @@
 //! LRU token cache for vLLM response caching.
 //!
-//! Caches responses keyed by (model, messages_hash, temperature, max_tokens).
-//! Thread-safe via `Arc<RwLock<>>`. Designed for the high-concurrency gateway
-//! path where Rust's performance advantage matters most.
+//! Caches responses keyed by (model, messages_hash, temperature, max_tokens, budget).
+//! Thread-safe via `Arc<RwLock<>>` for entries and `AtomicU64` for counters.
+//! Designed for the high-concurrency gateway path where Rust's performance
+//! advantage matters most.
 
 use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -20,6 +22,8 @@ pub struct CacheKey {
     /// f64 bits stored as u64 for hashing.
     pub temperature: Option<u64>,
     pub max_tokens: Option<u32>,
+    /// Budget value: different budgets produce different results.
+    pub budget: u32,
 }
 
 impl CacheKey {
@@ -30,6 +34,7 @@ impl CacheKey {
         messages: &serde_json::Value,
         temperature: Option<f64>,
         max_tokens: Option<u32>,
+        budget: u32,
     ) -> Self {
         let mut hasher = std::collections::hash_map::DefaultHasher::new();
         let msg_str = serde_json::to_string(messages).unwrap_or_default();
@@ -41,6 +46,7 @@ impl CacheKey {
             messages_hash,
             temperature: temperature.map(|t| t.to_bits()),
             max_tokens,
+            budget,
         }
     }
 }
@@ -48,7 +54,7 @@ impl CacheKey {
 struct CacheEntry {
     response: serde_json::Value,
     created_at: Instant,
-    access_count: u64,
+    last_accessed: Instant,
 }
 
 /// Statistics about cache performance.
@@ -67,8 +73,8 @@ pub struct TokenCache {
     entries: Arc<RwLock<HashMap<CacheKey, CacheEntry>>>,
     max_entries: usize,
     ttl: Duration,
-    hits: Arc<RwLock<u64>>,
-    misses: Arc<RwLock<u64>>,
+    hits: AtomicU64,
+    misses: AtomicU64,
 }
 
 impl TokenCache {
@@ -77,34 +83,52 @@ impl TokenCache {
             entries: Arc::new(RwLock::new(HashMap::new())),
             max_entries,
             ttl: Duration::from_secs(ttl_seconds),
-            hits: Arc::new(RwLock::new(0)),
-            misses: Arc::new(RwLock::new(0)),
+            hits: AtomicU64::new(0),
+            misses: AtomicU64::new(0),
         }
     }
 
     /// Look up a cached response. Returns None on miss or if expired.
+    ///
+    /// Uses a read lock first for non-expired hits. Only acquires a write lock
+    /// when the entry is expired (to remove it) or on a hit (to bump access time).
     pub async fn get(&self, key: &CacheKey) -> Option<serde_json::Value> {
-        let mut entries = self.entries.write().await;
-        if let Some(entry) = entries.get_mut(key) {
-            if entry.created_at.elapsed() > self.ttl {
-                entries.remove(key);
-                let mut misses = self.misses.write().await;
-                *misses += 1;
+        // First, try a read lock to check for a valid entry
+        {
+            let entries = self.entries.read().await;
+            if let Some(entry) = entries.get(key) {
+                if entry.created_at.elapsed() <= self.ttl {
+                    // Valid hit: clone response, then upgrade to write lock to bump access time
+                    let response = entry.response.clone();
+                    drop(entries);
+                    // Bump last_accessed under write lock
+                    {
+                        let mut entries = self.entries.write().await;
+                        if let Some(entry) = entries.get_mut(key) {
+                            entry.last_accessed = Instant::now();
+                        }
+                    }
+                    self.hits.fetch_add(1, Ordering::Relaxed);
+                    return Some(response);
+                }
+                // Entry is expired: fall through to remove it
+            } else {
+                // Key not found at all
+                self.misses.fetch_add(1, Ordering::Relaxed);
                 return None;
             }
-            entry.access_count += 1;
-            let response = entry.response.clone();
-            let mut hits = self.hits.write().await;
-            *hits += 1;
-            Some(response)
-        } else {
-            let mut misses = self.misses.write().await;
-            *misses += 1;
-            None
         }
+
+        // Entry was expired: take write lock and remove it
+        {
+            let mut entries = self.entries.write().await;
+            entries.remove(key);
+        }
+        self.misses.fetch_add(1, Ordering::Relaxed);
+        None
     }
 
-    /// Store a response in the cache. Evicts expired entries and oldest if at capacity.
+    /// Store a response in the cache. Evicts expired entries and LRU if at capacity.
     pub async fn put(&self, key: CacheKey, response: serde_json::Value) {
         let mut entries = self.entries.write().await;
 
@@ -113,23 +137,24 @@ impl TokenCache {
         let ttl = self.ttl;
         entries.retain(|_, v| now.duration_since(v.created_at) < ttl);
 
-        // If still at capacity, evict the entry with the oldest creation time
+        // If still at capacity, evict the least recently accessed entry
         if entries.len() >= self.max_entries {
-            if let Some(oldest_key) = entries
+            if let Some(lru_key) = entries
                 .iter()
-                .min_by_key(|(_, v)| v.created_at)
+                .min_by_key(|(_, v)| v.last_accessed)
                 .map(|(k, _)| k.clone())
             {
-                entries.remove(&oldest_key);
+                entries.remove(&lru_key);
             }
         }
 
+        let now = Instant::now();
         entries.insert(
             key,
             CacheEntry {
                 response,
-                created_at: Instant::now(),
-                access_count: 0,
+                created_at: now,
+                last_accessed: now,
             },
         );
     }
@@ -137,8 +162,8 @@ impl TokenCache {
     /// Return cache performance statistics.
     pub async fn stats(&self) -> CacheStats {
         let entries = self.entries.read().await;
-        let hits = *self.hits.read().await;
-        let misses = *self.misses.read().await;
+        let hits = self.hits.load(Ordering::Relaxed);
+        let misses = self.misses.load(Ordering::Relaxed);
         let total = hits + misses;
         let hit_rate = if total > 0 {
             hits as f64 / total as f64
@@ -168,6 +193,7 @@ mod tests {
             &json!([{"role": "user", "content": "hello"}]),
             Some(0.7),
             Some(100),
+            5,
         )
     }
 
@@ -221,7 +247,9 @@ mod tests {
         cache
             .put(test_key("b"), json!({"content": "b"}))
             .await;
-        // This should evict the oldest entry ("a")
+        // Access "a" so its last_accessed is bumped; "b" becomes the LRU entry
+        cache.get(&test_key("a")).await;
+        // This should evict the LRU entry ("b")
         cache
             .put(test_key("c"), json!({"content": "c"}))
             .await;
@@ -229,10 +257,10 @@ mod tests {
         let stats = cache.stats().await;
         assert_eq!(stats.entries, 2);
 
-        // "a" should be evicted
-        assert!(cache.get(&test_key("a")).await.is_none());
-        // "b" and "c" should still be present
-        assert!(cache.get(&test_key("b")).await.is_some());
+        // "b" should be evicted (least recently accessed)
+        assert!(cache.get(&test_key("b")).await.is_none());
+        // "a" and "c" should still be present
+        assert!(cache.get(&test_key("a")).await.is_some());
         assert!(cache.get(&test_key("c")).await.is_some());
     }
 
@@ -261,12 +289,33 @@ mod tests {
             &json!([{"role": "user", "content": "hi"}]),
             Some(0.7),
             Some(100),
+            5,
         );
         let key2 = CacheKey::new(
             "model",
             &json!([{"role": "user", "content": "hi"}]),
             Some(0.8),
             Some(100),
+            5,
+        );
+        assert_ne!(key1, key2);
+    }
+
+    #[tokio::test]
+    async fn cache_key_budget_sensitivity() {
+        let key1 = CacheKey::new(
+            "model",
+            &json!([{"role": "user", "content": "hi"}]),
+            Some(0.7),
+            Some(100),
+            1,
+        );
+        let key2 = CacheKey::new(
+            "model",
+            &json!([{"role": "user", "content": "hi"}]),
+            Some(0.7),
+            Some(100),
+            100,
         );
         assert_ne!(key1, key2);
     }

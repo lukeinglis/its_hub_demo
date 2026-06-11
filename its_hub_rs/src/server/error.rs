@@ -20,6 +20,9 @@ pub enum AppError {
     #[error("algorithm error: {0}")]
     Algorithm(String),
 
+    #[error("unauthorized: {0}")]
+    Unauthorized(String),
+
     #[error("upstream error: {0}")]
     Upstream(#[from] LmClientError),
 
@@ -35,6 +38,7 @@ impl IntoResponse for AppError {
             Self::BadRequest(m) => (StatusCode::BAD_REQUEST, m.clone()),
             Self::StreamingNotSupported => (StatusCode::NOT_IMPLEMENTED, self.to_string()),
             Self::Algorithm(m) => (StatusCode::INTERNAL_SERVER_ERROR, m.clone()),
+            Self::Unauthorized(m) => (StatusCode::UNAUTHORIZED, m.clone()),
             Self::Upstream(_) => (StatusCode::BAD_GATEWAY, self.to_string()),
             Self::Internal(_) => (StatusCode::INTERNAL_SERVER_ERROR, self.to_string()),
         };

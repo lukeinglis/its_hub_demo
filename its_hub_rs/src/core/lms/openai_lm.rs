@@ -38,6 +38,30 @@ impl LmClient {
         system_prompt: Option<String>,
         include_stop_str_in_output: Option<bool>,
     ) -> Result<Self, LmClientError> {
+        Self::with_timeout(
+            endpoint,
+            api_key,
+            model_name,
+            max_concurrency,
+            max_retries,
+            system_prompt,
+            include_stop_str_in_output,
+            None,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn with_timeout(
+        endpoint: &str,
+        api_key: Option<&str>,
+        model_name: &str,
+        max_concurrency: usize,
+        max_retries: u32,
+        system_prompt: Option<String>,
+        include_stop_str_in_output: Option<bool>,
+        timeout_seconds: Option<u64>,
+    ) -> Result<Self, LmClientError> {
+        let timeout_secs = timeout_seconds.unwrap_or(30);
         let mut default_headers = HeaderMap::new();
         default_headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
         if let Some(key) = api_key {
@@ -52,7 +76,7 @@ impl LmClient {
         let http = reqwest::Client::builder()
             .pool_max_idle_per_host(20)
             .pool_idle_timeout(Duration::from_secs(30))
-            .timeout(Duration::from_secs(120))
+            .timeout(Duration::from_secs(timeout_secs))
             .default_headers(default_headers)
             .build()
             .map_err(|e| LmClientError::Connection(format!("failed to create HTTP client: {}", e)))?;

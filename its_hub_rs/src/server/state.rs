@@ -21,9 +21,17 @@ impl Clone for AlgorithmConfig {
     }
 }
 
+/// Groups the algorithm and model clients together so they are always
+/// swapped atomically during reconfiguration. This prevents a concurrent
+/// chat_completions request from seeing the new algorithm with the old client.
+pub struct GatewayConfig {
+    pub algorithm: AlgorithmConfig,
+    pub clients: HashMap<String, Arc<LmClient>>,
+}
+
 pub struct AppState {
-    pub algorithm: RwLock<Option<AlgorithmConfig>>,
-    pub clients: RwLock<HashMap<String, Arc<LmClient>>>,
+    /// Algorithm and clients, swapped atomically on reconfigure.
+    pub gateway: RwLock<Option<GatewayConfig>>,
     /// When true, algorithm errors fall back to passthrough instead of 500.
     pub passthrough_on_error: RwLock<bool>,
     /// Optional token cache for response caching.
@@ -41,8 +49,7 @@ impl Default for AppState {
 impl AppState {
     pub fn new() -> Self {
         Self {
-            algorithm: RwLock::new(None),
-            clients: RwLock::new(HashMap::new()),
+            gateway: RwLock::new(None),
             passthrough_on_error: RwLock::new(true), // default: safe for production
             cache: RwLock::new(None),
             cache_enabled: RwLock::new(false),

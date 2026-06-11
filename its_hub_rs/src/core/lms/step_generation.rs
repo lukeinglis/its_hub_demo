@@ -53,8 +53,8 @@ pub struct StepGeneration {
 impl StepGeneration {
     /// Create a new StepGeneration with a step token delimiter.
     ///
-    /// # Panics
-    /// Panics if `include_stop_str_in_output` is false and `step_token` is `Multiple`.
+    /// # Errors
+    /// Returns `Err` if `include_stop_str_in_output` is false and `step_token` is `Multiple`.
     pub fn with_step_token(
         step_token: StepToken,
         max_steps: u32,
@@ -62,22 +62,21 @@ impl StepGeneration {
         temperature: f64,
         include_stop_str_in_output: bool,
         temperature_switch: Option<TemperatureSwitch>,
-    ) -> Self {
-        if !include_stop_str_in_output {
-            assert!(
-                matches!(step_token, StepToken::Single(_)),
+    ) -> Result<Self, anyhow::Error> {
+        if !include_stop_str_in_output && !matches!(step_token, StepToken::Single(_)) {
+            return Err(anyhow::anyhow!(
                 "step_token must be a single string if include_stop_str_in_output is false"
-            );
+            ));
         }
 
-        Self {
+        Ok(Self {
             step_mode: StepMode::StepToken(step_token),
             max_steps,
             stop_token,
             temperature,
             include_stop_str_in_output,
             temperature_switch,
-        }
+        })
     }
 
     /// Create a new StepGeneration with a fixed token count per step.
@@ -91,9 +90,9 @@ impl StepGeneration {
         temperature: f64,
         include_stop_str_in_output: bool,
         temperature_switch: Option<TemperatureSwitch>,
-    ) -> Result<Self, String> {
+    ) -> Result<Self, anyhow::Error> {
         if tokens_per_step == 0 {
-            return Err("tokens_per_step must be a positive integer".to_string());
+            return Err(anyhow::anyhow!("tokens_per_step must be a positive integer"));
         }
 
         Ok(Self {
@@ -305,7 +304,8 @@ mod tests {
                 temp,
                 include_stop,
                 None,
-            );
+            )
+            .unwrap();
 
             match &sg.step_mode {
                 StepMode::StepToken(StepToken::Single(tok)) => assert_eq!(tok, step_tok),
@@ -333,13 +333,12 @@ mod tests {
     fn test_initialization_with_tokens_per_step_zero() {
         let err = StepGeneration::with_tokens_per_step(0, 5, None, 0.8, false, None);
         assert!(err.is_err());
-        assert_eq!(err.unwrap_err(), "tokens_per_step must be a positive integer");
+        assert!(err.unwrap_err().to_string().contains("tokens_per_step must be a positive integer"));
     }
 
     #[test]
-    #[should_panic(expected = "step_token must be a single string")]
     fn test_initialization_validation_multiple_step_token() {
-        StepGeneration::with_step_token(
+        let result = StepGeneration::with_step_token(
             StepToken::Multiple(vec![s("token1"), s("token2")]),
             5,
             None,
@@ -347,6 +346,8 @@ mod tests {
             false,
             None,
         );
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("step_token must be a single string"));
     }
 
     #[test]
@@ -362,7 +363,8 @@ mod tests {
                 open_token: s("<think>"),
                 close_token: s("</think>"),
             }),
-        );
+        )
+        .unwrap();
 
         let no_messages: Vec<ChatMessage> = vec![];
         assert_eq!(sg.get_temperature(&no_messages), 0.8);
@@ -416,7 +418,8 @@ mod tests {
             0.8,
             false,
             None,
-        );
+        )
+        .unwrap();
         assert_eq!(sg_no_switch.get_temperature(&with_open_token), 0.8);
     }
 
@@ -429,7 +432,8 @@ mod tests {
             0.8,
             false,
             None,
-        );
+        )
+        .unwrap();
 
         assert_eq!(
             sg.post_process(&steps(&["step1", "step2", "step3"]), false),
@@ -451,7 +455,8 @@ mod tests {
             0.8,
             true,
             None,
-        );
+        )
+        .unwrap();
 
         assert_eq!(
             sg.post_process(&steps(&["step1", "step2", "step3END"]), true),
@@ -478,7 +483,8 @@ mod tests {
             0.8,
             false,
             None,
-        );
+        )
+        .unwrap();
 
         assert_eq!(
             sg.post_process(&steps(&["step1", "step2", "step3"]), false),
@@ -500,7 +506,8 @@ mod tests {
             0.8,
             true,
             None,
-        );
+        )
+        .unwrap();
 
         assert_eq!(
             sg.post_process(&steps(&["step1", "step2", "step3"]), false),

@@ -861,7 +861,7 @@ mod tests {
             0.8,
             false,
             None,
-        );
+        ).unwrap();
         let prm = Arc::new(MockPRM::new(vec![0.5]));
         let pg = ParticleGibbs::new(
             sg,
@@ -892,7 +892,7 @@ mod tests {
             0.8,
             false,
             None,
-        );
+        ).unwrap();
         let prm = Arc::new(MockPRM::new(vec![0.5]));
         let pg = ParticleGibbs::new(
             sg,
@@ -924,7 +924,7 @@ mod tests {
             0.8,
             false,
             None,
-        );
+        ).unwrap();
         let prm = Arc::new(MockPRM::new(vec![0.5]));
         let pg = ParticleGibbs::new(
             sg,
@@ -960,7 +960,7 @@ mod tests {
             0.8,
             false,
             None,
-        );
+        ).unwrap();
         let prm = Arc::new(MockPRM::new(vec![0.5]));
         let pg = ParticleGibbs::new(
             sg,
@@ -1007,7 +1007,7 @@ mod tests {
             0.8,
             false,
             None,
-        );
+        ).unwrap();
         let prm = Arc::new(MockPRM::new(vec![0.7, 0.6]));
         let pg = ParticleGibbs::new(
             sg,
@@ -1061,7 +1061,7 @@ mod tests {
             0.8,
             false,
             None,
-        );
+        ).unwrap();
         let prm = Arc::new(MockPRM::new(vec![0.7, 0.6]));
         let pg = ParticleGibbs::new(
             sg,
@@ -1120,7 +1120,7 @@ mod tests {
             0.8,
             false,
             None,
-        );
+        ).unwrap();
         let prm = Arc::new(MockPRM::new(vec![0.7, 0.6, 0.8, 0.5]));
         let pg = ParticleGibbs::new(
             sg,
@@ -1178,7 +1178,7 @@ mod tests {
             0.8,
             false,
             None,
-        );
+        ).unwrap();
         let prm = Arc::new(MockPRM::new(vec![0.8, 0.5]));
         let pg = ParticleGibbs::new(
             sg,
@@ -1234,7 +1234,7 @@ mod tests {
             0.8,
             false,
             None,
-        );
+        ).unwrap();
         let prm = Arc::new(MockPRM::new(vec![0.7, 0.6]));
         let pf = ParticleFiltering::new(sg, prm, SelectionMethod::Argmax, ResamplingMethod::Multinomial);
 
@@ -1279,7 +1279,7 @@ mod tests {
             0.8,
             false,
             None,
-        );
+        ).unwrap();
         let prm = Arc::new(MockPRM::new(vec![0.7, 0.6]));
         let pf = ParticleFiltering::new(sg, prm, SelectionMethod::Argmax, ResamplingMethod::Multinomial);
 
@@ -1321,7 +1321,7 @@ mod tests {
             0.8,
             false,
             None,
-        );
+        ).unwrap();
         let prm = Arc::new(MockPRM::new(vec![0.7, 0.6]));
         let epf = EntropicParticleFiltering::new(
             sg,
@@ -1371,7 +1371,7 @@ mod tests {
             0.8,
             false,
             None,
-        );
+        ).unwrap();
         let prm = Arc::new(MockPRM::new(vec![0.7, 0.6]));
         let epf = EntropicParticleFiltering::new(
             sg,
@@ -1426,7 +1426,7 @@ mod tests {
             0.8,
             false,
             None,
-        );
+        ).unwrap();
         let prm = Arc::new(MockPRM::new(vec![0.7, 0.6, 0.5, 0.8]));
         let epf = EntropicParticleFiltering::new(
             sg,
@@ -1477,7 +1477,7 @@ mod tests {
             0.8,
             false,
             None,
-        );
+        ).unwrap();
         let prm = Arc::new(MockPRM::new(vec![0.7, 0.6, 0.5, 0.8]));
         let epf = EntropicParticleFiltering::new(
             sg,

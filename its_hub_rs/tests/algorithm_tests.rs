@@ -669,7 +669,7 @@ async fn test_beam_search_with_prm_scoring() {
         0.8,
         false,
         None,
-    );
+    ).unwrap();
     let prm = Arc::new(SequentialPRM {
         scores: vec![0.9, 0.1],
         call_count: AtomicUsize::new(0),
@@ -753,7 +753,7 @@ async fn test_beam_search_return_response_only_modes() {
             0.8,
             false,
             None,
-        );
+        ).unwrap();
         BeamSearch::new(sg, Arc::new(FixedPRM), 2)
     };
 
@@ -832,7 +832,7 @@ async fn test_particle_gibbs_reference_trajectory() {
         0.8,
         false,
         None,
-    );
+    ).unwrap();
     let prm = Arc::new(MockPRM {
         call_count: AtomicUsize::new(0),
     });
@@ -918,7 +918,7 @@ async fn test_particle_filtering_flattened_output() {
         0.8,
         false,
         None,
-    );
+    ).unwrap();
     let pf = ParticleFiltering::new(sg, Arc::new(FixedPRM), SelectionMethod::Argmax, ResamplingMethod::Multinomial);
 
     let client = LmClient::new(
