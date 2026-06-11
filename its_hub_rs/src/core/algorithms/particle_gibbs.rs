@@ -327,7 +327,8 @@ impl ScalingAlgorithm for ParticleGibbs {
         tool_choice: Option<&Value>,
     ) -> Result<AlgorithmOutput, anyhow::Error> {
         let budget = budget as usize;
-        if !budget.is_multiple_of(self.num_iterations) {
+        #[allow(clippy::manual_is_multiple_of)]
+        if budget % self.num_iterations != 0 {
             anyhow::bail!("budget must be divisible by num_iterations");
         }
 

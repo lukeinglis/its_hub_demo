@@ -189,7 +189,8 @@ impl ScalingAlgorithm for BeamSearch {
         if budget < bw {
             anyhow::bail!("budget must be greater than or equal to beam_width");
         }
-        if !budget.is_multiple_of(bw) {
+        #[allow(clippy::manual_is_multiple_of)]
+        if budget % bw != 0 {
             anyhow::bail!("budget must be divisible by beam_width");
         }
 
