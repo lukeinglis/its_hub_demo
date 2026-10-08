@@ -54,12 +54,10 @@ The model dropdowns in step 4 are dynamically populated based on which providers
   - **System Prompts**: Applies QWEN system prompt for math questions to ensure consistent answer formatting
 - **Backend**: FastAPI server with comprehensive API endpoints
 - **Frontend**: Modern HTML/JS interface with expandable sections, algorithm traces, and real-time metrics
-- **Models**: OpenAI, Vertex AI, and self-hosted models across multiple families
-  - **OpenAI**: GPT-4o, GPT-4.1, GPT-4.1 Mini, GPT-4.1 Nano, GPT-3.5 Turbo
-  - **Vertex AI Claude**: Sonnet 4.6, Haiku 4.5
-  - **IBM Granite**: Granite 3.3 8B (self-hosted via vLLM)
-  - **Local**: vLLM server (any self-hosted model)
-  - **OpenRouter** (optional): 15+ open-source models (Llama, Qwen, Gemma, DeepSeek) if you have an API key
+- **Models**: three delivery paths, mirroring how models are made available at/through Red Hat
+  - **MaaS / Self-Hosted** (default): Granite 4, gpt-oss, Llama 4, Qwen3 via OpenShift AI MaaS route, self-hosted vLLM, or Ollama
+  - **OpenRouter** (optional): no-GPU fallback to the same Red Hat-validated open models, plus Claude
+  - **OpenAI** (optional): frontier models for Match Frontier — GPT-6 Luna/Sol, GPT-5.x
 - **Algorithms**:
   - Outcome-based: Best-of-N, Self-Consistency (with answer extraction and tool voting)
   - Process-based: Beam Search, Particle Filtering, Entropic Particle Filtering, Particle Gibbs
@@ -150,12 +148,11 @@ demo_ui/
 │   ├── main.py                                 # FastAPI app, routes, CORS, static serving
 │   ├── inference.py                            # LLM creation, baseline/ITS execution, cost calculation
 │   ├── traces.py                               # Algorithm trace building for visualization
-│   ├── config.py                               # Model registry (24 models)
+│   ├── config.py                               # Model registry (delivery paths: MaaS, OpenRouter, OpenAI)
 │   ├── models.py                               # Pydantic request/response models
 │   ├── evaluation.py                           # Answer correctness checking (math + LLM judge)
 │   ├── tools.py                                # Tool definitions for agent demos
 │   ├── example_questions.py                    # 30 curated questions (MATH500, AIME, AMC, hand-curated)
-│   ├── vertex_lm.py                            # Vertex AI model implementations (lazy-loaded)
 │   ├── llm_prm.py                              # LLM-based process reward model
 │   └── requirements.txt                        # Backend dependencies
 ├── tests/
@@ -244,28 +241,18 @@ cp .env.example .env
 Edit `.env` and add at least one provider:
 
 ```bash
-# Required: OpenAI API (for GPT models + LLM judge)
+# Required for frontier comparisons (GPT-6, GPT-5.x + LLM judge)
 OPENAI_API_KEY=your-openai-api-key-here
 
-# Optional: Google Cloud Vertex AI (for Claude and Gemini)
-# Also requires: pip install anthropic[vertex] google-cloud-aiplatform
-# VERTEX_PROJECT=your-gcp-project-id
-# VERTEX_LOCATION=us-east5
-
-# Optional: OpenRouter (for 15+ open-source models)
+# Optional: OpenRouter (no-GPU fallback to validated open models, Claude)
 # OPENROUTER_API_KEY=sk-or-v1-your-key-here
+
+# Optional: MaaS route (OpenShift AI MaaS, self-hosted vLLM, or Red Hat AI Inference Server)
+# MAAS_BASE_URL=http://your-maas-route/v1
+# MAAS_MODEL_NAME=ibm-granite/granite-4-h-small
 ```
 
-**Step 3 — Install optional provider packages** (only if needed):
-
-```bash
-# For Vertex AI (Claude/Gemini via Google Cloud):
-pip install anthropic[vertex] google-cloud-aiplatform
-```
-
-> Skip this step if you're only using OpenAI or OpenRouter — they work with the core install.
-
-**Step 4 — Start the server:**
+**Step 3 — Start the server:**
 
 ```bash
 cd demo_ui    # if not already there
@@ -282,10 +269,9 @@ The interactive demo auto-detects which providers have valid API keys and shows 
 
 | Provider | API Key | Extra Packages | Tool Calling |
 |---|---|---|---|
+| **MaaS / Self-Hosted** | `MAAS_BASE_URL` (`MAAS_API_KEY` optional) | vLLM / Ollama server running separately | Depends on model |
+| **OpenRouter** | `OPENROUTER_API_KEY` | None (core install) | Depends on model |
 | **OpenAI** | `OPENAI_API_KEY` | None (core install) | Yes |
-| **OpenRouter** | `OPENROUTER_API_KEY` | None (core install) | No |
-| **Vertex AI** | `VERTEX_PROJECT` + gcloud auth | `anthropic[vertex]` `google-cloud-aiplatform` | Yes |
-| **Self-hosted** | `VLLM_BASE_URL` | vLLM server running separately | Depends on model |
 
 You will see the landing page with two options: **Guided Demo** and **Interactive Demo**.
 
@@ -381,9 +367,9 @@ Check which model providers have credentials configured.
 ```json
 {
   "providers": {
-    "openai": { "enabled": true, "name": "OpenAI", "description": "GPT-4o, ...", "env_var": "OPENAI_API_KEY", "setup": "export OPENAI_API_KEY=sk-..." },
-    "vertex_ai": { "enabled": false, "..." : "..." },
-    "local": { "enabled": false, "..." : "..." }
+    "maas": { "enabled": true, "name": "Red Hat MaaS / Self-Hosted", "description": "...", "env_var": "MAAS_BASE_URL", "setup": "export MAAS_BASE_URL=http://<your-maas-route>/v1" },
+    "openrouter": { "enabled": false, "..." : "..." },
+    "openai": { "enabled": true, "..." : "..." }
   },
   "any_enabled": true
 }
@@ -709,7 +695,7 @@ For production use with process-based algorithms, consider using a dedicated pro
 - ✅ **Performance Metrics**: Latency, model size, tokens, and cost per request
 - ✅ **Expandable UI**: Clean response view with collapsible reasoning and metrics
 - ✅ **Example Questions**: Curated problems across difficulty levels (math and tool calling)
-- ✅ **Multi-Provider Support**: OpenAI and Vertex AI (Claude, Gemini)
+- ✅ **Multi-Provider Support**: MaaS / self-hosted, OpenRouter, and OpenAI delivery paths
 - ✅ **LaTeX Math Rendering**: Proper formatting for mathematical content
 
 ### 🔧 Potential Enhancements

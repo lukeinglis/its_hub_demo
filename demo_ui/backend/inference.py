@@ -35,20 +35,15 @@ from its_hub.core.utils import extract_content_from_lm_response
 
 from .config import get_model_config, get_api_key, ModelConfig
 from .llm_prm import LLMProcessRewardModel
-from .litellm_lm import LiteLLMLanguageModel
 from .models import ToolCall
 from .tools import get_tool_schemas, execute_tool
 from .traces import build_trace
 
-# Vertex AI models are imported lazily in create_language_model() to avoid
-# requiring anthropic and google-cloud-aiplatform for basic usage (e.g.
-# guided demo on a MacBook with only OpenAI configured).
-
 logger = logging.getLogger(__name__)
 
 # ── Algorithm / model defaults ────────────────────────────────────────
-DEFAULT_JUDGE_MODEL = "gpt-4.1-mini"
-DEFAULT_PRM_MODEL = "gpt-4.1-mini"
+DEFAULT_JUDGE_MODEL = "gpt-5-mini"
+DEFAULT_PRM_MODEL = "gpt-5-mini"
 DEFAULT_STEP_GEN_MAX_STEPS = 8
 DEFAULT_STEP_GEN_TEMPERATURE = 0.8
 DEFAULT_STEP_GEN_TOKEN = "\n\n"
@@ -234,99 +229,24 @@ def create_language_model(
     """
     Create a language model instance based on the model configuration.
 
-    All models use OpenAI-compatible endpoints except Vertex AI models.
+    All models use OpenAI-compatible endpoints (MaaS routes, OpenRouter,
+    OpenAI, and self-hosted vLLM servers).
 
     Args:
         model_id: Model identifier from the registry
         system_prompt: Optional system prompt to prepend to all messages
     """
     model_config = get_model_config(model_id)
-    provider = model_config.get("provider", "openai")
+    api_key = get_api_key(model_id)
 
-    if provider == "vertex_ai":
-        # Use native Vertex AI SDK for Claude and Gemini models (NOT OpenAI-compatible)
-        # Lazy import to avoid requiring anthropic/google-cloud-aiplatform for basic usage
-        try:
-            from .vertex_lm import VertexAIClaudeModel, VertexAIGeminiModel
-        except ImportError:
-            raise ValueError(
-                "Vertex AI models require additional packages. "
-                "Install with: pip install anthropic[vertex] google-cloud-aiplatform"
-            )
+    logger.info(f"Creating OpenAI-compatible model: {model_config['model_name']} via {model_config['base_url']}")
 
-        vertex_project = model_config.get("vertex_project")
-        vertex_location = model_config.get("vertex_location")
-
-        if not vertex_project or vertex_project == "your-gcp-project-id":
-            raise ValueError(
-                "VERTEX_PROJECT not configured. Please set VERTEX_PROJECT "
-                "environment variable in your .env file"
-            )
-
-        model_name = model_config["model_name"]
-
-        # Determine if it's a Claude or Gemini model based on model name
-        if "claude" in model_name.lower():
-            logger.info(
-                f"Creating Vertex AI Claude model: {model_name} "
-                f"(project: {vertex_project}, location: {vertex_location})"
-            )
-            return VertexAIClaudeModel(
-                project_id=vertex_project,
-                location=vertex_location,
-                model_name=model_name,
-            )
-        elif "gemini" in model_name.lower():
-            logger.info(
-                f"Creating Vertex AI Gemini model: {model_name} "
-                f"(project: {vertex_project}, location: {vertex_location})"
-            )
-            return VertexAIGeminiModel(
-                project_id=vertex_project,
-                location=vertex_location,
-                model_name=model_name,
-            )
-        else:
-            raise ValueError(f"Unknown Vertex AI model type: {model_name}")
-
-    elif provider == "vertex_ai_model_garden":
-        # Open-source models (Llama, Mistral, etc.) hosted on Vertex AI Model Garden
-        # Uses litellm's vertex_ai/ prefix for routing and Google ADC for auth
-        vertex_project = model_config.get("vertex_project")
-        vertex_location = model_config.get("vertex_location")
-
-        if not vertex_project or vertex_project == "your-gcp-project-id":
-            raise ValueError(
-                "VERTEX_PROJECT not configured. Please set VERTEX_PROJECT "
-                "environment variable in your .env file"
-            )
-
-        model_name = f"vertex_ai/{model_config['model_name']}"
-
-        logger.info(
-            f"Creating Vertex AI Model Garden model: {model_name} "
-            f"(project: {vertex_project}, location: {vertex_location})"
-        )
-
-        return LiteLLMLanguageModel(
-            model_name=model_name,
-            vertex_project=vertex_project,
-            vertex_location=vertex_location,
-        )
-
-    else:
-        # All other models use OpenAI-compatible endpoints
-        # This includes: OpenAI, OpenRouter (Claude, Gemini), Together AI (open-source), vLLM
-        api_key = get_api_key(model_id)
-
-        logger.info(f"Creating OpenAI-compatible model: {model_config['model_name']} via {model_config['base_url']}")
-
-        return OpenAICompatibleLanguageModel(
-            endpoint=model_config["base_url"],
-            api_key=api_key,
-            model_name=model_config["model_name"],
-            system_prompt=system_prompt,
-        )
+    return OpenAICompatibleLanguageModel(
+        endpoint=model_config["base_url"],
+        api_key=api_key,
+        model_name=model_config["model_name"],
+        system_prompt=system_prompt,
+    )
 
 
 async def run_baseline(
@@ -395,9 +315,10 @@ async def run_baseline(
             logger.warning(f"Could not capture token usage: {type(e).__name__}")
             response = await lm.agenerate(messages)
     else:
-        # For Vertex AI or other models, use standard interface
+        # Non-OpenAI-compatible response shapes (e.g. local wrappers) use the
+        # standard interface
         response = await lm.agenerate(messages)
-        # Extract usage if the model wrapper provided it (e.g. Vertex AI Claude)
+        # Extract usage if the model wrapper provided it
         if isinstance(response, dict) and "usage" in response:
             input_tokens = response["usage"].get("input_tokens", 0)
             output_tokens = response["usage"].get("output_tokens", 0)

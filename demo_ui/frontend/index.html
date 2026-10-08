@@ -343,35 +343,35 @@
                 </div>
 
                 <div class="iw-provider-grid">
+                    <!-- MaaS / Self-Hosted (default) -->
+                    <div class="iw-provider-card iw-provider-copyable" role="button" tabindex="0" data-provider="maas" onclick="iwCopySetup(this)" data-copy="MAAS_BASE_URL=http://<your-maas-route>/v1">
+                        <div class="iw-provider-header">
+                            <span class="iw-provider-name">Red Hat MaaS / Self-Hosted</span>
+                            <span class="iw-copy-hint">Click to copy</span>
+                        </div>
+                        <div class="iw-provider-models">Granite 4, gpt-oss, Llama 4, Qwen3 via OpenShift AI MaaS, self-hosted vLLM, or Ollama</div>
+                        <div class="iw-provider-setup">MAAS_BASE_URL=http://&lt;your-maas-route&gt;/v1
+  (or: ollama pull granite4:3b &amp;&amp; ollama serve)</div>
+                    </div>
+
+                    <!-- OpenRouter -->
+                    <div class="iw-provider-card iw-provider-copyable" role="button" tabindex="0" data-provider="openrouter" onclick="iwCopySetup(this)" data-copy="OPENROUTER_API_KEY=sk-or-v1-...">
+                        <div class="iw-provider-header">
+                            <span class="iw-provider-name">OpenRouter</span>
+                            <span class="iw-copy-hint">Click to copy</span>
+                        </div>
+                        <div class="iw-provider-models">No-GPU fallback to the same validated open models — Granite 4, gpt-oss, Llama 4, Qwen3, Claude</div>
+                        <div class="iw-provider-setup">OPENROUTER_API_KEY=sk-or-v1-...</div>
+                    </div>
+
                     <!-- OpenAI -->
                     <div class="iw-provider-card iw-provider-copyable" role="button" tabindex="0" data-provider="openai" onclick="iwCopySetup(this)" data-copy="OPENAI_API_KEY=sk-...">
                         <div class="iw-provider-header">
                             <span class="iw-provider-name">OpenAI</span>
                             <span class="iw-copy-hint">Click to copy</span>
                         </div>
-                        <div class="iw-provider-models">GPT-4o, GPT-4o Mini, GPT-4.1, GPT-4.1 Mini/Nano, GPT-3.5 Turbo</div>
+                        <div class="iw-provider-models">Frontier models for Match Frontier — GPT-6 Luna/Sol, GPT-5.x</div>
                         <div class="iw-provider-setup">OPENAI_API_KEY=sk-...</div>
-                    </div>
-
-                    <!-- Vertex AI -->
-                    <div class="iw-provider-card iw-provider-copyable" role="button" tabindex="0" data-provider="vertex_ai" onclick="iwCopySetup(this)" data-copy="VERTEX_PROJECT=your-project-id">
-                        <div class="iw-provider-header">
-                            <span class="iw-provider-name">Google Cloud Vertex AI</span>
-                            <span class="iw-copy-hint">Click to copy</span>
-                        </div>
-                        <div class="iw-provider-models">Claude Sonnet 4.6, Claude Haiku 4.5</div>
-                        <div class="iw-provider-setup">VERTEX_PROJECT=your-project-id
-gcloud auth application-default login</div>
-                    </div>
-
-                    <!-- Self-Hosted -->
-                    <div class="iw-provider-card iw-provider-copyable" role="button" tabindex="0" data-provider="local" onclick="iwCopySetup(this)" data-copy="VLLM_BASE_URL=http://localhost:8100/v1">
-                        <div class="iw-provider-header">
-                            <span class="iw-provider-name">Self-Hosted / Local</span>
-                            <span class="iw-copy-hint">Click to copy</span>
-                        </div>
-                        <div class="iw-provider-models">IBM Granite 4 3B, Granite 3.3 8B, or any model via Ollama / vLLM</div>
-                        <div class="iw-provider-setup">ollama pull granite4:3b && ollama serve</div>
                     </div>
                 </div>
 

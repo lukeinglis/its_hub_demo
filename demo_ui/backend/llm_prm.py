@@ -25,7 +25,7 @@ class LLMProcessRewardModel(AbstractProcessRewardModel):
 
     def __init__(
         self,
-        model: str = "gpt-4.1-mini",
+        model: str = "gpt-5-mini",
         api_key: str | None = None,
         base_url: str | None = None,
         temperature: float = 0.3,
@@ -34,7 +34,7 @@ class LLMProcessRewardModel(AbstractProcessRewardModel):
         Initialize LLM-based process reward model.
 
         Args:
-            model: LiteLLM model name (e.g., "gpt-4.1-mini")
+            model: LiteLLM model name (e.g., "gpt-5-mini")
             api_key: API key for the model provider
             base_url: Base URL for custom endpoints
             temperature: Temperature for judge generation (lower = more deterministic)
