@@ -44,7 +44,7 @@ else:
 from backend.evaluation import evaluate_correctness
 from its_hub.core.utils import QWEN_SYSTEM_PROMPT
 
-from .config import get_model_config, MODEL_REGISTRY
+from .config import get_model_config, get_judge_config, MODEL_REGISTRY
 from .example_questions import (
     get_all_questions,
     get_questions_by_algorithm,
@@ -362,10 +362,14 @@ async def compare(request: CompareRequest, req: Request):
     )
 
     try:
-        # Get API key for judge (always use OpenAI for judge)
-        openai_key = os.getenv("OPENAI_API_KEY")
-        if not openai_key:
-            raise ValueError("OPENAI_API_KEY required for LLM judge")
+        # Judge/PRM connection resolves from a MaaS route or OpenAI (see
+        # get_judge_config) — no OpenAI key required when MaaS is configured
+        judge_cfg = get_judge_config()
+        if judge_cfg["api_key"] is None:
+            raise ValueError(
+                "No judge credentials — set OPENAI_API_KEY or configure a "
+                "MaaS route (MAAS_BASE_URL)"
+            )
 
         # Detect question type if auto
         question_type = request.question_type
@@ -409,7 +413,6 @@ async def compare(request: CompareRequest, req: Request):
                 request.question,
                 request.algorithm,
                 request.budget,
-                openai_key,
                 small_baseline_input_tokens,
                 small_baseline_output_tokens,
                 enable_tools=request.enable_tools,
@@ -442,7 +445,6 @@ async def compare(request: CompareRequest, req: Request):
                 request.question,
                 request.algorithm,
                 request.budget,
-                openai_key,
                 baseline_input_tokens,
                 baseline_output_tokens,
                 enable_tools=enable_tools,
@@ -467,7 +469,6 @@ async def compare(request: CompareRequest, req: Request):
                 request.question,
                 request.algorithm,
                 request.budget,
-                openai_key,
                 baseline_input_tokens,
                 baseline_output_tokens,
                 enable_tools=request.enable_tools,

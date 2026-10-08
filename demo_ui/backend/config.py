@@ -288,3 +288,43 @@ def get_api_key(model_id: str) -> str:
             f"Please set environment variable '{config['api_key_env_var']}'"
         )
     return api_key
+
+
+def get_judge_config() -> dict:
+    """Resolve judge/PRM connection settings.
+
+    Defaults to the MaaS endpoint when configured, so the whole demo —
+    including the correctness judge, Best-of-N judge, and the process reward
+    model — runs on your own infrastructure with no OpenAI key. Falls back to
+    the OpenAI endpoint. JUDGE_BASE_URL / JUDGE_MODEL / JUDGE_API_KEY
+    override everything.
+    """
+    base_url = (
+        os.getenv("JUDGE_BASE_URL")
+        or os.getenv("MAAS_BASE_URL")
+        or os.getenv("VLLM_BASE_URL")
+        or "https://api.openai.com/v1"
+    )
+    custom = base_url != "https://api.openai.com/v1"
+
+    if custom:
+        model = os.getenv("JUDGE_MODEL") or os.getenv("MAAS_MODEL_NAME") or "gpt-5-mini"
+        api_key = (
+            os.getenv("JUDGE_API_KEY")
+            or os.getenv("OPENAI_API_KEY")
+            or os.getenv("MAAS_API_KEY")
+            or "maas"  # placeholder for unauthenticated MaaS routes
+        )
+        # litellm needs the openai/ prefix to route to a custom OpenAI-compatible endpoint
+        litellm_model = model if model.startswith(("openai/", "openrouter/")) else f"openai/{model}"
+    else:
+        model = os.getenv("JUDGE_MODEL", "gpt-5-mini")
+        api_key = os.getenv("JUDGE_API_KEY") or os.getenv("OPENAI_API_KEY")
+        litellm_model = model
+
+    return {
+        "base_url": base_url,
+        "api_key": api_key,
+        "model": model,                    # for OpenAICompatibleLanguageModel
+        "litellm_model": litellm_model,    # for litellm.acompletion calls
+    }

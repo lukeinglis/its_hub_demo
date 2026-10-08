@@ -3,7 +3,7 @@ Correctness evaluation for ITS demo responses.
 
 Two evaluation paths:
 - Math questions: regex extraction + normalization + comparison (zero API cost)
-- General questions: LLM judge via litellm (GPT-4.1 Mini)
+- General questions: LLM judge via litellm (model resolved by get_judge_config)
 """
 
 import json
@@ -13,9 +13,9 @@ from fractions import Fraction
 
 import litellm
 
-logger = logging.getLogger(__name__)
+from .config import get_judge_config
 
-JUDGE_MODEL = "gpt-5-mini"
+logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
@@ -163,11 +163,14 @@ async def _llm_judge_correctness(
     )
 
     try:
+        judge_cfg = get_judge_config()
         result = await litellm.acompletion(
-            model=JUDGE_MODEL,
+            model=judge_cfg["litellm_model"],
             messages=[{"role": "user", "content": prompt}],
             temperature=0,
             max_tokens=150,
+            api_base=judge_cfg["base_url"],
+            api_key=judge_cfg["api_key"],
         )
         content = result.choices[0].message.content.strip()
         # Parse JSON from response

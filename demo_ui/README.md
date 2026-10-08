@@ -275,6 +275,8 @@ The interactive demo auto-detects which providers have valid API keys and shows 
 
 You will see the landing page with two options: **Guided Demo** and **Interactive Demo**.
 
+**LLM judge & PRM:** the correctness judge, Best-of-N judge, and process reward model run on your MaaS model when a MaaS route is configured (`MAAS_BASE_URL`) — no OpenAI key needed. Without a MaaS route they default to `gpt-5-mini` via the OpenAI endpoint. Override with `JUDGE_BASE_URL` / `JUDGE_MODEL` / `JUDGE_API_KEY`.
+
 For how these delivery paths map to Red Hat's offerings (MaaS on OpenShift AI, AI Validated Models, the upcoming Red Hat AI Gateway), see **[docs/red-hat-ai.md](../docs/red-hat-ai.md)**.
 
 ## Demo Guide

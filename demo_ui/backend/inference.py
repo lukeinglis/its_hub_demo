@@ -33,7 +33,7 @@ from its_hub.api import ChatMessage
 from its_hub.core.algorithms.self_consistency import create_regex_projection_function
 from its_hub.core.utils import extract_content_from_lm_response
 
-from .config import get_model_config, get_api_key, ModelConfig
+from .config import get_model_config, get_api_key, get_judge_config, ModelConfig
 from .llm_prm import LLMProcessRewardModel
 from .models import ToolCall
 from .tools import get_tool_schemas, execute_tool
@@ -42,8 +42,6 @@ from .traces import build_trace
 logger = logging.getLogger(__name__)
 
 # ── Algorithm / model defaults ────────────────────────────────────────
-DEFAULT_JUDGE_MODEL = "gpt-5-mini"
-DEFAULT_PRM_MODEL = "gpt-5-mini"
 DEFAULT_STEP_GEN_MAX_STEPS = 8
 DEFAULT_STEP_GEN_TEMPERATURE = 0.8
 DEFAULT_STEP_GEN_TOKEN = "\n\n"
@@ -407,11 +405,13 @@ async def run_its(
                     'Format: {"score": <number>}'
                 )
 
-        # Create a dedicated judge LM (defaults to the OpenAI endpoint + judge model)
+        # Create a dedicated judge LM — runs on the MaaS endpoint when configured,
+        # otherwise the OpenAI endpoint (see get_judge_config)
+        judge_cfg = get_judge_config()
         judge_lm = OpenAICompatibleLanguageModel(
-            endpoint="https://api.openai.com/v1",
-            api_key=api_key,
-            model_name=DEFAULT_JUDGE_MODEL,
+            endpoint=judge_cfg["base_url"],
+            api_key=judge_cfg["api_key"],
+            model_name=judge_cfg["model"],
         )
         judge = LLMJudge(lm=judge_lm, judge_prompt=judge_prompt, fallback_score=5.0)
         alg = BestOfN(judge)
@@ -455,9 +455,11 @@ async def run_its(
             include_stop_str_in_output=False,
         )
 
+        judge_cfg = get_judge_config()
         prm = LLMProcessRewardModel(
-            model=DEFAULT_PRM_MODEL,
-            api_key=api_key,
+            model=judge_cfg["litellm_model"],
+            api_key=judge_cfg["api_key"],
+            base_url=judge_cfg["base_url"],
             temperature=DEFAULT_PRM_TEMPERATURE,
         )
 
