@@ -2,6 +2,8 @@
 
 Quick reference for presenting the ITS demo. For setup and architecture details, see `README.md`.
 
+> **Model roster note:** The interactive demo uses the new delivery-path roster (MaaS / OpenRouter / OpenAI — GPT-6, GPT-5.x, Granite 4, gpt-oss, Llama 4, Qwen3). The **guided demo** scenarios still reflect the previous roster (GPT-4.1 Nano, Llama 3.2 3B → GPT-4o) until the captured data is re-recorded with `scripts/capture_guided_scenarios.py`.
+
 ---
 
 ## Pre-Demo Checklist
@@ -9,7 +11,8 @@ Quick reference for presenting the ITS demo. For setup and architecture details,
 1. Backend running: `cd demo_ui && uvicorn backend.main:app --host 0.0.0.0 --port 8000` (venv active)
 2. Open `http://localhost:8000`
 3. Hard refresh: `Cmd+Shift+R` (Mac) or `Ctrl+Shift+R` (Windows/Linux)
-4. Choose **Guided Demo** (pre-captured data, no API keys) or **Interactive Demo** (live API calls, requires keys)
+4. Choose **Guided Demo** (pre-captured data, no API keys) or **Interactive Demo** (live API calls, requires a provider)
+5. For live demos: confirm at least one provider is reachable — `MAAS_BASE_URL` (MaaS route / self-hosted vLLM / Ollama), `OPENROUTER_API_KEY`, or `OPENAI_API_KEY`
 
 ---
 
@@ -80,6 +83,20 @@ The guided demo uses pre-captured real API responses. No API keys required. Each
 
 ---
 
+## The Red Hat Story (woven throughout)
+
+Models are made available through three delivery paths, mirroring how Red Hat ships models:
+
+| Path | What it is | Talking point |
+|------|-----------|---------------|
+| **MaaS / Self-Hosted** (default) | OpenShift AI MaaS route, self-hosted vLLM, or Red Hat AI Inference Server — Granite 4, gpt-oss, Llama 4, Qwen3 | "These are the validated open models your platform team can serve — zero per-token cost, full data control" |
+| **OpenRouter** | No-GPU fallback to the same validated open models, plus Claude | "Try the same models without any GPU infrastructure" |
+| **OpenAI** | Frontier models (GPT-6, GPT-5.x) | "The ceiling Match Frontier aims for — at a fraction of the cost" |
+
+And beyond the demos: `its_hub` ships as a microservice (OpenAI-compatible IaaS server + Envoy gateway) so the same ITS gains apply to production traffic and coding-agent plugins — see the "Beyond the Demos" section on the landing page and `docs/red-hat-ai.md`.
+
+---
+
 ## Quick Reference Table
 
 | Demo | Scenario | Model | Method | Budget | Key Metric |
@@ -146,7 +163,7 @@ The guided demo also includes Best-of-N variants for Improve Model scenarios. To
 - **Medium difficulty** math questions work best (easy = no improvement to show; hard = risk of timeout)
 - The guided demo badge shows "Using captured results" (green) — this confirms you're seeing real API responses
 - If you see "Using example data" (amber), the captured data file may be missing — recapture with `python scripts/capture_guided_scenarios.py`
-- **Avoid GPT-4o** for "Improve Model" — it's too good, no improvement to demonstrate
+- **Avoid frontier models** (GPT-6 Sol, GPT-5.5) for "Improve Model" — they're too good, no improvement to demonstrate. Use small/fast models (GPT-5 Mini, GPT-6 Luna, gpt-oss-20b).
 
 ---
 
@@ -157,4 +174,4 @@ The guided demo also includes Best-of-N variants for Improve Model scenarios. To
 | Backend not reachable | Run `uvicorn backend.main:app --port 8000` from `demo_ui/` with venv active |
 | Empty dropdowns / broken UI | Hard refresh (`Cmd+Shift+R`) |
 | "Using example data" badge | Recapture: `python scripts/capture_guided_scenarios.py` |
-| Want to try Interactive Demo | Need at least `OPENAI_API_KEY` in `.env` — see README Scenario 2 |
+| Want to try Interactive Demo | Need at least one provider: `MAAS_BASE_URL`, `OPENROUTER_API_KEY`, or `OPENAI_API_KEY` — see README Scenario 2 |
