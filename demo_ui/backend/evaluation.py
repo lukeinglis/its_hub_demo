@@ -15,7 +15,7 @@ import litellm
 
 logger = logging.getLogger(__name__)
 
-JUDGE_MODEL = "gpt-4.1-mini"
+JUDGE_MODEL = "gpt-5-mini"
 
 
 # ---------------------------------------------------------------------------

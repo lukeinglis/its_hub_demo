@@ -8,12 +8,6 @@ python-dotenv>=1.0.0
 litellm>=1.70.0,<1.75.0
 numpy
 
-# Optional: Google Cloud Vertex AI (for Claude/Gemini via Vertex AI)
-# Only needed if you configure VERTEX_PROJECT in your .env
-# pip install anthropic[vertex] google-cloud-aiplatform
-# google-cloud-aiplatform>=1.38.0
-# anthropic[vertex]>=0.18.0
-
 # Testing
 pytest>=7.0.0
 

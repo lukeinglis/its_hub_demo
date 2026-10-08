@@ -1,0 +1,24 @@
+[package]
+name = "its_hub_rust"
+# This is the next, unreleased version. Every push to main publishes a
+# <version>.devN build to Test PyPI, so it must stay one step ahead of the
+# latest released version. Bump it whenever you cut a release.
+version = "1.2.1"
+edition = "2024"
+
+[lib]
+name = "_rust"
+path = "src/lib.rs"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+pyo3 = { version = "0.24", features = ["experimental-async"] }
+pyo3-async-runtimes = { version = "0.24", features = ["tokio-runtime"] }
+tokio = { version = "1", features = ["rt", "rt-multi-thread", "sync"] }
+futures-util = "0.3"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["macros", "time", "rt-multi-thread"] }
+
+[features]
+extension-module = ["pyo3/extension-module"]

@@ -54,12 +54,10 @@ The model dropdowns in step 4 are dynamically populated based on which providers
   - **System Prompts**: Applies QWEN system prompt for math questions to ensure consistent answer formatting
 - **Backend**: FastAPI server with comprehensive API endpoints
 - **Frontend**: Modern HTML/JS interface with expandable sections, algorithm traces, and real-time metrics
-- **Models**: OpenAI, Vertex AI, and self-hosted models across multiple families
-  - **OpenAI**: GPT-4o, GPT-4.1, GPT-4.1 Mini, GPT-4.1 Nano, GPT-3.5 Turbo
-  - **Vertex AI Claude**: Sonnet 4.6, Haiku 4.5
-  - **IBM Granite**: Granite 3.3 8B (self-hosted via vLLM)
-  - **Local**: vLLM server (any self-hosted model)
-  - **OpenRouter** (optional): 15+ open-source models (Llama, Qwen, Gemma, DeepSeek) if you have an API key
+- **Models**: three delivery paths, mirroring how models are made available at/through Red Hat
+  - **MaaS / Self-Hosted** (default): Granite 4, gpt-oss, Llama 4, Qwen3 via OpenShift AI MaaS route, self-hosted vLLM, or Ollama
+  - **OpenRouter** (optional): no-GPU fallback to the same Red Hat-validated open models, plus Claude
+  - **OpenAI** (optional): frontier models for Match Frontier — GPT-6 Luna/Sol, GPT-5.x
 - **Algorithms**:
   - Outcome-based: Best-of-N, Self-Consistency (with answer extraction and tool voting)
   - Process-based: Beam Search, Particle Filtering, Entropic Particle Filtering, Particle Gibbs
@@ -150,12 +148,11 @@ demo_ui/
 │   ├── main.py                                 # FastAPI app, routes, CORS, static serving
 │   ├── inference.py                            # LLM creation, baseline/ITS execution, cost calculation
 │   ├── traces.py                               # Algorithm trace building for visualization
-│   ├── config.py                               # Model registry (24 models)
+│   ├── config.py                               # Model registry (delivery paths: MaaS, OpenRouter, OpenAI)
 │   ├── models.py                               # Pydantic request/response models
 │   ├── evaluation.py                           # Answer correctness checking (math + LLM judge)
 │   ├── tools.py                                # Tool definitions for agent demos
 │   ├── example_questions.py                    # 30 curated questions (MATH500, AIME, AMC, hand-curated)
-│   ├── vertex_lm.py                            # Vertex AI model implementations (lazy-loaded)
 │   ├── llm_prm.py                              # LLM-based process reward model
 │   └── requirements.txt                        # Backend dependencies
 ├── tests/
@@ -244,28 +241,18 @@ cp .env.example .env
 Edit `.env` and add at least one provider:
 
 ```bash
-# Required: OpenAI API (for GPT models + LLM judge)
+# Required for frontier comparisons (GPT-6, GPT-5.x + LLM judge)
 OPENAI_API_KEY=your-openai-api-key-here
 
-# Optional: Google Cloud Vertex AI (for Claude and Gemini)
-# Also requires: pip install anthropic[vertex] google-cloud-aiplatform
-# VERTEX_PROJECT=your-gcp-project-id
-# VERTEX_LOCATION=us-east5
-
-# Optional: OpenRouter (for 15+ open-source models)
+# Optional: OpenRouter (no-GPU fallback to validated open models, Claude)
 # OPENROUTER_API_KEY=sk-or-v1-your-key-here
+
+# Optional: MaaS route (OpenShift AI MaaS, self-hosted vLLM, or Red Hat AI Inference Server)
+# MAAS_BASE_URL=http://your-maas-route/v1
+# MAAS_MODEL_NAME=ibm-granite/granite-4-h-small
 ```
 
-**Step 3 — Install optional provider packages** (only if needed):
-
-```bash
-# For Vertex AI (Claude/Gemini via Google Cloud):
-pip install anthropic[vertex] google-cloud-aiplatform
-```
-
-> Skip this step if you're only using OpenAI or OpenRouter — they work with the core install.
-
-**Step 4 — Start the server:**
+**Step 3 — Start the server:**
 
 ```bash
 cd demo_ui    # if not already there
@@ -282,12 +269,13 @@ The interactive demo auto-detects which providers have valid API keys and shows 
 
 | Provider | API Key | Extra Packages | Tool Calling |
 |---|---|---|---|
+| **MaaS / Self-Hosted** | `MAAS_BASE_URL` (`MAAS_API_KEY` optional) | vLLM / Ollama server running separately | Depends on model |
+| **OpenRouter** | `OPENROUTER_API_KEY` | None (core install) | Depends on model |
 | **OpenAI** | `OPENAI_API_KEY` | None (core install) | Yes |
-| **OpenRouter** | `OPENROUTER_API_KEY` | None (core install) | No |
-| **Vertex AI** | `VERTEX_PROJECT` + gcloud auth | `anthropic[vertex]` `google-cloud-aiplatform` | Yes |
-| **Self-hosted** | `VLLM_BASE_URL` | vLLM server running separately | Depends on model |
 
 You will see the landing page with two options: **Guided Demo** and **Interactive Demo**.
+
+For how these delivery paths map to Red Hat's offerings (MaaS on OpenShift AI, AI Validated Models, the upcoming Red Hat AI Gateway), see **[docs/red-hat-ai.md](../docs/red-hat-ai.md)**.
 
 ## Demo Guide
 
@@ -381,9 +369,9 @@ Check which model providers have credentials configured.
 ```json
 {
   "providers": {
-    "openai": { "enabled": true, "name": "OpenAI", "description": "GPT-4o, ...", "env_var": "OPENAI_API_KEY", "setup": "export OPENAI_API_KEY=sk-..." },
-    "vertex_ai": { "enabled": false, "..." : "..." },
-    "local": { "enabled": false, "..." : "..." }
+    "maas": { "enabled": true, "name": "Red Hat MaaS / Self-Hosted", "description": "...", "env_var": "MAAS_BASE_URL", "setup": "export MAAS_BASE_URL=http://<your-maas-route>/v1" },
+    "openrouter": { "enabled": false, "..." : "..." },
+    "openai": { "enabled": true, "..." : "..." }
   },
   "any_enabled": true
 }
@@ -391,16 +379,16 @@ Check which model providers have credentials configured.
 
 ### GET /models
 
-List available models. Now includes `provider` field for each model.
+List available models, including the `provider` field for each model.
 
 **Response:**
 ```json
 {
   "models": [
     {
-      "id": "gpt-4.1-mini",
-      "description": "⚡ GPT-4.1 Mini (Small, fast)",
-      "model_name": "gpt-4.1-mini",
+      "id": "gpt-5-mini",
+      "description": "⚡ GPT-5 Mini (Previous-gen small)",
+      "model_name": "gpt-5-mini",
       "size": "Small",
       "supports_tools": true,
       "is_reasoning": false,
@@ -441,7 +429,7 @@ Compare baseline vs ITS inference.
 ```json
 {
   "question": "What is the derivative of x^3 + 2x^2?",
-  "model_id": "gpt-4.1-nano",
+  "model_id": "gpt-5-mini",
   "algorithm": "best_of_n",
   "budget": 4,
   "use_case": "improve_model"
@@ -452,8 +440,8 @@ Compare baseline vs ITS inference.
 ```json
 {
   "question": "What is the derivative of x^3 + 2x^2?",
-  "model_id": "gpt-4.1-nano",
-  "frontier_model_id": "gpt-4o",
+  "model_id": "gpt-5-mini",
+  "frontier_model_id": "gpt-6-sol",
   "algorithm": "best_of_n",
   "budget": 4,
   "use_case": "match_frontier"
@@ -464,7 +452,7 @@ Compare baseline vs ITS inference.
 ```json
 {
   "question": "What's the compound annual growth rate if I invest $1000 and it grows to $2000 in 5 years?",
-  "model_id": "gpt-4.1-nano",
+  "model_id": "gpt-5-mini",
   "algorithm": "self_consistency",
   "budget": 6,
   "use_case": "tool_consensus",
@@ -512,7 +500,7 @@ Compare baseline vs ITS inference.
     "trace": { "algorithm": "best_of_n", "candidates": [...], "scores": [...] }
   },
   "meta": {
-    "model_id": "gpt-4.1-nano",
+    "model_id": "gpt-5-mini",
     "algorithm": "best_of_n",
     "budget": 4,
     "run_id": "uuid-here",
@@ -555,8 +543,8 @@ Compare baseline vs ITS inference.
     "tokens_estimated": false
   },
   "meta": {
-    "model_id": "gpt-4.1-nano",
-    "frontier_model_id": "gpt-4o",
+    "model_id": "gpt-5-mini",
+    "frontier_model_id": "gpt-6-sol",
     "algorithm": "best_of_n",
     "budget": 4,
     "run_id": "uuid-here",
@@ -590,29 +578,27 @@ Then add the corresponding API key to your `.env` file.
 
 ## OpenRouter Models (Optional)
 
-If you have an OpenRouter API key, you can access 15+ open-source models by setting `OPENROUTER_API_KEY` in your `.env` file. These models will automatically appear in the interactive demo when the key is configured.
+If you have an OpenRouter API key, you get no-GPU access to the same Red Hat-validated open models that MaaS serves, plus Claude. Set `OPENROUTER_API_KEY` in your `.env` file — these models will automatically appear in the interactive demo when the key is configured.
 
 Get your API key at https://openrouter.ai/keys.
 
-**Available models include:** Qwen3 1.7B, Llama 3.2 3B, Granite 4.0 Micro 3B, Gemma 3 4B, Qwen 2.5 7B, DeepSeek R1 Distill 7B, Llama 4 Scout, Llama 3.3 70B, Qwen 2.5 72B, QwQ 32B, Gemma 3 27B, DeepSeek R1, Llama 4 Maverick, and more.
+**Available models include:** Granite 4.0 Micro, gpt-oss 20B/120B (Apache 2.0), Llama 4 Scout, Qwen3 1.7B, Llama 4 Maverick, Claude Sonnet 4.6, and Claude Haiku 4.5.
 
 **⚠️ Notes:**
-- OpenRouter does NOT support function/tool calling — avoid for Tool Consensus demos.
-- Model availability changes — check https://openrouter.ai/models for current list.
+- OpenRouter model availability and pricing change over time — check https://openrouter.ai/models for the current list.
+- Tool calling support varies by model. Claude via OpenRouter supports function calling, making it usable for Tool Consensus demos.
 
-## Self-Hosting IBM Granite
+## Self-Hosting Models via vLLM
 
-IBM Granite 3.3 8B can be self-hosted via [vLLM](https://docs.vllm.ai/) for zero per-token cost. This is useful for offline demos, air-gapped environments, or when you want full control over the model.
-
-> **Note:** Granite 4.0 Micro is also available via OpenRouter if you have an API key — set `OPENROUTER_API_KEY` in your `.env`.
+Any open model in the registry can be self-hosted via [vLLM](https://docs.vllm.ai/) for zero per-token cost. This is the same path OpenShift AI MaaS uses under the hood — useful for offline demos, air-gapped environments, or full control over the serving stack.
 
 ### Prerequisites
 
-- Linux machine with an NVIDIA GPU (16GB+ VRAM recommended)
+- Linux machine with an NVIDIA GPU (see model requirements below)
 - CUDA toolkit installed
 - Python 3.10+
 
-> **macOS/CPU:** vLLM requires CUDA and does not run natively on macOS or CPU-only machines. For macOS demos, consider using OpenAI models or Granite 4.0 Micro via OpenRouter if you have an API key.
+> **macOS/CPU:** vLLM requires CUDA and does not run natively on macOS or CPU-only machines. For laptop demos, use the Ollama-backed registry entries (`qwen3-0.6b`, `granite-4-3b`) or the OpenRouter fallback.
 
 ### 1. Install vLLM
 
@@ -620,16 +606,21 @@ IBM Granite 3.3 8B can be self-hosted via [vLLM](https://docs.vllm.ai/) for zero
 pip install vllm
 ```
 
-### 2. Start the Granite server
+### 2. Start a model server
 
 ```bash
+# Example: IBM Granite 4 Small (~80GB total, hybrid MoE)
 python -m vllm.entrypoints.openai.api_server \
-  --model ibm-granite/granite-3.3-8b-instruct \
-  --port 8100 \
-  --max-model-len 8192
+  --model ibm-granite/granite-4-h-small \
+  --port 8100
+
+# Or a smaller option: gpt-oss-20b (Apache 2.0, ~16GB VRAM in MXFP4)
+python -m vllm.entrypoints.openai.api_server \
+  --model openai/gpt-oss-20b \
+  --port 8100
 ```
 
-The model weights will be downloaded automatically from Hugging Face on first run (~16GB).
+The model weights will be downloaded automatically from Hugging Face on first run.
 
 ### 3. Verify the server is running
 
@@ -637,41 +628,37 @@ The model weights will be downloaded automatically from Hugging Face on first ru
 curl -s http://localhost:8100/v1/models | python -m json.tool
 ```
 
-You should see `ibm-granite/granite-3.3-8b-instruct` listed.
-
 ### 4. Configure the demo
 
 Add to your `demo_ui/.env`:
 
 ```bash
-GRANITE_BASE_URL=http://localhost:8100/v1
-GRANITE_API_KEY=NO_API_KEY
+MAAS_BASE_URL=http://localhost:8100/v1
+MAAS_MODEL_NAME=ibm-granite/granite-4-h-small
 ```
 
-Restart the demo backend — Granite 3.3 8B will appear in the model list automatically.
+Restart the demo backend — the MaaS entries (`maas-granite-4-small`, `maas-custom`) will appear in the model list automatically.
 
 ### Serving on a remote machine
 
-If vLLM runs on a different host (e.g., a GPU server):
+If vLLM runs on a different host (e.g., a GPU server), point `MAAS_BASE_URL` at it:
 
 ```bash
 # On the GPU server
 python -m vllm.entrypoints.openai.api_server \
-  --model ibm-granite/granite-3.3-8b-instruct \
-  --host 0.0.0.0 --port 8100 \
-  --max-model-len 8192
+  --model ibm-granite/granite-4-h-small \
+  --host 0.0.0.0 --port 8100
 
 # In demo_ui/.env on the demo machine
-GRANITE_BASE_URL=http://gpu-server-ip:8100/v1
-GRANITE_API_KEY=NO_API_KEY
+MAAS_BASE_URL=http://gpu-server-ip:8100/v1
 ```
 
 ### Performance tips
 
-- **GPU memory:** Granite 3.3 8B needs ~16GB VRAM in FP16. Use `--dtype half` if needed.
-- **Quantization:** Add `--quantization awq` to reduce memory to ~8GB (requires AWQ model variant).
+- **GPU memory:** Model size dictates VRAM. gpt-oss-20b fits in 16GB (MXFP4); Granite 4 Small and Llama 4 Scout want 80GB-class GPUs.
+- **Quantization:** Prefer pre-quantized weights (MXFP4/GPTQ) over post-hoc `--quantization`.
 - **Throughput:** Add `--tensor-parallel-size 2` if you have multiple GPUs.
-- **Context length:** Reduce `--max-model-len` to 4096 if memory is tight.
+- **Context length:** Reduce `--max-model-len` if memory is tight.
 
 ## Algorithm Details
 
@@ -684,7 +671,7 @@ The demo uses an **LLM-based Process Reward Model** for process-based algorithms
 - Scores partial responses during generation
 - Enables step-by-step reasoning evaluation
 - Works without requiring a separate reward model server
-- Uses GPT-4.1 Mini as the judge (configurable in code)
+- Uses GPT-5 Mini as the judge (configurable in code)
 
 For production use with process-based algorithms, consider using a dedicated process reward model server (e.g., via vLLM) for better performance and cost efficiency.
 
@@ -709,7 +696,7 @@ For production use with process-based algorithms, consider using a dedicated pro
 - ✅ **Performance Metrics**: Latency, model size, tokens, and cost per request
 - ✅ **Expandable UI**: Clean response view with collapsible reasoning and metrics
 - ✅ **Example Questions**: Curated problems across difficulty levels (math and tool calling)
-- ✅ **Multi-Provider Support**: OpenAI and Vertex AI (Claude, Gemini)
+- ✅ **Multi-Provider Support**: MaaS / self-hosted, OpenRouter, and OpenAI delivery paths
 - ✅ **LaTeX Math Rendering**: Proper formatting for mathematical content
 
 ### 🔧 Potential Enhancements

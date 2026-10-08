@@ -60,7 +60,7 @@ class TestCompareValidation:
     def test_empty_question_rejected(self):
         resp = client.post("/compare", json={
             "question": "",
-            "model_id": "gpt-4.1-nano",
+            "model_id": "gpt-5-mini",
             "algorithm": "self_consistency",
             "budget": 4,
         })
@@ -69,7 +69,7 @@ class TestCompareValidation:
     def test_budget_too_low(self):
         resp = client.post("/compare", json={
             "question": "What is 2+2?",
-            "model_id": "gpt-4.1-nano",
+            "model_id": "gpt-5-mini",
             "algorithm": "self_consistency",
             "budget": 0,
         })
@@ -78,7 +78,7 @@ class TestCompareValidation:
     def test_budget_too_high(self):
         resp = client.post("/compare", json={
             "question": "What is 2+2?",
-            "model_id": "gpt-4.1-nano",
+            "model_id": "gpt-5-mini",
             "algorithm": "self_consistency",
             "budget": 100,
         })
@@ -87,7 +87,7 @@ class TestCompareValidation:
     def test_invalid_algorithm_rejected(self):
         resp = client.post("/compare", json={
             "question": "What is 2+2?",
-            "model_id": "gpt-4.1-nano",
+            "model_id": "gpt-5-mini",
             "algorithm": "not_an_algorithm",
             "budget": 4,
         })
@@ -96,7 +96,7 @@ class TestCompareValidation:
     def test_invalid_use_case_rejected(self):
         resp = client.post("/compare", json={
             "question": "What is 2+2?",
-            "model_id": "gpt-4.1-nano",
+            "model_id": "gpt-5-mini",
             "algorithm": "self_consistency",
             "budget": 4,
             "use_case": "invalid_use_case",
@@ -109,7 +109,7 @@ class TestCompareValidation:
             mock_create.return_value = MagicMock()
             resp = client.post("/compare", json={
                 "question": "What is 2+2?",
-                "model_id": "gpt-4.1-nano",
+                "model_id": "gpt-5-mini",
                 "algorithm": "self_consistency",
                 "budget": 4,
                 "use_case": "match_frontier",
@@ -141,7 +141,7 @@ class TestCompareImproveModel:
 
         resp = client.post("/compare", json={
             "question": "What is 2+2?",
-            "model_id": "gpt-4.1-nano",
+            "model_id": "gpt-5-mini",
             "algorithm": "self_consistency",
             "budget": 4,
             "expected_answer": "4",
@@ -167,7 +167,7 @@ class TestCompareImproveModel:
         assert data["its"]["trace"] is not None
 
         # Check meta
-        assert data["meta"]["model_id"] == "gpt-4.1-nano"
+        assert data["meta"]["model_id"] == "gpt-5-mini"
         assert data["meta"]["algorithm"] == "self_consistency"
         assert data["meta"]["budget"] == 4
         assert data["meta"]["use_case"] == "improve_model"
@@ -187,7 +187,7 @@ class TestCompareImproveModel:
 
         resp = client.post("/compare", json={
             "question": "What is 2+2?",
-            "model_id": "gpt-4.1-nano",
+            "model_id": "gpt-5-mini",
             "algorithm": "self_consistency",
             "budget": 4,
         })
@@ -239,8 +239,8 @@ class TestCompareMatchFrontier:
 
         resp = client.post("/compare", json={
             "question": "What is 2+2?",
-            "model_id": "gpt-4.1-nano",
-            "frontier_model_id": "gpt-4o",
+            "model_id": "gpt-5-mini",
+            "frontier_model_id": "gpt-6-sol",
             "algorithm": "self_consistency",
             "budget": 4,
             "use_case": "match_frontier",
@@ -257,7 +257,7 @@ class TestCompareMatchFrontier:
         assert data["small_baseline"]["answer"] == "Small baseline"
 
         # Meta should include frontier_model_id
-        assert data["meta"]["frontier_model_id"] == "gpt-4o"
+        assert data["meta"]["frontier_model_id"] == "gpt-6-sol"
         assert data["meta"]["use_case"] == "match_frontier"
 
 
@@ -287,7 +287,7 @@ class TestCompareToolConsensus:
 
         resp = client.post("/compare", json={
             "question": "What is the current stock price of AAPL?",
-            "model_id": "gpt-4.1-nano",
+            "model_id": "gpt-5-mini",
             "algorithm": "self_consistency",
             "budget": 8,
             "use_case": "tool_consensus",
@@ -317,7 +317,7 @@ class TestCompareQuestionType:
 
         resp = client.post("/compare", json={
             "question": "Find the value of $\\frac{3}{4} + \\frac{1}{2}$.",
-            "model_id": "gpt-4.1-nano",
+            "model_id": "gpt-5-mini",
             "algorithm": "self_consistency",
             "budget": 4,
         })
@@ -336,7 +336,7 @@ class TestCompareQuestionType:
 
         resp = client.post("/compare", json={
             "question": "Why is the sky blue?",
-            "model_id": "gpt-4.1-nano",
+            "model_id": "gpt-5-mini",
             "algorithm": "self_consistency",
             "budget": 4,
         })
@@ -355,7 +355,7 @@ class TestCompareQuestionType:
 
         resp = client.post("/compare", json={
             "question": "What is $x + 1$?",
-            "model_id": "gpt-4.1-nano",
+            "model_id": "gpt-5-mini",
             "algorithm": "self_consistency",
             "budget": 4,
             "question_type": "general",
@@ -383,7 +383,7 @@ class TestCompareResponseStructure:
 
         resp = client.post("/compare", json={
             "question": "What is 2+2?",
-            "model_id": "gpt-4.1-nano",
+            "model_id": "gpt-5-mini",
             "algorithm": "self_consistency",
             "budget": 4,
         })
@@ -421,7 +421,7 @@ class TestCompareResponseStructure:
 
         resp = client.post("/compare", json={
             "question": "What is 2+2?",
-            "model_id": "gpt-4.1-nano",
+            "model_id": "gpt-5-mini",
             "algorithm": "self_consistency",
             "budget": 4,
         })
@@ -453,7 +453,7 @@ class TestCompareErrorHandling:
 
         resp = client.post("/compare", json={
             "question": "What is 2+2?",
-            "model_id": "gpt-4.1-nano",
+            "model_id": "gpt-5-mini",
             "algorithm": "self_consistency",
             "budget": 4,
         })

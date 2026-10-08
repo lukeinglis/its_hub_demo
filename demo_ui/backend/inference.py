@@ -15,23 +15,23 @@ from typing import Dict
 
 import litellm
 
-from its_hub.lms import OpenAICompatibleLanguageModel, LiteLLMLanguageModel, StepGeneration
-from its_hub.algorithms import (
+from its_hub import (
+    AbstractLanguageModel,
     BestOfN,
+    LLMJudge,
+    OpenAICompatibleLanguageModel,
     SelfConsistency,
-    BeamSearch,
-    ParticleFiltering,
+    StepGeneration,
+)
+from its_hub.core.algorithms.beam_search import BeamSearch
+from its_hub.core.algorithms.particle_gibbs import (
     EntropicParticleFiltering,
+    ParticleFiltering,
     ParticleGibbs,
 )
-try:
-    from its_hub.integration.reward_hub import LLMJudgeRewardModel
-except ImportError:
-    LLMJudgeRewardModel = None
-from its_hub.types import ChatMessage
-from its_hub.utils import extract_content_from_lm_response, QWEN_SYSTEM_PROMPT
-from its_hub.base import AbstractLanguageModel
-from its_hub.algorithms.self_consistency import create_regex_projection_function
+from its_hub.api import ChatMessage
+from its_hub.core.algorithms.self_consistency import create_regex_projection_function
+from its_hub.core.utils import extract_content_from_lm_response
 
 from .config import get_model_config, get_api_key, ModelConfig
 from .llm_prm import LLMProcessRewardModel
@@ -39,15 +39,11 @@ from .models import ToolCall
 from .tools import get_tool_schemas, execute_tool
 from .traces import build_trace
 
-# Vertex AI models are imported lazily in create_language_model() to avoid
-# requiring anthropic and google-cloud-aiplatform for basic usage (e.g.
-# guided demo on a MacBook with only OpenAI configured).
-
 logger = logging.getLogger(__name__)
 
 # ── Algorithm / model defaults ────────────────────────────────────────
-DEFAULT_JUDGE_MODEL = "gpt-4.1-mini"
-DEFAULT_PRM_MODEL = "gpt-4.1-mini"
+DEFAULT_JUDGE_MODEL = "gpt-5-mini"
+DEFAULT_PRM_MODEL = "gpt-5-mini"
 DEFAULT_STEP_GEN_MAX_STEPS = 8
 DEFAULT_STEP_GEN_TEMPERATURE = 0.8
 DEFAULT_STEP_GEN_TOKEN = "\n\n"
@@ -233,99 +229,24 @@ def create_language_model(
     """
     Create a language model instance based on the model configuration.
 
-    All models use OpenAI-compatible endpoints except Vertex AI models.
+    All models use OpenAI-compatible endpoints (MaaS routes, OpenRouter,
+    OpenAI, and self-hosted vLLM servers).
 
     Args:
         model_id: Model identifier from the registry
         system_prompt: Optional system prompt to prepend to all messages
     """
     model_config = get_model_config(model_id)
-    provider = model_config.get("provider", "openai")
+    api_key = get_api_key(model_id)
 
-    if provider == "vertex_ai":
-        # Use native Vertex AI SDK for Claude and Gemini models (NOT OpenAI-compatible)
-        # Lazy import to avoid requiring anthropic/google-cloud-aiplatform for basic usage
-        try:
-            from .vertex_lm import VertexAIClaudeModel, VertexAIGeminiModel
-        except ImportError:
-            raise ValueError(
-                "Vertex AI models require additional packages. "
-                "Install with: pip install anthropic[vertex] google-cloud-aiplatform"
-            )
+    logger.info(f"Creating OpenAI-compatible model: {model_config['model_name']} via {model_config['base_url']}")
 
-        vertex_project = model_config.get("vertex_project")
-        vertex_location = model_config.get("vertex_location")
-
-        if not vertex_project or vertex_project == "your-gcp-project-id":
-            raise ValueError(
-                "VERTEX_PROJECT not configured. Please set VERTEX_PROJECT "
-                "environment variable in your .env file"
-            )
-
-        model_name = model_config["model_name"]
-
-        # Determine if it's a Claude or Gemini model based on model name
-        if "claude" in model_name.lower():
-            logger.info(
-                f"Creating Vertex AI Claude model: {model_name} "
-                f"(project: {vertex_project}, location: {vertex_location})"
-            )
-            return VertexAIClaudeModel(
-                project_id=vertex_project,
-                location=vertex_location,
-                model_name=model_name,
-            )
-        elif "gemini" in model_name.lower():
-            logger.info(
-                f"Creating Vertex AI Gemini model: {model_name} "
-                f"(project: {vertex_project}, location: {vertex_location})"
-            )
-            return VertexAIGeminiModel(
-                project_id=vertex_project,
-                location=vertex_location,
-                model_name=model_name,
-            )
-        else:
-            raise ValueError(f"Unknown Vertex AI model type: {model_name}")
-
-    elif provider == "vertex_ai_model_garden":
-        # Open-source models (Llama, Mistral, etc.) hosted on Vertex AI Model Garden
-        # Uses litellm's vertex_ai/ prefix for routing and Google ADC for auth
-        vertex_project = model_config.get("vertex_project")
-        vertex_location = model_config.get("vertex_location")
-
-        if not vertex_project or vertex_project == "your-gcp-project-id":
-            raise ValueError(
-                "VERTEX_PROJECT not configured. Please set VERTEX_PROJECT "
-                "environment variable in your .env file"
-            )
-
-        model_name = f"vertex_ai/{model_config['model_name']}"
-
-        logger.info(
-            f"Creating Vertex AI Model Garden model: {model_name} "
-            f"(project: {vertex_project}, location: {vertex_location})"
-        )
-
-        return LiteLLMLanguageModel(
-            model_name=model_name,
-            vertex_project=vertex_project,
-            vertex_location=vertex_location,
-        )
-
-    else:
-        # All other models use OpenAI-compatible endpoints
-        # This includes: OpenAI, OpenRouter (Claude, Gemini), Together AI (open-source), vLLM
-        api_key = get_api_key(model_id)
-
-        logger.info(f"Creating OpenAI-compatible model: {model_config['model_name']} via {model_config['base_url']}")
-
-        return OpenAICompatibleLanguageModel(
-            endpoint=model_config["base_url"],
-            api_key=api_key,
-            model_name=model_config["model_name"],
-            system_prompt=system_prompt,
-        )
+    return OpenAICompatibleLanguageModel(
+        endpoint=model_config["base_url"],
+        api_key=api_key,
+        model_name=model_config["model_name"],
+        system_prompt=system_prompt,
+    )
 
 
 async def run_baseline(
@@ -357,7 +278,7 @@ async def run_baseline(
             request_data = lm._prepare_request_data(
                 messages,
                 stop=None,
-                max_tokens=None,
+                max_completion_tokens=None,
                 temperature=None,
                 include_stop_str_in_output=None,
                 tools=tools,
@@ -394,9 +315,10 @@ async def run_baseline(
             logger.warning(f"Could not capture token usage: {type(e).__name__}")
             response = await lm.agenerate(messages)
     else:
-        # For Vertex AI or other models, use standard interface
+        # Non-OpenAI-compatible response shapes (e.g. local wrappers) use the
+        # standard interface
         response = await lm.agenerate(messages)
-        # Extract usage if the model wrapper provided it (e.g. Vertex AI Claude)
+        # Extract usage if the model wrapper provided it
         if isinstance(response, dict) and "usage" in response:
             input_tokens = response["usage"].get("input_tokens", 0)
             output_tokens = response["usage"].get("output_tokens", 0)
@@ -468,43 +390,30 @@ async def run_its(
 
     # Create algorithm instance
     if algorithm == "best_of_n":
-        if LLMJudgeRewardModel is None:
-            raise ValueError(
-                "Best-of-N algorithm requires the reward_hub library. "
-                "Install with: pip install 'its_hub[prm]'"
-            )
-
-        # Resolve judge criterion: built-in or custom
+        # Resolve judge criterion: built-in names use the LLMJudge default prompt;
+        # anything else is treated as a free-form custom rubric
         built_in_criteria = {"overall_quality", "multi_step_tool_judge"}
         if judge_criterion in built_in_criteria:
-            criterion_to_use = judge_criterion
+            judge_prompt = None
         else:
-            # Custom criterion — register with CriterionRegistry
-            try:
-                from reward_hub.llm_judge.prompts import Criterion, CriterionRegistry
-            except ImportError:
-                raise ValueError(
-                    "Custom judge criteria require the reward_hub library. "
-                    "Install with: pip install 'its_hub[prm]'"
+            # Custom criterion — free-form rubric. Ensure it has a {conversation}
+            # placeholder so the judge sees the response being scored.
+            if "{conversation}" in judge_criterion:
+                judge_prompt = judge_criterion
+            else:
+                judge_prompt = (
+                    f"{judge_criterion}\n\n"
+                    "Conversation:\n{conversation}\n\n"
+                    'Format: {"score": <number>}'
                 )
-            criterion_name = f"custom_{hash(judge_criterion) & 0xFFFFFFFF:08x}"
-            logger.info(f"Registering custom judge criterion as: {criterion_name}")
-            custom_criterion = Criterion(
-                name=criterion_name,
-                content=judge_criterion,
-                description="Custom evaluation criterion",
-            )
-            CriterionRegistry.register(custom_criterion)
-            criterion_to_use = criterion_name
 
-        # Use LLM judge for Best-of-N
-        judge = LLMJudgeRewardModel(
-            model=DEFAULT_JUDGE_MODEL,
-            criterion=criterion_to_use,
-            judge_type="pointwise",
+        # Create a dedicated judge LM (defaults to the OpenAI endpoint + judge model)
+        judge_lm = OpenAICompatibleLanguageModel(
+            endpoint="https://api.openai.com/v1",
             api_key=api_key,
-            enable_judge_logging=False,
+            model_name=DEFAULT_JUDGE_MODEL,
         )
+        judge = LLMJudge(lm=judge_lm, judge_prompt=judge_prompt, fallback_score=5.0)
         alg = BestOfN(judge)
 
     elif algorithm == "self_consistency":

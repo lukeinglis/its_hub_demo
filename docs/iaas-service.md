@@ -4,7 +4,7 @@ This guide provides comprehensive instructions for setting up and running the it
 
 ## Overview
 
-The IaaS service provides an OpenAI-compatible API with inference-time scaling algorithms. **Optimized for tool-calling applications** including agents, function calling, and multi-step reasoning. Currently supports **Best-of-N** and **Self-Consistency** algorithms.
+The IaaS service provides an OpenAI-compatible API with inference-time scaling algorithms. **Optimized for tool-calling applications** including agents, function calling, and multi-step reasoning. Currently supports the **Self-Consistency** family — plain **Self-Consistency** plus the adaptive-stopping variants **Adaptive Self-Consistency** and **Beta Self-Consistency** — with **Best-of-N** coming soon.
 
 ### Architecture
 
@@ -18,6 +18,80 @@ The IaaS service provides an OpenAI-compatible API with inference-time scaling a
 └──────────────┘    └─────────────────┘    └──────────────────┘
 ```
 
+## Kubernetes and OpenShift
+
+Use the [ITS Helm Chart](../deploy/helm/its-hub/README.md) to deploy the
+microservice with startup configuration, an optional existing API-key Secret, and
+readiness probes. `GET /ready` returns 200 after initialization and 503 before
+initialization or during lifespan teardown; it does not check the upstream LLM.
+`ITS_IAAS_CONFIG_FILE` loads defaults from JSON at startup, and
+`ITS_IAAS_API_KEY_FILE` optionally supplies a credential from a mounted file.
+
+## Activation Model
+
+ITS activation is conveyed **in-band** via the request body and optional HTTP headers.
+The `budget` field in the request body triggers ITS; without it, the service default is
+used.
+
+### Per-Request Configuration
+
+| Source | Field / Header | Description | Priority |
+|---|---|---|---|
+| HTTP header | `X-ITS-Budget` | Override compute budget | 1 (highest) |
+| HTTP header | `X-ITS-Endpoint` | Override LLM endpoint | 1 |
+| HTTP header | `X-ITS-API-Key` | Override API key | 1 |
+| Request body | `budget` | Compute budget | 2 |
+| `/configure` | `budget`, `endpoint`, `api_key` | Service defaults | 3 (lowest) |
+
+Priority chain: **header > body > service default**. A field is applied if it is
+not `None`; otherwise the next tier down supplies the value. Headers are intended for
+Envoy ext_proc routing but are also accepted on the standalone IaaS endpoint.
+
+### Algorithm Selection
+
+The algorithm is configured globally via `POST /configure` with the `alg` field.
+Per-request algorithm selection is not supported. The following algorithms are available
+through the gateway:
+
+| `alg` | Description | Early-stopping option |
+|---|---|---|
+| `self-consistency` | Generate `budget` responses, vote for the most common answer | — |
+| `adaptive-self-consistency` | Sample in doubling rounds (2 → 4 → …), stop once a supermajority agrees | `threshold` (vote share, default `0.75`) |
+| `beta-self-consistency` | Fire up to `budget` samples concurrently, stop once the Beta posterior is confident in the leader | `confidence_threshold` (posterior probability, default `0.95`) |
+
+All three share the same voting surface (`regex_patterns` / `tool_vote`); the adaptive
+variants only differ in *when they stop sampling*, treating `budget` as a maximum.
+
+Neither `regex_patterns` nor `tool_vote` is required. By default the family votes on
+tool calls using the `tool_hierarchical` strategy, and text responses fall back to
+exact-content matching. Supply `regex_patterns` to vote on extracted text answers, or
+set `tool_vote` to pick a different tool-voting strategy.
+
+> **Note on clearing optional fields.** Because `None` means "use the tier below," a
+> `/configure` call cannot explicitly reset `tool_vote` back to its default once set.
+> To switch voting strategies, supply the new value; to revert to the built-in default
+> (`tool_hierarchical`), pass `"tool_hierarchical"` explicitly. `regex_patterns` and
+> `exclude_tool_args` can be cleared by passing an empty list (`[]`).
+
+## API Key Handling
+
+API keys can enter the system through three paths:
+
+1. **`/configure` body** — stored in memory as the service default; used when no
+   per-request key is provided
+2. **`X-ITS-API-Key` header** — per-request override, highest priority
+3. **Request body** — not supported; keys must come via `/configure` or headers
+
+**Security properties:**
+
+- Keys are **never logged** — the gateway logs endpoint and model but not credentials
+- Keys are **not persisted** to disk. A key supplied via the `X-ITS-API-Key` header is
+  request-scoped: it lives only for that request's LM client, which is closed when the
+  request completes. A key set via `/configure` remains in memory as a service default
+  (`ITSGateway._default_config`) until replaced or the process restarts.
+- Keys are **never shared between requests** — each request builds its own LM client, so
+  credentials supplied via header or `/configure` cannot cross-contaminate
+
 ## Prerequisites
 
 - **Software**: Python 3.11+, its_hub library
@@ -26,136 +100,105 @@ The IaaS service provides an OpenAI-compatible API with inference-time scaling a
 
 ## Quick Start
 
-### Start IaaS Service
+### Start IaaS Service (standalone)
 
 ```bash
-uv run its-iaas --host 0.0.0.0 --port 8108
+uv run its-iaas --port 8109
 ```
 
 **Parameters:**
-- `--host 0.0.0.0`: Listen on all interfaces
-- `--port 8108`: Default port for IaaS service
+- `--host`: Host to bind to (default: `127.0.0.1`, localhost only)
+- `--port 8109`: Default port for IaaS service
 - `--dev`: Optional development mode with auto-reload
+- `--print-config`: Print the bundled Envoy config to stdout and exit
 
-### 3. Configure IaaS Service
+### Configure IaaS Service
 
 The IaaS service supports different algorithm configurations based on your use case.
-
-## Algorithm Configurations
 
 ### Self-Consistency with Tool Voting
 
 Best for: Tool-calling models where you want to vote on tool usage patterns.
 
-**With OpenAI:**
 ```bash
-curl -X POST http://localhost:8108/configure \
+curl -X POST http://localhost:8109/configure \
   -H "Content-Type: application/json" \
   -d '{
-    "provider": "litellm",
-    "endpoint": "auto",
+    "endpoint": "https://api.openai.com/v1",
     "api_key": "your-openai-api-key",
     "model": "gpt-4o-mini",
     "alg": "self-consistency",
+    "regex_patterns": ["\\\\boxed\\{([^}]+)\\}"],
     "tool_vote": "tool_hierarchical",
-    "exclude_args": ["timestamp", "request_id", "id", "type"]
-  }'
-```
-
-**With AWS Bedrock:**
-```bash
-curl -X POST http://localhost:8108/configure \
-  -H "Content-Type: application/json" \
-  -d '{
-    "provider": "litellm",
-    "endpoint": "auto",
-    "api_key": null,
-    "model": "bedrock/us.anthropic.claude-3-7-sonnet-20250219-v1:0",
-    "alg": "self-consistency",
-    "tool_vote": "tool_hierarchical",
-    "exclude_args": ["timestamp", "request_id", "id"],
-    "extra_args": {
-      "aws_access_key_id": "your-access-key",
-      "aws_secret_access_key": "your-secret-key",
-      "aws_region_name": "us-east-1"
-    }
+    "exclude_tool_args": ["timestamp", "request_id", "id", "type"]
   }'
 ```
 
 **Parameters:**
+- `regex_patterns`: Each pattern needs a capturing group that extracts the answer to vote on (used for text responses; tool responses vote via `tool_vote`). Optional: if omitted, text responses fall back to exact-content matching, which rarely agrees on free-form output — supply a pattern whenever you want meaningful voting over text answers.
 - `tool_vote`: Voting strategy - `"tool_name"`, `"tool_args"`, or `"tool_hierarchical"` (recommended)
-- `exclude_args`: List of argument names to exclude from voting (e.g., timestamps, IDs)
+- `exclude_tool_args`: List of argument names to exclude from voting (e.g., timestamps, IDs)
 
 ---
 
-### Best-of-N with LLM Judge
+### Adaptive & Beta Self-Consistency
 
-Best for: Cloud APIs where you want LLM-based scoring without local reward models.
+Best for: reducing average generation cost when many prompts reach agreement well before
+the full `budget` is spent. Both variants accept the same `regex_patterns` / `tool_vote` /
+`exclude_tool_args` options as plain self-consistency, treat `budget` as a **maximum**, and
+add a single early-stopping knob.
 
-**With OpenAI:**
+Adaptive self-consistency samples in doubling rounds and stops when the leading answer's
+vote share reaches `threshold`:
+
 ```bash
-curl -X POST http://localhost:8108/configure \
+curl -X POST http://localhost:8109/configure \
   -H "Content-Type: application/json" \
   -d '{
-    "provider": "litellm",
-    "endpoint": "auto",
+    "endpoint": "https://api.openai.com/v1",
     "api_key": "your-openai-api-key",
     "model": "gpt-4o-mini",
-    "alg": "best-of-n",
-    "rm_name": "llm-judge",
-    "judge_model": "gpt-4o-mini",
-    "judge_base_url": "auto",
-    "judge_mode": "groupwise",
-    "judge_criterion": "multi_step_tool_judge",
-    "judge_api_key": "your-openai-api-key",
-    "judge_temperature": 0.7,
-    "judge_max_tokens": 2048
+    "alg": "adaptive-self-consistency",
+    "tool_vote": "tool_hierarchical",
+    "threshold": 0.75
   }'
 ```
 
-**With AWS Bedrock:**
+Beta self-consistency fires samples concurrently and stops once the Beta posterior
+probability that the leader is the true majority reaches `confidence_threshold`:
+
 ```bash
-curl -X POST http://localhost:8108/configure \
+curl -X POST http://localhost:8109/configure \
   -H "Content-Type: application/json" \
   -d '{
-    "provider": "litellm",
-    "endpoint": "auto",
-    "api_key": null,
-    "model": "bedrock/us.anthropic.claude-3-7-sonnet-20250219-v1:0",
-    "alg": "best-of-n",
-    "rm_name": "llm-judge",
-    "judge_model": "bedrock/us.anthropic.claude-3-7-sonnet-20250219-v1:0",
-    "judge_base_url": "auto",
-    "judge_mode": "groupwise",
-    "judge_criterion": "multi_step_tool_judge",
-    "judge_api_key": null,
-    "judge_temperature": 0.7,
-    "judge_max_tokens": 2048,
-    "extra_args": {
-      "aws_access_key_id": "your-access-key",
-      "aws_secret_access_key": "your-secret-key",
-      "aws_region_name": "us-east-1"
-    }
+    "endpoint": "https://api.openai.com/v1",
+    "api_key": "your-openai-api-key",
+    "model": "gpt-4o-mini",
+    "alg": "beta-self-consistency",
+    "tool_vote": "tool_hierarchical",
+    "confidence_threshold": 0.95
   }'
 ```
 
 **Parameters:**
-- `rm_name`: Set to `"llm-judge"` to use LLM-based scoring
-- `judge_model`: LiteLLM model name for the judge
-- `judge_mode`: `"pointwise"` or `"groupwise"` (groupwise recommended)
-- `judge_criterion`: Criterion for judging (e.g., `"overall_quality"`, `"multi_step_tool_judge"`)
-- `judge_temperature`: Temperature for judge generation (0.0-1.0)
+- `threshold`: (adaptive only) supermajority vote-share cutoff in `(0.5, 1.0]`, default `0.75`. Omit to use the default.
+- `confidence_threshold`: (beta only) Beta posterior probability cutoff in `(0.5, 1.0]`, default `0.95`. Omit to use the default.
+
+---
+
+### Best-of-N with LLM Judge (coming soon)
+
+Best for: When you want LLM-based scoring without local reward models. Not yet available through the IaaS gateway — currently only supported via the library API directly.
 
 ---
 
 ### Common Parameters
 
 All configurations support:
-- `provider`: `"litellm"` for multi-cloud support
-- `endpoint`: API endpoint URL or `"auto"` for LiteLLM auto-detection
-- `api_key`: API key for the provider (use `null` for Bedrock with credentials in `extra_args`)
-- `model`: Model identifier (format depends on provider)
-- `alg`: Algorithm name - `"self-consistency"` or `"best-of-n"`
+- `endpoint`: OpenAI-compatible API endpoint URL
+- `api_key`: API key for the provider
+- `model`: Model identifier
+- `alg`: Algorithm name - `"self-consistency"`, `"adaptive-self-consistency"`, or `"beta-self-consistency"`
 
 ## Usage Examples
 
@@ -164,7 +207,7 @@ All configurations support:
 Tool calling is the primary use case for IaaS with Self-Consistency and Best-of-N algorithms.
 
 ```bash
-curl -X POST http://localhost:8108/v1/chat/completions \
+curl -X POST http://localhost:8109/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d '{
     "model": "gpt-4o-mini",
@@ -208,7 +251,7 @@ curl -X POST http://localhost:8108/v1/chat/completions \
 from openai import OpenAI
 
 client = OpenAI(
-    base_url="http://localhost:8108/v1",
+    base_url="http://localhost:8109/v1",
     api_key="dummy-key"  # Not validated for local use
 )
 
@@ -253,7 +296,7 @@ print(f"Arguments: {tool_calls[0].function.arguments}")
 ### Basic Text Request
 
 ```bash
-curl -X POST http://localhost:8108/v1/chat/completions \
+curl -X POST http://localhost:8109/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d '{
     "model": "gpt-4o-mini",
@@ -278,7 +321,7 @@ The `budget` parameter controls the computational effort:
 
 ```bash
 # Forward IaaS service only
-ssh -L 8108:localhost:8108 user@server-ip
+ssh -L 8109:localhost:8109 user@server-ip
 
 # Forward vLLM service only  
 ssh -L 8100:localhost:8100 user@server-ip
@@ -288,14 +331,14 @@ ssh -L 8100:localhost:8100 user@server-ip
 
 ```bash
 # Forward both services
-ssh -L 8100:localhost:8100 -L 8108:localhost:8108 user@server-ip
+ssh -L 8100:localhost:8100 -L 8109:localhost:8109 user@server-ip
 ```
 
 ### Background SSH Tunnel
 
 ```bash
 # Run tunnel in background
-ssh -f -N -L 8100:localhost:8100 -L 8108:localhost:8108 user@server-ip
+ssh -f -N -L 8100:localhost:8100 -L 8109:localhost:8109 user@server-ip
 ```
 
 ### Access from Local Machine
@@ -309,11 +352,11 @@ curl -X POST http://localhost:8100/v1/chat/completions \
   -d '{
     "model": "Qwen/Qwen2.5-Math-1.5B-Instruct",
     "messages": [{"role": "user", "content": "Hello"}],
-    "max_tokens": 50
+    "max_completion_tokens": 50
   }'
 
 # Test IaaS with scaling
-curl -X POST http://localhost:8108/v1/chat/completions \
+curl -X POST http://localhost:8109/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d '{
     "model": "Qwen/Qwen2.5-Math-1.5B-Instruct",
@@ -329,7 +372,7 @@ curl -X POST http://localhost:8108/v1/chat/completions \
 ```bash
 # Check if services are running
 ss -tlnp | grep 8100  # vLLM
-ss -tlnp | grep 8108  # IaaS
+ss -tlnp | grep 8109  # IaaS
 
 # Check GPU usage
 nvidia-smi
@@ -339,7 +382,7 @@ nvidia-smi
 
 ```bash
 # Find process IDs
-ss -tlnp | grep 8108
+ss -tlnp | grep 8109
 
 # Kill specific process
 kill -9 <PID>
@@ -356,12 +399,62 @@ pkill -f "its-iaas"
 ```bash
 # Run vLLM in background
 CUDA_VISIBLE_DEVICES=0 vllm serve Qwen/Qwen2.5-Math-1.5B-Instruct \
-  --dtype float16 --host 0.0.0.0 --port 8100 > vllm.log 2>&1 &
+  --dtype float16 --host 127.0.0.1 --port 8100 > vllm.log 2>&1 &
 
 # Run IaaS in background
 CUDA_VISIBLE_DEVICES=1 uv run its-iaas \
-  --host 0.0.0.0 --port 8108 > iaas.log 2>&1 &
+  --host 127.0.0.1 --port 8109 > iaas.log 2>&1 &
 ```
+
+## Failure Policy
+
+| Failure | HTTP Status | Response |
+|---|---|---|
+| Service not configured (no `/configure` call) | 200 (SSE) / 400 | `"Service not configured"` error in stream or HTTP 400 |
+| Invalid budget (non-integer, out of range) | 400 | `"Bad Request"` with detail |
+| Unsupported algorithm | 422 | `"Algorithm 'X' not supported"` (Pydantic validation on `/configure`) |
+| Invalid regex pattern in `/configure` | 400 | Regex compilation error detail |
+| Downstream LLM unreachable / timeout | 500 | `"Generation failed. Check server logs for details."` |
+| Algorithm execution error | 500 | `"Generation failed. Check server logs for details."` |
+| `/configure` internal error | 500 | `"Configuration failed. Check server logs for details."` |
+
+Error responses in the streaming path (`stream: true`) are delivered as SSE `data:` frames
+with an `error` field, followed by `data: [DONE]`. The HTTP status is always 200 for
+streaming responses (per SSE convention).
+
+Non-streaming errors return standard HTTP error responses with a `detail` field.
+Internal error details are **never exposed** to clients — they are logged server-side at
+ERROR level.
+
+## Streaming
+
+The IaaS service accepts `"stream": true` in the request body. However, ITS algorithms
+require all candidate responses before selecting the best one, so **true token-level
+streaming is not possible**.
+
+Instead, the service **buffers the full ITS result** and then emits it as SSE chunks:
+
+1. The algorithm generates all candidates and selects the winner
+2. The selected response is emitted as one or more `data:` frames in OpenAI SSE format
+3. A final `data: [DONE]` frame signals completion
+
+For content responses, a single content chunk is emitted. For tool call responses, each
+tool call is emitted as a separate chunk followed by a `finish_reason: "tool_calls"` frame.
+
+Clients using the OpenAI SDK with `stream=True` will work correctly — the response just
+arrives as a burst rather than incrementally.
+
+## Restart and Scaling
+
+- **State**: The service holds a gateway instance and the service config set via
+  `/configure`. LM clients are created and discarded per request. No state is persisted
+  to disk.
+- **Restart**: Restarting clears the service config. `/configure` must be called again
+  after restart.
+- **Horizontal scaling**: Multiple IaaS instances can run independently. Each maintains
+  its own config and gateway. There is no shared state between instances. A load
+  balancer must route `/configure` to all instances or each instance must be configured
+  independently.
 
 ## API Endpoints
 
@@ -374,7 +467,6 @@ CUDA_VISIBLE_DEVICES=1 uv run its-iaas \
 
 ### Health Check
 - `GET /docs` - API documentation
-- `GET /health` - Service health (if available)
 
 ## Troubleshooting
 
@@ -383,7 +475,7 @@ CUDA_VISIBLE_DEVICES=1 uv run its-iaas \
 **1. Port Already in Use**
 ```bash
 # Check what's using the port
-ss -tlnp | grep 8108
+ss -tlnp | grep 8109
 # Kill the process
 kill -9 <PID>
 ```
@@ -405,15 +497,15 @@ huggingface-cli download Qwen/Qwen2.5-Math-PRM-7B
 **4. Connection Refused**
 ```bash
 # Check if service is running
-curl -X GET http://localhost:8108/docs
+curl -X GET http://localhost:8109/docs
 # Check firewall settings
-# Verify host binding (0.0.0.0 vs 127.0.0.1)
+# Verify host binding
 ```
 
 **5. Slow Responses**
 - This is expected behavior for inference-time scaling
 - Reduce `budget` parameter for faster responses
-- Best-of-N with budget=4 typically takes 30-60 seconds
+- Self-consistency with budget=4 typically takes 30-60 seconds
 
 ### Log Files
 
@@ -447,41 +539,79 @@ python -c "import traceback; traceback.print_exc()"
 
 ## Security Considerations
 
-- Services bind to `0.0.0.0` for external access
+- Services bind to `127.0.0.1` (localhost only) by default — use `--host 0.0.0.0` only when network access is intentional
+- `POST /configure` is an unauthenticated admin endpoint — when binding to `0.0.0.0`, protect it with network-level access control (firewall, Envoy, reverse proxy)
 - Use SSH tunneling for secure remote access
 - Consider adding authentication for production use
 - Monitor resource usage to prevent abuse
 
-## Integration Examples
+## Envoy Integration
 
-### Watson Orchestrate
-The service is compatible with Watson Orchestrate's OpenAI-compatible API:
+The IaaS service can be deployed behind Envoy with an ext_proc filter that routes requests with `X-ITS-*` headers to the IaaS backend.
 
-```python
-# Watson Orchestrate integration
-import openai
+### Architecture
 
-client = openai.OpenAI(
-    base_url="http://localhost:8108/v1",
-    api_key="dummy-key"
-)
-
-response = client.chat.completions.create(
-    model="Qwen/Qwen2.5-Math-1.5B-Instruct",
-    messages=[{"role": "user", "content": "Solve this math problem"}],
-    extra_body={"budget": 4}  # IaaS-specific parameter
-)
+```
+Client → Envoy (port 8108)
+   ├── /v1/chat/completions + X-ITS-* headers  →  ext_proc → IaaS (port 8109)  [transparent ITS]
+   └── /* (no ITS headers)  →  LLM upstream (port 8100)                        [passthrough]
 ```
 
-### Custom Applications
-The service follows OpenAI's API format with the addition of the `budget` parameter for controlling inference-time scaling.
+The ext_proc acts as a lightweight router — it checks for `X-ITS-Budget` and redirects matching requests to the IaaS backend. The IaaS service handles algorithm execution.
 
-## Next Steps
+### Starting the Full Stack
 
-1. **Production Deployment**: Consider using Docker containers and orchestration
-2. **Monitoring**: Add metrics collection and alerting
-3. **Authentication**: Implement API key management
-4. **Load Balancing**: Scale horizontally with multiple instances
-5. **Model Management**: Implement model versioning and hot-swapping
+```bash
+# Start all three services together
+make envoy-iaas-stack
 
-For more information, see the [its_hub documentation](https://github.com/your-org/its_hub) and [API reference](http://localhost:8108/docs).
+# Or start individually:
+its-iaas-ext-proc --port 50051 &  # ext_proc gRPC router
+its-iaas --host 127.0.0.1 --port 8109 &  # IaaS service
+its-iaas --print-config | envoy -c /dev/stdin &  # Envoy proxy
+```
+
+### Using ITS Through Envoy
+
+Requests with `X-ITS-*` headers are intercepted by ext_proc and routed to IaaS:
+
+```bash
+curl -X POST http://localhost:8108/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -H "X-ITS-Budget: 4" \
+  -H "X-ITS-Endpoint: http://localhost:8100/v1" \
+  -d '{
+    "model": "your-model-name",
+    "messages": [{"role": "user", "content": "What is 2+2?"}]
+  }'
+```
+
+### Header Stripping
+
+When deployed behind Envoy, `X-ITS-*` headers are stripped in two layers to ensure
+upstream LLM services never see ITS metadata:
+
+1. **Envoy route-level**: The pass-through route includes `request_headers_to_remove`
+   for `X-ITS-Budget`, `X-ITS-Endpoint`, and `X-ITS-API-Key`, stripping them before
+   forwarding to the LLM upstream.
+2. **ext_proc code-level**: The external processor strips any stray `X-ITS-*` headers
+   from requests it processes, as a defense-in-depth measure.
+
+On the IaaS route, headers are preserved — the IaaS service reads them for per-request
+configuration overrides.
+
+### Generating the Envoy Config
+
+The bundled Envoy config can be printed and customized:
+
+```bash
+# Print config to stdout
+its-iaas --print-config
+
+# Save to file for customization
+its-iaas --print-config > envoy_config.yaml
+```
+
+See the config comments for customization options (ports, timeouts, failure modes).
+
+For standalone ext_proc deployment (without IaaS), see [ext_proc Gateway Guide](ext-proc-gateway.md).

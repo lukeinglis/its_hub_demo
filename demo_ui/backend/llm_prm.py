@@ -9,8 +9,8 @@ and ParticleFiltering without requiring a separate vLLM server.
 import logging
 from typing import List
 
-from its_hub.base import AbstractProcessRewardModel
-from its_hub.types import ChatMessage, ChatMessages
+from its_hub import AbstractProcessRewardModel
+from its_hub.api import ChatMessage, ChatMessages
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +25,7 @@ class LLMProcessRewardModel(AbstractProcessRewardModel):
 
     def __init__(
         self,
-        model: str = "gpt-4.1-mini",
+        model: str = "gpt-5-mini",
         api_key: str | None = None,
         base_url: str | None = None,
         temperature: float = 0.3,
@@ -34,7 +34,7 @@ class LLMProcessRewardModel(AbstractProcessRewardModel):
         Initialize LLM-based process reward model.
 
         Args:
-            model: LiteLLM model name (e.g., "gpt-4.1-mini")
+            model: LiteLLM model name (e.g., "gpt-5-mini")
             api_key: API key for the model provider
             base_url: Base URL for custom endpoints
             temperature: Temperature for judge generation (lower = more deterministic)
@@ -72,7 +72,7 @@ Respond with ONLY a single number between 0.0 and 1.0, nothing else."""
     async def ascore(
         self,
         prompt_or_messages: str | list[ChatMessage] | ChatMessages,
-        response_or_responses: str | list[str],
+        steps: str | list[str],
     ) -> float | list[float]:
         """Score response(s) asynchronously."""
         import litellm
@@ -80,9 +80,9 @@ Respond with ONLY a single number between 0.0 and 1.0, nothing else."""
         chat_messages = ChatMessages.from_prompt_or_messages(prompt_or_messages)
         question = chat_messages.to_prompt()
 
-        is_single_response = isinstance(response_or_responses, str)
+        is_single_response = isinstance(steps, str)
         responses = (
-            [response_or_responses] if is_single_response else response_or_responses
+            [steps] if is_single_response else steps
         )
 
         # Score each response
@@ -123,13 +123,13 @@ Respond with ONLY a single number between 0.0 and 1.0, nothing else."""
     def score(
         self,
         prompt_or_messages: str | list[ChatMessage] | ChatMessages,
-        response_or_responses: str | list[str],
+        steps: str | list[str],
     ) -> float | list[float]:
         """Score response(s) synchronously."""
         import asyncio
         import concurrent.futures
 
-        coro = self.ascore(prompt_or_messages, response_or_responses)
+        coro = self.ascore(prompt_or_messages, steps)
         try:
             asyncio.get_running_loop()
             with concurrent.futures.ThreadPoolExecutor() as executor:

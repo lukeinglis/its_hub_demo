@@ -306,8 +306,8 @@ async function iwCheckProviders() {
 
         // Render model list
         if (iwState.models.length > 0) {
-            const providerLabels = { openai: 'OpenAI', openrouter: 'OpenRouter', vertex_ai: 'Vertex AI', local: 'Local' };
-            const providerOrder = ['openai', 'vertex_ai', 'openrouter', 'local'];
+            const providerLabels = { maas: 'MaaS / Self-Hosted', openrouter: 'OpenRouter', openai: 'OpenAI' };
+            const providerOrder = ['maas', 'openrouter', 'openai'];
             const sizeOrder = { 'Large': 0, 'Small': 1 };
 
             // Group by provider, sort each group by size (Large first)
@@ -387,7 +387,7 @@ function iwPopulateConfig() {
 
     // Populate model dropdown — exclude reasoning models (they don't support
     // temperature/max_tokens params needed by ITS algorithms)
-    const providerLabels = { openai: 'OpenAI', openrouter: 'OpenRouter', vertex_ai: 'Vertex AI', local: 'Local' };
+    const providerLabels = { maas: 'MaaS / Self-Hosted', openrouter: 'OpenRouter', openai: 'OpenAI' };
 
     function buildModelOptions(models) {
         const grouped = {};
@@ -410,13 +410,13 @@ function iwPopulateConfig() {
     const itsModels = iwState.models.filter(m => !m.is_reasoning);
     modelSelect.innerHTML = buildModelOptions(itsModels);
 
-    // For match_frontier, show frontier model dropdown (all models including reasoning)
+    // For match_frontier, show frontier model dropdown
     if (isMatch) {
         setVisible(frontierGroup, true);
         frontierSelect.innerHTML = buildModelOptions(iwState.models);
         // Pre-select a large model if available
-        const gpt4o = Array.from(frontierSelect.options).find(o => o.value === 'gpt-4o');
-        if (gpt4o) frontierSelect.value = 'gpt-4o';
+        const frontierDefault = Array.from(frontierSelect.options).find(o => o.value === 'gpt-6-sol');
+        if (frontierDefault) frontierSelect.value = 'gpt-6-sol';
     } else {
         setVisible(frontierGroup, false);
     }

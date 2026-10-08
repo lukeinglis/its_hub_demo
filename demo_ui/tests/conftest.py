@@ -27,7 +27,7 @@ def zero_cost_config():
         "api_key_env_var": "LOCAL_KEY",
         "model_name": "local-model",
         "description": "Local Model",
-        "provider": "local",
+        "provider": "maas",
         "size": "Custom",
     }
 

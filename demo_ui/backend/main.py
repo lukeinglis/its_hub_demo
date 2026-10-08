@@ -42,7 +42,7 @@ else:
     logger.warning("OPENAI_API_KEY not found in environment!")
 
 from backend.evaluation import evaluate_correctness
-from its_hub.utils import QWEN_SYSTEM_PROMPT
+from its_hub.core.utils import QWEN_SYSTEM_PROMPT
 
 from .config import get_model_config, MODEL_REGISTRY
 from .example_questions import (
@@ -177,50 +177,55 @@ def _get_provider_group(config: dict) -> str:
     """Determine the provider group for a model config."""
     provider = config.get("provider", "")
     base_url = config.get("base_url", "")
-    if provider in ("vertex_ai", "vertex_ai_model_garden"):
-        return "vertex_ai"
+    if provider == "maas":
+        return "maas"
     if "openrouter.ai" in base_url:
         return "openrouter"
     if "api.openai.com" in base_url:
         return "openai"
-    return "local"
+    return "maas"
 
 
 @app.get("/providers")
 async def check_providers():
-    """Check which model providers have credentials configured."""
+    """Check which model providers have credentials configured.
+
+    Providers mirror Red Hat's model delivery paths: MaaS (models served by
+    your infrastructure), OpenRouter (no-GPU fallback to the same validated
+    open models), and OpenAI (frontier models for Match Frontier).
+    """
     openai_key = os.getenv("OPENAI_API_KEY")
-    vertex_project = os.getenv("VERTEX_PROJECT")
-    vllm_url = os.getenv("VLLM_BASE_URL")
+    openrouter_key = os.getenv("OPENROUTER_API_KEY")
+    maas_url = os.getenv("MAAS_BASE_URL") or os.getenv("VLLM_BASE_URL")
 
     ollama_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434/v1")
-    local_available = False
-    if vllm_url:
-        local_available = check_server_available(vllm_url)
-    if not local_available:
-        local_available = check_server_available(ollama_url)
+    maas_available = False
+    if maas_url:
+        maas_available = check_server_available(maas_url)
+    if not maas_available:
+        maas_available = check_server_available(ollama_url)
 
     providers = {
+        "maas": {
+            "enabled": maas_available,
+            "name": "Red Hat MaaS / Self-Hosted",
+            "description": "Validated open models served by your infrastructure — Granite, Llama, Qwen, gpt-oss via OpenShift AI MaaS, self-hosted vLLM, or Ollama",
+            "env_var": "MAAS_BASE_URL",
+            "setup": "export MAAS_BASE_URL=http://<your-maas-route>/v1",
+        },
+        "openrouter": {
+            "enabled": bool(openrouter_key),
+            "name": "OpenRouter",
+            "description": "No-GPU fallback to the same Red Hat-validated open models — Granite 4, gpt-oss, Llama 4, Qwen3",
+            "env_var": "OPENROUTER_API_KEY",
+            "setup": "export OPENROUTER_API_KEY=sk-or-v1-...",
+        },
         "openai": {
             "enabled": bool(openai_key),
             "name": "OpenAI",
-            "description": "GPT-4o, GPT-4o Mini, GPT-4.1, GPT-4.1 Mini/Nano, GPT-3.5 Turbo",
+            "description": "Frontier models for Match Frontier comparisons — GPT-6 Luna/Sol, GPT-5.x",
             "env_var": "OPENAI_API_KEY",
             "setup": "export OPENAI_API_KEY=sk-...",
-        },
-        "vertex_ai": {
-            "enabled": bool(vertex_project),
-            "name": "Google Cloud Vertex AI",
-            "description": "Claude Sonnet 4.6, Claude Haiku 4.5",
-            "env_var": "VERTEX_PROJECT",
-            "setup": "export VERTEX_PROJECT=your-project-id\ngcloud auth application-default login",
-        },
-        "local": {
-            "enabled": local_available,
-            "name": "Self-Hosted / Local",
-            "description": "IBM Granite 4 3B, Granite 3.3 8B, or any model via Ollama / vLLM",
-            "env_var": "OLLAMA_BASE_URL",
-            "setup": "ollama pull granite4:3b && ollama serve",
         },
     }
 
@@ -242,7 +247,6 @@ async def list_models(use_case: str | None = None):
     enabled_providers = {
         "openai": bool(os.getenv("OPENAI_API_KEY")),
         "openrouter": bool(os.getenv("OPENROUTER_API_KEY")),
-        "vertex_ai": bool(os.getenv("VERTEX_PROJECT")),
     }
 
     for model_id, config in MODEL_REGISTRY.items():
@@ -272,9 +276,7 @@ async def list_models(use_case: str | None = None):
 
         # Skip server check for standard API-based models
         if (base_url.startswith("https://api.openai.com") or
-            base_url.startswith("https://openrouter.ai") or
-            config.get("provider") in ("vertex_ai", "vertex_ai_model_garden") or
-            not base_url):
+            base_url.startswith("https://openrouter.ai")):
             available_models.append(model_entry)
             continue
 

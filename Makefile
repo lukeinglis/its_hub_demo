@@ -1,0 +1,268 @@
+# ITS Hub Makefile
+# Handles proto compilation for Envoy external processor
+
+.PHONY: help setup setup-envoy upgrade-protos proto-compile proto-clean submodule-init \
+        iaas-start iaas-health envoy-stack envoy-stack-stop envoy-start envoy-grpc envoy-test envoy-health \
+        envoy-iaas-stack envoy-iaas-stack-stop test container container-run container-stop
+
+# Default target
+help:
+	@echo "ITS Hub Build Targets:"
+	@echo ""
+	@echo "Setup Commands:"
+	@echo "  make setup          - General development setup (Python deps)"
+	@echo "  make setup-envoy    - Envoy gateway setup (submodules + proto compilation)"
+	@echo ""
+	@echo "Proto Commands:"
+	@echo "  make submodule-init - Initialize git submodules for proto definitions"
+	@echo "  make proto-compile  - Compile Envoy proto files to Python"
+	@echo "  make proto-clean    - Remove generated proto files"
+	@echo ""
+	@echo "Service Commands:"
+	@echo "  make iaas-start       - Start IaaS service on localhost:8109"
+	@echo "  make iaas-health      - Check IaaS service health"
+	@echo "  make envoy-stack      - Start Envoy proxy + gRPC service together"
+	@echo "  make envoy-stack-stop - Stop Envoy stack"
+	@echo "  make envoy-start      - Start Envoy proxy with ext_proc configuration"
+	@echo "  make envoy-grpc       - Start Envoy external processor gRPC service"
+	@echo "  make envoy-test       - Test Envoy external processor with sample requests"
+	@echo "  make envoy-health     - Check Envoy cluster health and statistics"
+	@echo "  make envoy-iaas-stack      - Start Envoy + ext_proc + IaaS together"
+	@echo "  make envoy-iaas-stack-stop - Stop all three services"
+	@echo ""
+	@echo "Testing Commands:"
+	@echo "  make test           - Run all pytest tests"
+	@echo ""
+	@echo "Container Commands:"
+	@echo "  make container      - Build the IaaS container image, tagged its-hub:<version>"
+	@echo "  make container-run  - Run the image detached, publishing 127.0.0.1:8109"
+	@echo "  make container-stop - Stop the running container (CONTAINER_NAME=its-hub)"
+	@echo ""
+	@echo "Maintenance Commands:"
+	@echo "  make upgrade-protos - Restore proto submodules to pinned commits from .gitmodules"
+
+# Directories
+PROTO_OUT_DIR := its_hub/integration/proto
+THIRD_PARTY := third_party
+
+# Container settings
+CONTAINER_ENGINE ?= podman
+IMAGE_NAME ?= its-hub
+ITS_HUB_VERSION ?= $(shell uv run python -c "from importlib.metadata import version; print(version('its_hub'))" 2>/dev/null || echo 0.0.0)
+IMAGE_TAG ?= $(ITS_HUB_VERSION)
+PUBLISH_ADDR ?= 127.0.0.1
+HOST_PORT ?= 8109
+CONTAINER_NAME ?= its-hub
+# Podman defaults to the OCI image format, which silently drops the Containerfile
+# HEALTHCHECK. Force the Docker format so locally built images keep it
+CONTAINER_BUILD_FLAGS ?= $(if $(findstring podman,$(CONTAINER_ENGINE)),--format docker,)
+
+# Proto source directories
+ENVOY_API := $(THIRD_PARTY)/envoy-data-plane-api
+XDS_API := $(THIRD_PARTY)/xds
+VALIDATE := $(THIRD_PARTY)/protoc-gen-validate
+
+# Proto source files
+PROTO_SOURCES := $(wildcard $(ENVOY_API)/envoy/config/core/v3/*.proto) \
+                 $(wildcard $(ENVOY_API)/envoy/type/v3/*.proto) \
+                 $(wildcard $(ENVOY_API)/envoy/type/matcher/v3/*.proto) \
+                 $(wildcard $(ENVOY_API)/envoy/annotations/*.proto) \
+                 $(wildcard $(ENVOY_API)/envoy/extensions/filters/http/ext_proc/v3/*.proto) \
+                 $(wildcard $(ENVOY_API)/envoy/service/ext_proc/v3/*.proto) \
+                 $(wildcard $(XDS_API)/xds/annotations/v3/*.proto) \
+                 $(wildcard $(XDS_API)/xds/core/v3/*.proto) \
+                 $(wildcard $(XDS_API)/udpa/annotations/*.proto) \
+                 $(VALIDATE)/validate/validate.proto
+
+# Marker files to track state
+SUBMODULE_MARKER := $(THIRD_PARTY)/.submodules-initialized
+PROTO_MARKER := $(PROTO_OUT_DIR)/.proto-compiled
+
+# Initialize git submodules
+$(SUBMODULE_MARKER):
+	@echo "Initializing git submodules for proto definitions..."
+	git submodule update --init --recursive \
+		$(ENVOY_API) \
+		$(XDS_API) \
+		$(VALIDATE)
+	@touch $(SUBMODULE_MARKER)
+	@echo "✓ Submodules initialized"
+
+# PHONY target for submodule initialization
+submodule-init: $(SUBMODULE_MARKER)
+
+# Compile Envoy proto files to Python (with dependency tracking)
+$(PROTO_MARKER): $(SUBMODULE_MARKER) $(PROTO_SOURCES)
+	@mkdir -p $(PROTO_OUT_DIR)
+	@echo "Compiling Envoy proto files..."
+	uv run python -m grpc_tools.protoc \
+		--proto_path=third_party/envoy-data-plane-api \
+		--proto_path=third_party/xds \
+		--proto_path=third_party/protoc-gen-validate \
+		--python_out=$(PROTO_OUT_DIR) \
+		--grpc_python_out=$(PROTO_OUT_DIR) \
+		third_party/envoy-data-plane-api/envoy/config/core/v3/*.proto \
+		third_party/envoy-data-plane-api/envoy/type/v3/*.proto \
+		third_party/envoy-data-plane-api/envoy/type/matcher/v3/*.proto \
+		third_party/envoy-data-plane-api/envoy/annotations/*.proto \
+		third_party/envoy-data-plane-api/envoy/extensions/filters/http/ext_proc/v3/*.proto \
+		third_party/envoy-data-plane-api/envoy/service/ext_proc/v3/*.proto \
+		third_party/xds/xds/annotations/v3/*.proto \
+		third_party/xds/xds/core/v3/*.proto \
+		third_party/xds/udpa/annotations/*.proto \
+		third_party/protoc-gen-validate/validate/validate.proto
+	printf 'import sys\nfrom pathlib import Path\n\n_proto_dir = Path(__file__).parent\nif str(_proto_dir) not in sys.path:\n    sys.path.insert(0, str(_proto_dir))\n' > $(PROTO_OUT_DIR)/__init__.py
+	find $(PROTO_OUT_DIR) -mindepth 1 -type d -exec touch {}/__init__.py \;
+	@touch $(PROTO_MARKER)
+	@echo "✓ Proto files compiled successfully!"
+
+# PHONY target for proto compilation
+proto-compile: $(PROTO_MARKER)
+
+# Remove generated proto files
+proto-clean:
+	@echo "Removing generated proto files..."
+	rm -rf $(PROTO_OUT_DIR)/envoy $(PROTO_OUT_DIR)/xds $(PROTO_OUT_DIR)/udpa $(PROTO_OUT_DIR)/validate
+	rm -f $(PROTO_MARKER)
+	@echo "✓ Proto files removed"
+
+# General development setup
+setup:
+	@echo "Setting up its_hub development environment..."
+	@echo "Installing Python dependencies..."
+	uv sync --extra dev
+	@echo "✓ General setup complete!"
+	@echo ""
+	@echo "For Envoy gateway development, also run: make setup-envoy"
+
+# Envoy gateway development setup
+setup-envoy: submodule-init proto-compile
+	@echo ""
+	@echo "✓ Envoy gateway setup complete!"
+	@echo "You can now run: make envoy-stack"
+
+# Restore proto submodules to pinned commits from .gitmodules
+upgrade-protos:
+	@echo "Restoring proto submodules to pinned commits from .gitmodules..."
+	@echo ""
+	@echo "Checking out pinned commits:"
+	@ENVOY_COMMIT=$$(grep -A 3 'envoy-data-plane-api' .gitmodules | grep 'pinned-commit' | cut -d'=' -f2 | tr -d ' '); \
+	cd $(ENVOY_API) && git fetch && git checkout $$ENVOY_COMMIT && \
+	echo "  ✓ envoy-data-plane-api: $$ENVOY_COMMIT"
+	@XDS_COMMIT=$$(grep -A 3 'third_party/xds' .gitmodules | grep 'pinned-commit' | cut -d'=' -f2 | tr -d ' '); \
+	cd $(XDS_API) && git fetch && git checkout $$XDS_COMMIT && \
+	echo "  ✓ xds: $$XDS_COMMIT"
+	@VALIDATE_COMMIT=$$(grep -A 3 'protoc-gen-validate' .gitmodules | grep 'pinned-commit' | cut -d'=' -f2 | tr -d ' '); \
+	cd $(VALIDATE) && git fetch && git checkout $$VALIDATE_COMMIT && \
+	echo "  ✓ protoc-gen-validate: $$VALIDATE_COMMIT"
+	@echo ""
+	@echo "✓ All submodules restored to pinned commits"
+	@echo ""
+	@echo "To update the pinned commits, edit .gitmodules and update the pinned-commit values"
+
+# =============================================================================
+# Service Management
+# =============================================================================
+
+# Start both Envoy proxy and ext_proc gRPC service in parallel
+envoy-stack:
+	@echo "Starting Envoy stack (proxy + gRPC service)..."
+	@echo "Logs will be written to:"
+	@echo "  - envoy.log (Envoy proxy)"
+	@echo "  - envoy-grpc.log (gRPC service)"
+	@echo ""
+	@echo "Press Ctrl+C to stop both services"
+	@trap 'kill 0' INT; \
+	(uv run envoy-grpc 2>&1 | tee envoy-grpc.log) & \
+	(envoy -c its_hub/integration/ext_proc/envoy_config.yaml 2>&1 | tee envoy.log) & \
+	wait
+
+# Stop Envoy stack
+envoy-stack-stop:
+	@echo "Stopping Envoy stack..."
+	@pkill -f "envoy -c its_hub/integration/ext_proc/envoy_config.yaml" || echo "Envoy proxy not running"
+	@pkill -f "envoy-grpc" || echo "gRPC service not running"
+	@echo "✓ Envoy stack stopped"
+
+# Start IaaS service on localhost:8109
+iaas-start:
+	uv run its-iaas --host 127.0.0.1 --port 8109
+
+# Check IaaS service health
+iaas-health:
+	curl -v -s http://localhost:8109/v1/models | jq .
+
+# Start Envoy + ext_proc + IaaS together
+envoy-iaas-stack:
+	@echo "Starting IaaS stack (Envoy + ext_proc + IaaS)..."
+	@echo "Logs will be written to:"
+	@echo "  - envoy.log (Envoy proxy on port 8108)"
+	@echo "  - iaas-ext-proc.log (gRPC ext_proc on port 50051)"
+	@echo "  - iaas.log (IaaS FastAPI on port 8109)"
+	@echo ""
+	@echo "Press Ctrl+C to stop all services"
+	@trap 'kill 0' INT; \
+	(uv run its-iaas-ext-proc --port 50051 2>&1 | tee iaas-ext-proc.log) & \
+	(uv run its-iaas --host 127.0.0.1 --port 8109 2>&1 | tee iaas.log) & \
+	(envoy -c its_hub/integration/iaas/envoy_config.yaml 2>&1 | tee envoy.log) & \
+	wait
+
+# Stop IaaS stack
+envoy-iaas-stack-stop:
+	@echo "Stopping IaaS stack..."
+	@pkill -f "envoy -c" || echo "Envoy proxy not running"
+	@pkill -f "its-iaas-ext-proc" || echo "gRPC service not running"
+	@pkill -f "its-iaas" || echo "IaaS services not running"
+	@echo "✓ IaaS stack stopped"
+
+# Start Envoy proxy with ext_proc configuration
+envoy-start:
+	envoy -c its_hub/integration/ext_proc/envoy_config.yaml
+
+# Start Envoy External Processor gRPC service
+envoy-grpc:
+	uv run envoy-grpc
+
+# Test Envoy External Processor with sample requests
+envoy-test:
+	uv run python scripts/test_envoy_grpc.py
+
+# Check Envoy cluster health and statistics
+envoy-health:
+	@echo "=== Cluster Status ==="
+	@curl -s http://localhost:9901/clusters | grep -A 10 "ext_proc_cluster" || echo "Envoy not running or admin port not accessible"
+	@echo ""
+	@echo "=== ext_proc Statistics ==="
+	@curl -s http://localhost:9901/stats | grep ext_proc || echo "No ext_proc stats found"
+
+# =============================================================================
+# Container
+# =============================================================================
+
+# Build the IaaS container image
+container:
+	$(CONTAINER_ENGINE) build $(CONTAINER_BUILD_FLAGS) -f Containerfile \
+		--build-arg ITS_HUB_VERSION=$(ITS_HUB_VERSION) \
+		-t $(IMAGE_NAME):$(IMAGE_TAG) .
+	@echo "✓ Built $(IMAGE_NAME):$(IMAGE_TAG) (version $(ITS_HUB_VERSION))"
+
+# Run the IaaS container image detached
+container-run:
+	$(CONTAINER_ENGINE) run -d --rm \
+		--name $(CONTAINER_NAME) \
+		-p $(PUBLISH_ADDR):$(HOST_PORT):8109 \
+		$(IMAGE_NAME):$(IMAGE_TAG)
+	@echo "✓ Started $(CONTAINER_NAME) at http://$(PUBLISH_ADDR):$(HOST_PORT)"
+	@echo "  logs: $(CONTAINER_ENGINE) logs -f $(CONTAINER_NAME)   stop: make container-stop"
+
+# Stop the running container
+container-stop:
+	$(CONTAINER_ENGINE) stop $(CONTAINER_NAME) || echo "Container $(CONTAINER_NAME) not running"
+
+# =============================================================================
+# Testing
+# =============================================================================
+
+# Run all tests
+test:
+	uv run pytest tests/ --ignore=tests/e2e

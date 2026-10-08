@@ -4,13 +4,12 @@ import json
 import socket
 import threading
 import time
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from http.server import BaseHTTPRequestHandler, HTTPServer, ThreadingHTTPServer
 
 import pytest
-from fastapi.testclient import TestClient
 
-from its_hub.base import AbstractLanguageModel, AbstractOutcomeRewardModel
-from its_hub.integration.iaas import app
+from its_hub import AbstractLanguageModel, AbstractOutcomeRewardModel
+from tests.mocks.recording_llm import RecordingLLMHandler
 
 
 def find_free_port() -> int:
@@ -305,6 +304,7 @@ def vllm_server():
 
     server.shutdown()
     server_thread.join()
+    server.server_close()
 
 
 @pytest.fixture(scope="session")
@@ -323,18 +323,7 @@ def openai_server():
 
     server.shutdown()
     server_thread.join()
-
-
-@pytest.fixture
-def iaas_client():
-    """Create a test client for the IaaS API."""
-    # Reset global state before each test
-    import its_hub.integration.iaas as iaas_module
-
-    iaas_module.LM_DICT.clear()
-    iaas_module.SCALING_ALG = None
-
-    return TestClient(app)
+    server.server_close()
 
 
 @pytest.fixture
@@ -365,3 +354,20 @@ TEST_CONSTANTS = {
     "ERROR_TRIGGER": "trigger_error",
     "VLLM_ERROR_TRIGGER": "error",
 }
+
+
+@pytest.fixture
+def llm_server():
+    """Controllable upstream LLM server; see RecordingLLMHandler."""
+    RecordingLLMHandler.reset()
+    port = find_free_port()
+    server = ThreadingHTTPServer(("localhost", port), RecordingLLMHandler)
+    thread = threading.Thread(target=server.serve_forever)
+    thread.daemon = True
+    thread.start()
+    time.sleep(0.1)
+    yield f"http://localhost:{port}"
+    server.shutdown()
+    thread.join()
+    server.server_close()
+    RecordingLLMHandler.reset()
