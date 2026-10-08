@@ -134,7 +134,8 @@ class TestExecuteTool:
         data = json.loads(result)
         assert isinstance(data, dict)
 
-    def test_code_executor_returns_simulated(self):
+    def test_code_executor_returns_demo_mode(self):
         result = execute_tool("code_executor", {"code": "x = 42"})
         data = json.loads(result)
-        assert data.get("status") == "success"
+        # Code execution is intentionally disabled in demo mode for security
+        assert data.get("status") == "demo_mode"

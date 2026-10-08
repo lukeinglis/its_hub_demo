@@ -10,11 +10,11 @@ import re
 
 import numpy as np
 
-from its_hub.utils import extract_content_from_lm_response
-from its_hub.algorithms.self_consistency import SelfConsistencyResult
-from its_hub.algorithms.bon import BestOfNResult
-from its_hub.algorithms.beam_search import BeamSearchResult
-from its_hub.algorithms.particle_gibbs import ParticleFilteringResult, ParticleGibbsResult
+from its_hub.core.utils import extract_content_from_lm_response
+from its_hub.core.algorithms.self_consistency import SelfConsistencyResult
+from its_hub.core.algorithms.bon import BestOfNResult
+from its_hub.core.algorithms.beam_search import BeamSearchResult
+from its_hub.core.algorithms.particle_gibbs import ParticleFilteringResult, ParticleGibbsResult
 
 from .models import (
     CandidateResponse,

@@ -13,8 +13,8 @@ from typing import List, Dict
 from anthropic import AnthropicVertex
 from vertexai.generative_models import GenerativeModel
 import vertexai
-from its_hub.base import AbstractLanguageModel
-from its_hub.types import ChatMessage
+from its_hub import AbstractLanguageModel
+from its_hub.api import ChatMessage
 
 logger = logging.getLogger(__name__)
 
@@ -68,6 +68,21 @@ class _VertexAIBaseModel(AbstractLanguageModel):
         )
 
         return responses[0] if is_single else responses
+
+    async def agenerate_single(
+        self,
+        messages: List[ChatMessage],
+        stop: str | None = None,
+        **kwargs,
+    ) -> Dict:
+        """Generate a single response via the provider-specific API.
+
+        Required by the new its_hub orchestrator-based algorithms.
+        """
+        max_tok = kwargs.pop("max_tokens", None)
+        max_tok = max_tok if max_tok is not None else self.max_tokens
+        temp = kwargs.pop("temperature", self.temperature)
+        return await self._generate_single(messages, max_tok, temp, stop)
 
     def generate(
         self,

@@ -42,7 +42,7 @@ else:
     logger.warning("OPENAI_API_KEY not found in environment!")
 
 from backend.evaluation import evaluate_correctness
-from its_hub.utils import QWEN_SYSTEM_PROMPT
+from its_hub.core.utils import QWEN_SYSTEM_PROMPT
 
 from .config import get_model_config, MODEL_REGISTRY
 from .example_questions import (
