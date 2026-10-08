@@ -568,12 +568,22 @@ function renderAlgorithmTrace(trace, directDisplay = false) {
     `;
 }
 
-// Red Hat AI section toggle
-function toggleRhaiSection() {
-    const content = document.getElementById('rhaiContent');
-    const icon = document.getElementById('rhaiToggleIcon');
+// Collapsible section toggles (Red Hat AI, Beyond the Demos, ...)
+function toggleCollapsible(contentId, iconId) {
+    const content = document.getElementById(contentId);
+    const icon = document.getElementById(iconId);
     const isHidden = content.classList.toggle('hidden');
     icon.textContent = isHidden ? '▼' : '▲';
+}
+
+// Red Hat AI section toggle
+function toggleRhaiSection() {
+    toggleCollapsible('rhaiContent', 'rhaiToggleIcon');
+}
+
+// "Beyond the Demos" section toggle
+function toggleProductionSection() {
+    toggleCollapsible('productionContent', 'productionToggleIcon');
 }
 
 // Wait for KaTeX to load

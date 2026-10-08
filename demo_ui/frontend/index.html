@@ -79,7 +79,7 @@
         <!-- Red Hat AI Section -->
         <div class="rhai-section">
             <div class="rhai-header" role="button" tabindex="0" onclick="toggleRhaiSection()" onkeydown="if(event.key==='Enter')toggleRhaiSection()">
-                <h2 class="rhai-title">How to Use in Red Hat AI (Work in Progress)</h2>
+                <h2 class="rhai-title">How to Use in Red Hat AI</h2>
                 <span class="rhai-toggle-icon" id="rhaiToggleIcon">▼</span>
             </div>
             <div class="rhai-content" id="rhaiContent">
@@ -101,9 +101,9 @@
                     </div>
                     <div class="rhai-card">
                         <div class="rhai-card-icon">🔮</div>
-                        <h3>Coming Soon: AI Gateway</h3>
-                        <p>ITS will be integrated into the <strong>Red Hat AI Gateway</strong>, providing inference-time scaling as a managed service &mdash; no SDK installation required.</p>
-                        <code class="rhai-code">Red Hat AI Gateway &mdash; stay tuned</code>
+                        <h3>Gateway &amp; Microservice</h3>
+                        <p>its_hub ships as an OpenAI-compatible microservice &mdash; deploy with the bundled Helm chart on Kubernetes/OpenShift, or run the ITS core as an Envoy external processor. Managed <strong>Red Hat AI Gateway</strong> integration is coming soon.</p>
+                        <code class="rhai-code">its-iaas --host 0.0.0.0 --port 8108</code>
                     </div>
                 </div>
                 <div class="rhai-links">
@@ -112,6 +112,46 @@
                     <a href="https://docs.redhat.com/en/documentation/red_hat_openshift_ai_self-managed/" target="_blank" rel="noopener">OpenShift AI Docs</a>
                     <span class="rhai-link-sep">|</span>
                     <a href="https://docs.redhat.com/en/documentation/red_hat_enterprise_linux_ai/" target="_blank" rel="noopener">RHEL AI Docs</a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Beyond the Demos Section (production deployment + coding agents) -->
+        <div class="rhai-section">
+            <div class="rhai-header" role="button" tabindex="0" onclick="toggleProductionSection()" onkeydown="if(event.key==='Enter')toggleProductionSection()">
+                <h2 class="rhai-title">Beyond the Demos: Production &amp; Coding Agents</h2>
+                <span class="rhai-toggle-icon" id="productionToggleIcon">▼</span>
+            </div>
+            <div class="rhai-content" id="productionContent">
+                <p class="rhai-intro">
+                    The algorithms you see in these demos are the same ones available in production deployments and in your coding agent &mdash; from the same upstream <strong>its_hub</strong> library.
+                </p>
+                <div class="rhai-cards">
+                    <div class="rhai-card">
+                        <div class="rhai-card-icon">🚀</div>
+                        <h3>Deploy as a Service</h3>
+                        <p>Run ITS as an OpenAI-compatible microservice. Any application that speaks the chat-completions format gets scaling via a <code>budget</code> parameter &mdash; no SDK code changes. Ships with a Helm chart for Kubernetes/OpenShift.</p>
+                        <code class="rhai-code">pip install its_hub[iaas] &amp;&amp; its-iaas</code>
+                    </div>
+                    <div class="rhai-card">
+                        <div class="rhai-card-icon">🛡️</div>
+                        <h3>Scale at the Gateway</h3>
+                        <p>Run the ITS core as an Envoy external processor. Requests with <code>X-ITS-*</code> headers are scaled; everything else passes through unchanged &mdash; scaling added at the infrastructure layer.</p>
+                        <code class="rhai-code">pip install its_hub[ext_proc] &amp;&amp; envoy-grpc</code>
+                    </div>
+                    <div class="rhai-card">
+                        <div class="rhai-card-icon">🤖</div>
+                        <h3>In Your Coding Agent</h3>
+                        <p>its-hub is available as a plugin for <strong>Claude Code</strong> and <strong>Codex CLI</strong>: guided setup, inference-time scaling on a single prompt, and batch scaling from a JSONL/CSV file.</p>
+                        <code class="rhai-code">/plugin install its-hub</code>
+                    </div>
+                </div>
+                <div class="rhai-links">
+                    <a href="https://github.com/Red-Hat-AI-Innovation-Team/its_hub/tree/main/docs/iaas-service.md" target="_blank" rel="noopener">IaaS Service Guide</a>
+                    <span class="rhai-link-sep">|</span>
+                    <a href="https://github.com/Red-Hat-AI-Innovation-Team/its_hub/tree/main/docs/ext-proc-gateway.md" target="_blank" rel="noopener">Envoy Gateway Guide</a>
+                    <span class="rhai-link-sep">|</span>
+                    <a href="https://github.com/Red-Hat-AI-Innovation-Team/its_hub" target="_blank" rel="noopener">Coding Agent Plugin</a>
                 </div>
             </div>
         </div>

@@ -8,7 +8,8 @@ This guide explains how to use inference-time scaling (ITS) within the Red Hat A
 |------|-----|--------|
 | **Red Hat AI Python Index** | Install the its_hub SDK in an RHOAI workbench | Officially supported in the product |
 | **Upstream SDK** | `pip install its_hub` from PyPI | Open-source, community-supported |
-| **Upstream IaaS Gateway** | Deploy the FastAPI gateway | Open-source, community-supported |
+| **Upstream IaaS Microservice** | Deploy the OpenAI-compatible service (Helm chart for Kubernetes/OpenShift) | Open-source, community-supported |
+| **Upstream Envoy Gateway** | Run the ITS core as an Envoy external processor | Open-source, community-supported |
 | **Red Hat AI Gateway** | Integrated ITS through the managed gateway | Coming soon |
 
 ---
@@ -53,7 +54,7 @@ RHOAI workbench base images come **pre-configured** to use the Red Hat AI Python
 pip install its_hub
 
 # With Process Reward Model support (Particle Filtering, Beam Search)
-pip install "its_hub[prm]"
+pip install "its_hub[experimental]"
 ```
 
 ### 2. Serve a Model with RHOAI
@@ -68,8 +69,7 @@ Red Hat OpenShift AI includes a vLLM serving runtime for hosting models on-clust
 ### 3. Run Inference-Time Scaling
 
 ```python
-from its_hub.lms import OpenAICompatibleLanguageModel
-from its_hub.algorithms import SelfConsistency
+from its_hub import OpenAICompatibleLanguageModel, SelfConsistency
 
 # Connect to your RHOAI-served model
 lm = OpenAICompatibleLanguageModel(
@@ -82,6 +82,10 @@ lm = OpenAICompatibleLanguageModel(
 sc = SelfConsistency()
 result = sc.infer(lm, "What is 15% of 240?", budget=5)
 print(f"Answer: {result}")
+
+# Close lm for resource cleanup
+import asyncio
+asyncio.run(lm.close())
 ```
 
 ### Using with Granite Models
@@ -89,9 +93,7 @@ print(f"Answer: {result}")
 IBM Granite models are available through RHOAI and work well with ITS:
 
 ```python
-from its_hub.lms import OpenAICompatibleLanguageModel
-from its_hub.algorithms import BestOfN
-from its_hub.integration.reward_hub import LLMJudgeRewardModel
+from its_hub import OpenAICompatibleLanguageModel, BestOfN, LLMJudge
 
 # Granite model served via RHOAI
 lm = OpenAICompatibleLanguageModel(
@@ -101,17 +103,15 @@ lm = OpenAICompatibleLanguageModel(
 )
 
 # Use Best-of-N with the same model as judge
-judge = LLMJudgeRewardModel(
-    model="ibm-granite/granite-3.3-8b-instruct",
-    base_url="https://granite-serving.apps.cluster.example.com/v1",
-    criterion="overall_quality",
-    judge_type="groupwise",
-    api_key="<serving-token>",
-)
+judge = LLMJudge(lm=lm, fallback_score=5.0)
 
 scaling_alg = BestOfN(judge)
 result = scaling_alg.infer(lm, "Explain inference-time scaling", budget=4)
 print(result)
+
+# Close lm for resource cleanup
+import asyncio
+asyncio.run(lm.close())
 ```
 
 ### Example Endpoint Configurations
@@ -156,15 +156,16 @@ pip install its_hub
 
 See the [Quick Start Guide](quick-start.md) for usage examples.
 
-### Upstream IaaS Gateway
+### Upstream IaaS Microservice
 
-The its_hub library includes a FastAPI-based gateway that provides an OpenAI-compatible API with inference-time scaling built in. Any application that speaks the OpenAI chat completions format can use it — just point to the gateway and add a `budget` parameter.
+The its_hub library includes an OpenAI-compatible microservice with inference-time scaling built in. Any application that speaks the OpenAI chat completions format can use it — just point to the service and add a `budget` parameter. Deploy with the bundled [Helm chart](https://github.com/Red-Hat-AI-Innovation-Team/its_hub/tree/main/deploy/helm/its-hub) on Kubernetes/OpenShift, or run standalone.
 
 ```bash
+pip install "its_hub[iaas]"
 its-iaas --host 0.0.0.0 --port 8108
 ```
 
-This gateway can be deployed on OpenShift or any container platform. For full setup and configuration, see the [IaaS Service Guide](iaas-service.md).
+The service supports the Self-Consistency family (plain, Adaptive, and Beta Self-Consistency with early stopping), with Best-of-N coming soon. Activation is in-band: a `budget` field in the request body (or `X-ITS-Budget` header) triggers ITS. For full setup and configuration, see the [IaaS Service Guide](iaas-service.md).
 
 **Example: Using the gateway with the OpenAI client**
 
@@ -184,6 +185,19 @@ response = client.chat.completions.create(
 print(response.choices[0].message.content)
 ```
 
+### Upstream Envoy Gateway
+
+Alternatively, run the ITS core as an Envoy external processor: requests carrying `X-ITS-*` headers are scaled, and all other traffic passes through unchanged — scaling added at the infrastructure layer.
+
+```bash
+pip install "its_hub[ext_proc]"
+envoy-grpc --print-config > envoy.yaml   # bundled config; edit the llm_upstream address
+envoy-grpc &                             # external processor (:50051)
+envoy -c envoy.yaml                      # Envoy (:8108)
+```
+
+See the [Envoy Gateway Guide](ext-proc-gateway.md) for details.
+
 ---
 
 ## Coming Soon: Red Hat AI Gateway
@@ -198,4 +212,5 @@ ITS will be integrated into the **Red Hat AI Gateway**, providing inference-time
 - [Red Hat OpenShift AI Documentation](https://docs.redhat.com/en/documentation/red_hat_openshift_ai_self-managed/) — Platform setup and model serving
 - [RHEL AI Documentation](https://docs.redhat.com/en/documentation/red_hat_enterprise_linux_ai/) — Local AI model serving on RHEL
 - [vLLM Serving Runtime](https://docs.redhat.com/en/documentation/red_hat_openshift_ai_self-managed/2-latest/html/serving_models/serving-large-models_serving-large-models#configuring-a-vllm-model-serving-runtime_serving-large-models) — Configuring vLLM on OpenShift AI
-- [IaaS Service Guide](iaas-service.md) — Upstream gateway configuration reference
+- [IaaS Service Guide](iaas-service.md) — Upstream microservice configuration reference
+- [Envoy Gateway Guide](ext-proc-gateway.md) — Gateway-layer integration reference
