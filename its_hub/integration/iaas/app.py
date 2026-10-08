@@ -1,0 +1,389 @@
+"""Inference-as-a-Service (IaaS) FastAPI application.
+
+Provides an OpenAI-compatible API server for inference-time scaling algorithms.
+Delegates to ITSGateway for LM lifecycle management and algorithm dispatch,
+following the same adapter pattern as the Envoy ext_proc integration.
+"""
+
+import json
+import logging
+import os
+import time
+import uuid
+from contextlib import asynccontextmanager
+from pathlib import Path
+
+from fastapi import FastAPI, Header, HTTPException, status
+from fastapi.responses import StreamingResponse
+
+from its_hub import __version__
+from its_hub.api.types import ITSRequestConfigUpdate
+from its_hub.core.gateway import ITSGateway
+from its_hub.integration.iaas.models import (
+    ChatCompletionChoice,
+    ChatCompletionRequest,
+    ChatCompletionResponse,
+    ChatCompletionUsage,
+    ConfigRequest,
+)
+
+logger = logging.getLogger(__name__)
+
+
+class _ServiceState:
+    """Encapsulates all mutable service state (replaces module-level globals)."""
+
+    def __init__(self):
+        self.gateway: ITSGateway = ITSGateway()
+        self.ready = False
+
+    def reset(self):
+        self.gateway = ITSGateway()
+        self.ready = False
+
+
+_state = _ServiceState()
+
+
+@asynccontextmanager
+async def _lifespan(application: FastAPI):
+    _state.ready = False
+    try:
+        _load_startup_config()
+        _state.ready = True
+        yield
+    finally:
+        _state.ready = False
+        await _state.gateway.aclose()
+
+
+app = FastAPI(
+    title="its_hub Inference-as-a-Service",
+    description="OpenAI-compatible API for inference-time scaling algorithms",
+    version=__version__,
+    lifespan=_lifespan,
+)
+
+
+def _build_its_config(
+    request: ChatCompletionRequest,
+    its_budget: int | None = None,
+    its_endpoint: str | None = None,
+    its_api_key: str | None = None,
+) -> ITSRequestConfigUpdate:
+    """Build a per-request ITSRequestConfigUpdate overlay.
+
+    Only per-request fields (header > body) are populated; service-default
+    fields are left ``None`` for the gateway to merge.
+    """
+    budget = its_budget if its_budget is not None else request.budget
+    return ITSRequestConfigUpdate(
+        budget=budget,
+        api_endpoint=its_endpoint,
+        api_key=its_api_key,
+        model=request.model,
+        temperature=request.temperature,
+    )
+
+
+def _configuration_update(request: ConfigRequest) -> ITSRequestConfigUpdate:
+    """Share configuration conversion between startup and the HTTP API."""
+    return ITSRequestConfigUpdate(
+        budget=request.budget,
+        api_endpoint=request.endpoint,
+        api_key=request.api_key,
+        model=request.model,
+        temperature=request.temperature,
+        alg=request.alg,
+        regex_patterns=request.regex_patterns,
+        tool_vote=request.tool_vote,
+        exclude_tool_args=request.exclude_tool_args,
+        threshold=request.threshold,
+        confidence_threshold=request.confidence_threshold,
+    )
+
+
+def _load_startup_config() -> None:
+    """Load optional defaults before accepting traffic, without logging secrets."""
+    config_file = os.environ.get("ITS_IAAS_CONFIG_FILE")
+    key_file = os.environ.get("ITS_IAAS_API_KEY_FILE")
+    if not config_file:
+        if key_file:
+            raise RuntimeError("ITS_IAAS_API_KEY_FILE requires ITS_IAAS_CONFIG_FILE")
+        return
+    try:
+        data = json.loads(Path(config_file).read_text())
+        request = ConfigRequest.model_validate(data)
+        if key_file:
+            key = Path(key_file).read_text().strip()
+            if not key:
+                raise ValueError("Empty API key")
+            request.api_key = key
+        config = _configuration_update(request)
+        config.resolve()  # Check completeness as well as field-level validation.
+        _state.gateway.configure(config)
+    except (OSError, ValueError, TypeError):
+        # Validation errors may contain the input (including credentials).
+        raise RuntimeError(
+            "Unable to load ITS startup configuration; check configuration and Secret files"
+        ) from None
+
+
+@app.post("/configure", status_code=status.HTTP_200_OK)
+async def config_service(request: ConfigRequest) -> dict[str, str]:
+    """Configure the IaaS service with language model and scaling algorithm."""
+    try:
+        config = _configuration_update(request)
+        _state.gateway.configure(config)
+
+        resolved = _state.gateway._default_config
+        logger.info(
+            "Configured IaaS: model=%s, alg=%s, budget=%s",
+            resolved.model,
+            resolved.alg,
+            resolved.budget,
+        )
+        return {
+            "status": "success",
+            "message": f"Initialized {request.model} with {request.alg} algorithm",
+        }
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        ) from e
+    except Exception as e:
+        logger.error("Configuration failed: %s", e, exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Configuration failed. Check server logs for details.",
+        ) from e
+
+
+@app.get("/health")
+async def health() -> dict[str, str]:
+    """Liveness probe. Returns 200 as soon as the app is serving."""
+    return {"status": "ok"}
+
+
+@app.get("/ready")
+async def ready() -> dict[str, str]:
+    """Ready after initialization, independently of upstream availability."""
+    if not _state.ready:
+        raise HTTPException(status_code=503, detail="Service is not ready")
+    return {"status": "ready"}
+
+
+@app.get("/v1/models")
+async def list_models() -> dict[str, list[dict[str, str]]]:
+    """List available models (OpenAI-compatible endpoint)."""
+    model = _state.gateway._default_config.model
+    if model:
+        return {
+            "data": [
+                {
+                    "id": model,
+                    "object": "model",
+                    "owned_by": "its_hub",
+                }
+            ]
+        }
+    return {"data": []}
+
+
+@app.post("/v1/chat/completions", response_model=ChatCompletionResponse)
+async def chat_completions(
+    request: ChatCompletionRequest,
+    x_its_budget: int | None = Header(None),
+    x_its_endpoint: str | None = Header(None),
+    x_its_api_key: str | None = Header(None),
+) -> ChatCompletionResponse | StreamingResponse:
+    """Generate chat completion with inference-time scaling."""
+    if request.stream:
+        return await _stream_chat_completions(
+            request, x_its_budget, x_its_endpoint, x_its_api_key
+        )
+
+    try:
+        its_config = _build_its_config(
+            request, x_its_budget, x_its_endpoint, x_its_api_key
+        )
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        ) from e
+
+    try:
+        messages_dicts = [msg.to_dict() for msg in request.messages]
+
+        result = await _state.gateway.arun_chat_completion(
+            config=its_config,
+            messages=messages_dicts,
+            tools=request.tools,
+            tool_choice=request.tool_choice,
+            return_response_only=request.return_response_only,
+        )
+
+        if request.return_response_only:
+            response_message = result["message"]
+        else:
+            response_message = result["the_one"]
+
+        usage = result.get("usage", {})
+
+        metadata = None
+        if not request.return_response_only:
+            metadata = {
+                "algorithm": result["alg"],
+                "all_responses": result.get("responses"),
+                "response_counts": result.get("response_counts"),
+                "selected_index": result.get("selected_index"),
+            }
+
+        return ChatCompletionResponse(
+            id=f"chatcmpl-its-{uuid.uuid4()}",
+            created=int(time.time()),
+            model=request.model,
+            choices=[
+                ChatCompletionChoice(
+                    index=0,
+                    message=response_message,
+                    finish_reason="stop",
+                )
+            ],
+            usage=ChatCompletionUsage(
+                prompt_tokens=usage.get("prompt_tokens", 0),
+                completion_tokens=usage.get("completion_tokens", 0),
+                total_tokens=usage.get("total_tokens", 0),
+            ),
+            metadata=metadata,
+        )
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        ) from e
+    except Exception as e:
+        logger.error("Chat completion failed: %s", e, exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Generation failed. Check server logs for details.",
+        ) from e
+
+
+async def _stream_chat_completions(
+    request: ChatCompletionRequest,
+    its_budget: int | None = None,
+    its_endpoint: str | None = None,
+    its_api_key: str | None = None,
+) -> StreamingResponse:
+    """Handle streaming requests by buffering ITS result then sending as SSE chunks."""
+
+    async def _generate():
+        response_id = f"chatcmpl-its-{uuid.uuid4()}"
+        created = int(time.time())
+
+        its_config = _build_its_config(request, its_budget, its_endpoint, its_api_key)
+
+        if not (its_config.api_endpoint or _state.gateway._default_config.api_endpoint):
+            yield f"data: {json.dumps({'error': 'Service not configured'})}\n\n"
+            yield "data: [DONE]\n\n"
+            return
+
+        messages_dicts = [msg.to_dict() for msg in request.messages]
+
+        try:
+            result = await _state.gateway.arun_chat_completion(
+                config=its_config,
+                messages=messages_dicts,
+                tools=request.tools,
+                tool_choice=request.tool_choice,
+                return_response_only=True,
+            )
+        except Exception as e:
+            logger.error("Streaming chat completion failed: %s", e, exc_info=True)
+            yield f"data: {json.dumps({'error': 'Generation failed. Check server logs for details.'})}\n\n"
+            yield "data: [DONE]\n\n"
+            return
+
+        response_message = result["message"]
+        content = response_message.get("content")
+        tool_calls = response_message.get("tool_calls")
+
+        if tool_calls:
+            for i, tc in enumerate(tool_calls):
+                chunk = {
+                    "id": response_id,
+                    "object": "chat.completion.chunk",
+                    "created": created,
+                    "model": request.model,
+                    "choices": [
+                        {
+                            "index": 0,
+                            "delta": {
+                                "tool_calls": [
+                                    {
+                                        "index": i,
+                                        "id": tc.get(
+                                            "id", f"call_{uuid.uuid4().hex[:24]}"
+                                        ),
+                                        "type": "function",
+                                        "function": {
+                                            "name": tc.get("function", {}).get(
+                                                "name", ""
+                                            ),
+                                            "arguments": tc.get("function", {}).get(
+                                                "arguments", "{}"
+                                            ),
+                                        },
+                                    }
+                                ],
+                            },
+                            "finish_reason": None,
+                        }
+                    ],
+                }
+                yield f"data: {json.dumps(chunk)}\n\n"
+
+            done_chunk = {
+                "id": response_id,
+                "object": "chat.completion.chunk",
+                "created": created,
+                "model": request.model,
+                "choices": [{"index": 0, "delta": {}, "finish_reason": "tool_calls"}],
+            }
+            yield f"data: {json.dumps(done_chunk)}\n\n"
+
+        elif content:
+            content_chunk = {
+                "id": response_id,
+                "object": "chat.completion.chunk",
+                "created": created,
+                "model": request.model,
+                "choices": [
+                    {
+                        "index": 0,
+                        "delta": {"role": "assistant", "content": content},
+                        "finish_reason": None,
+                    }
+                ],
+            }
+            yield f"data: {json.dumps(content_chunk)}\n\n"
+
+            done_chunk = {
+                "id": response_id,
+                "object": "chat.completion.chunk",
+                "created": created,
+                "model": request.model,
+                "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}],
+            }
+            yield f"data: {json.dumps(done_chunk)}\n\n"
+
+        yield "data: [DONE]\n\n"
+
+    return StreamingResponse(
+        _generate(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "Connection": "keep-alive"},
+    )

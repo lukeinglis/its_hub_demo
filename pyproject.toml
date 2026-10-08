@@ -11,35 +11,39 @@ authors = [
     {name = "Kai Xu and the Red Hat AI Innovation Team", email = "xuk@redhat.com"}
 ]
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 license = "Apache-2.0"
 classifiers = [
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Operating System :: OS Independent",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
 dynamic = ["version"]
 dependencies = [
-    "openai>=1.68.2",
-    "tqdm>=4.65.0",
-    "typing-extensions>=4.12.2",
-    # "reward-hub>=0.1.8",  # temporarily commented - requires vllm/CUDA
-    # "transformers>=4.53.2",  # temporarily commented - pulled by reward-hub
-    "backoff>=2.2.0",
-    "click>=8.1.0",
-    "fastapi>=0.115.5",
-    "pydantic>=2.7.2",
+    # Minimal core (upstream): numpy + typing-extensions
     "numpy",
-    "uvicorn",
-    "requests",
+    "typing-extensions>=4.12.2",
+    # Demo runtime: the demo UI backend needs these for `pip install -e .` to work
+    # (its_hub[lm] equivalent + FastAPI server + LiteLLM for evaluation/cost tracking)
+    "openai>=1.68.2",
     "aiohttp>=3.9.0",
-    "litellm>=1.70.0,<1.75.0"
+    "backoff>=2.2.0",
+    "requests",
+    "fastapi>=0.115.5",
+    "uvicorn",
+    "pydantic>=2.7.2",
+    "litellm>=1.70.0,<1.75.0",
+    "python-dotenv>=1.0.0",
 ]
 
 [project.scripts]
-its-iaas = "its_hub.integration.iaas:main"
+its-iaas = "its_hub.integration.iaas.app_server:main"
+its-iaas-ext-proc = "its_hub.integration.iaas.grpc_server:main"
+envoy-grpc = "its_hub.integration.ext_proc.server:main"
 
 [tool.setuptools_scm]
 version_file = "its_hub/_version.py"
@@ -51,21 +55,52 @@ Homepage = "https://ai-innovation.team/its_hub"
 
 [project.optional-dependencies]
 
-vllm = [
-    "reward-hub[vllm]>=0.1.8",
+lm = [
+    "openai>=1.68.2",
+    "aiohttp>=3.9.0",
+    "backoff>=2.2.0",
+    "certifi>=2026.2.25",
+    "requests",
+]
+
+iaas = [
+    "its_hub[lm]",
+    "fastapi>=0.115.5",
+    "uvicorn",
+    "pydantic>=2.7.2",
+    "click>=8.1.0",
+]
+
+envoy-iaas = [
+    "its_hub[iaas,ext_proc]",
+]
+
+ext_proc = [
+    "its_hub[lm]",
+    "grpcio>=1.60.0",
+    "grpcio-tools>=1.60.0",
+    "grpcio-health-checking>=1.60.0",
+    "protobuf>=4.25.0",
 ]
 
 dev = [
+    "its_hub[lm,iaas,ext_proc]",
     "pytest>=7.0.0",
     "pytest-asyncio>=0.21.0",
     "pytest-cov>=4.1.0",
     "ruff>=0.10.0",
+    "python-dotenv>=1.0.0",
     "jupytext>=1.15.0",
     "jupyter>=1.0.0",
+    "scipy>=1.11.0",
+    "pyyaml>=6.0",
 ]
 
-prm = [
-    "reward-hub[prm]>=0.1.8"
+# Experimental - not officially supported in MVP
+experimental = [
+    "its_hub[lm]",
+    "transformers>=4.53.2",
+    "reward-hub[prm]>=0.1.10",
 ]
 
 research = [
@@ -73,10 +108,11 @@ research = [
     "datasets>=2.0.0",     # For loading benchmark datasets (MATH500, AIME)
     "matplotlib>=3.5.0",   # For visualization scripts
 ]
-cloud = [
-    "boto3>=1.28.0",  # For AWS Bedrock support
-    "google-cloud-aiplatform>=1.38.0",  # For Vertex AI support
-]
+
+[tool.setuptools.package-data]
+"its_hub.integration.proto" = ["**/*.py"]
+"its_hub.integration.ext_proc" = ["envoy_config.yaml"]
+"its_hub.integration.iaas" = ["envoy_config.yaml"]
 
 [tool.setuptools]
 package-dir = {"" = "."}
@@ -86,6 +122,15 @@ where = ["."]
 include = [
     "its_hub",
     "its_hub.algorithms",
+    "its_hub.api",
+    "its_hub.api.*",
+    "its_hub.core",
+    "its_hub.core.*",
     "its_hub.integration",
+    "its_hub.integration.*",
 ]
 
+[tool.coverage.run]
+omit = [
+    "its_hub/integration/proto/*",
+]

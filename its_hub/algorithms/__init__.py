@@ -1,63 +1,48 @@
-from .beam_search import BeamSearch, BeamSearchResult
-from .bon import BestOfN, BestOfNResult
-from .particle_gibbs import (
-    EntropicParticleFiltering,
-    ParticleFiltering,
-    ParticleFilteringResult,
-    ParticleGibbs,
-    ParticleGibbsResult,
+import warnings
+
+from its_hub.core.algorithms.bon import BestOfN, BestOfNResult
+from its_hub.core.algorithms.self_consistency import (
+    SelfConsistency,
+    SelfConsistencyResult,
 )
-from .self_consistency import SelfConsistency, SelfConsistencyResult
+
+warnings.warn(
+    "The algorithms module is deprecated and will be removed in a future version. "
+    "The default implementations are now in the core module. Refer to docs/algorithms.md "
+    "and BREAKING_CHANGES.md for more information.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
 __all__ = [
-    "BeamSearch",
-    "BeamSearchResult",
     "BestOfN",
     "BestOfNResult",
-    "EntropicParticleFiltering",
-    "MetropolisHastings",
-    "MetropolisHastingsResult",
-    "ParticleFiltering",
-    "ParticleFilteringResult",
-    "ParticleGibbs",
-    "ParticleGibbsResult",
     "SelfConsistency",
     "SelfConsistencyResult",
 ]
 
-###
+# Optional experimental algorithms - only available if [experimental] extra is installed
+try:
+    from its_hub.core.algorithms.beam_search import BeamSearch, BeamSearchResult
+    from its_hub.core.algorithms.particle_gibbs import (
+        EntropicParticleFiltering,
+        ParticleFiltering,
+        ParticleFilteringResult,
+        ParticleGibbs,
+        ParticleGibbsResult,
+    )
 
-from typing import Union
-
-from its_hub.base import (
-    AbstractLanguageModel,
-    AbstractOutcomeRewardModel,
-    AbstractScalingAlgorithm,
-    AbstractScalingResult,
-)
-from its_hub.lms import StepGeneration
-from its_hub.types import ChatMessage, ChatMessages
-
-
-class MetropolisHastingsResult(AbstractScalingResult):
+    __all__.extend(
+        [
+            "BeamSearch",
+            "BeamSearchResult",
+            "EntropicParticleFiltering",
+            "ParticleFiltering",
+            "ParticleFilteringResult",
+            "ParticleGibbs",
+            "ParticleGibbsResult",
+        ]
+    )
+except ImportError:
+    # experimental algorithms not available - install with: pip install its_hub[experimental]
     pass
-
-
-class MetropolisHastings(AbstractScalingAlgorithm):
-    def __init__(
-        self, step_generation: StepGeneration, orm: AbstractOutcomeRewardModel
-    ):
-        self.step_generation = step_generation
-        self.orm = orm
-
-    def infer(
-        self,
-        lm: AbstractLanguageModel,
-        prompt_or_messages: str | list[ChatMessage] | ChatMessages,
-        budget: int,
-        show_progress: bool = False,
-        return_response_only: bool = True,
-    ) -> str | MetropolisHastingsResult:
-        # TODO: Implement Metropolis-Hastings algorithm
-        # Will need to convert prompt_or_messages to ChatMessages format when implemented
-        raise NotImplementedError("Metropolis-Hastings algorithm not yet implemented")
