@@ -90,8 +90,8 @@ MODEL_REGISTRY: Dict[str, ModelConfig] = {
     "granite-4-3b": {
         "base_url": os.getenv("OLLAMA_BASE_URL", "http://localhost:11434/v1"),
         "api_key_env_var": "OLLAMA_API_KEY",
-        "model_name": "granite4:3b",
-        "description": "🏢🎯 IBM Granite 4 3B (Self-hosted via Ollama)",
+        "model_name": "granite4.1:3b",
+        "description": "🏢🎯 IBM Granite 4.1 3B (Self-hosted via Ollama)",
         "provider": "maas",
         "size": "Small",
         "input_cost_per_1m": 0.0,
@@ -290,25 +290,46 @@ def get_api_key(model_id: str) -> str:
     return api_key
 
 
+def _server_available(url: str, timeout: float = 1.0) -> bool:
+    """Lightweight reachability check for local model servers."""
+    try:
+        import urllib.request
+
+        req = urllib.request.Request(url, method="GET")
+        with urllib.request.urlopen(req, timeout=timeout):
+            return True
+    except Exception:
+        return False
+
+
 def get_judge_config() -> dict:
     """Resolve judge/PRM connection settings.
 
     Defaults to the MaaS endpoint when configured, so the whole demo —
     including the correctness judge, Best-of-N judge, and the process reward
     model — runs on your own infrastructure with no OpenAI key. Falls back to
-    the OpenAI endpoint. JUDGE_BASE_URL / JUDGE_MODEL / JUDGE_API_KEY
-    override everything.
+    a local Ollama server when one is reachable, then to the OpenAI endpoint.
+    JUDGE_BASE_URL / JUDGE_MODEL / JUDGE_API_KEY override everything.
     """
+    ollama_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434/v1")
     base_url = (
         os.getenv("JUDGE_BASE_URL")
         or os.getenv("MAAS_BASE_URL")
         or os.getenv("VLLM_BASE_URL")
+        or (ollama_url if _server_available(f"{ollama_url.rstrip('/')}/models") else None)
         or "https://api.openai.com/v1"
     )
     custom = base_url != "https://api.openai.com/v1"
 
     if custom:
-        model = os.getenv("JUDGE_MODEL") or os.getenv("MAAS_MODEL_NAME") or "gpt-5-mini"
+        if os.getenv("JUDGE_MODEL"):
+            model = os.getenv("JUDGE_MODEL")
+        elif os.getenv("MAAS_MODEL_NAME"):
+            model = os.getenv("MAAS_MODEL_NAME")
+        elif "11434" in base_url:
+            model = "granite4.1:3b"  # matches the Ollama-backed registry entries
+        else:
+            model = "gpt-5-mini"
         api_key = (
             os.getenv("JUDGE_API_KEY")
             or os.getenv("OPENAI_API_KEY")

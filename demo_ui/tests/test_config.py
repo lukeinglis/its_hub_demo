@@ -75,6 +75,7 @@ class TestGetJudgeConfig:
 
     def test_defaults_to_openai(self, monkeypatch):
         self._clear_env(monkeypatch)
+        monkeypatch.setattr("backend.config._server_available", lambda url, timeout=1.0: False)
         cfg = get_judge_config()
         assert cfg["base_url"] == "https://api.openai.com/v1"
         assert cfg["model"] == "gpt-5-mini"
@@ -90,6 +91,15 @@ class TestGetJudgeConfig:
         assert cfg["model"] == "ibm-granite/granite-4-h-small"
         assert cfg["litellm_model"] == "openai/ibm-granite/granite-4-h-small"
         assert cfg["api_key"] == "maas"
+
+    def test_ollama_fallback(self, monkeypatch):
+        """Ollama-only setups run the judge on local models."""
+        self._clear_env(monkeypatch)
+        monkeypatch.setenv("OLLAMA_BASE_URL", "http://localhost:11434/v1")
+        cfg = get_judge_config()
+        assert cfg["base_url"] == "http://localhost:11434/v1"
+        assert cfg["model"] == "granite4.1:3b"
+        assert cfg["litellm_model"] == "openai/granite4.1:3b"
 
     def test_judge_overrides_win(self, monkeypatch):
         self._clear_env(monkeypatch)
