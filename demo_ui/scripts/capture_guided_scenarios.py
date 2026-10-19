@@ -11,8 +11,8 @@ Usage:
 
 Requirements:
     - Backend server must be running (default: http://localhost:8000)
-    - Models must be configured and accessible (gpt-4o, gpt-4.1-nano,
-      gpt-4.1, llama-3.2-3b)
+    - Models must be configured and accessible (gpt-6-astra, gpt-6-luna,
+      gpt-5-mini, granite-4.2-3b-instruct)
 """
 
 import argparse
@@ -32,7 +32,7 @@ import httpx
 
 GUIDED_CONFIGS = [
     # --- tool_stock ---
-    # GPT-4.1 Nano with tools: should choose get_data for stock price,
+    # GPT-6 Luna with tools: should choose get_data for stock price,
     # but sometimes picks web_search. SC tool voting corrects the selection.
     # Question adapted from BFCL multiple_56.
     {
@@ -40,7 +40,7 @@ GUIDED_CONFIGS = [
         "scenario_id": "tool_stock",
         "use_case": "tool_consensus",
         "algorithm": "self_consistency",
-        "model_id": "gpt-4.1-nano",
+        "model_id": "gpt-6-luna",
         "budget": 8,
         "question": "What is the current stock price of Apple (AAPL)?",
         "question_type": "tool_calling",
@@ -49,7 +49,7 @@ GUIDED_CONFIGS = [
         "require_improvement": True,
     },
     # --- tool_currency ---
-    # GPT-4.1 Nano with tools: should use get_data for currency rates,
+    # GPT-6 Luna with tools: should use get_data for currency rates,
     # but sometimes picks web_search. SC tool voting fixes it.
     # Question adapted from BFCL multiple_52.
     {
@@ -57,7 +57,7 @@ GUIDED_CONFIGS = [
         "scenario_id": "tool_currency",
         "use_case": "tool_consensus",
         "algorithm": "self_consistency",
-        "model_id": "gpt-4.1-nano",
+        "model_id": "gpt-6-luna",
         "budget": 8,
         "question": "How many Japanese yen can I get for 200 US dollars?",
         "question_type": "tool_calling",
@@ -66,7 +66,7 @@ GUIDED_CONFIGS = [
         "require_improvement": True,
     },
     # --- improve_frontier ---
-    # GPT-4.1 Nano: small model that makes frequent errors on moderate math.
+    # GPT-6 Luna: small model that makes frequent errors on moderate math.
     # SC majority voting recovers the correct answer.
     # Retry: keep recapturing until baseline is wrong but ITS is right.
     {
@@ -74,7 +74,7 @@ GUIDED_CONFIGS = [
         "scenario_id": "improve_frontier",
         "use_case": "improve_model",
         "algorithm": "self_consistency",
-        "model_id": "gpt-4.1-nano",
+        "model_id": "gpt-6-luna",
         "budget": 8,
         "question": "A palindrome is a number that reads the same forwards and backwards. How many 5-digit palindromes are divisible by 3?",
         "expected_answer": "300",
@@ -86,7 +86,7 @@ GUIDED_CONFIGS = [
         "scenario_id": "improve_frontier",
         "use_case": "improve_model",
         "algorithm": "best_of_n",
-        "model_id": "gpt-4.1-nano",
+        "model_id": "gpt-6-luna",
         "budget": 4,
         "question": "An investment of $10,000 earns 8% annual interest compounded quarterly. After 3 years, how much total interest has been earned? Round to the nearest cent.",
         "expected_answer": "2,682.42",
@@ -95,14 +95,14 @@ GUIDED_CONFIGS = [
         "require_improvement": True,
     },
     # --- improve_opensource ---
-    # Llama 3.2 3B: 3B open-source model that struggles with probability.
+    # Granite 4.2 3B: 3B open-source model that struggles with probability.
     # SC majority voting recovers the correct answer.
     {
         "key": "improve_opensource_self_consistency",
         "scenario_id": "improve_opensource",
         "use_case": "improve_model",
         "algorithm": "self_consistency",
-        "model_id": "llama-3.2-3b",
+        "model_id": "granite-4.2-3b-instruct",
         "budget": 8,
         "question": "In how many ways can 5 letters be placed in 5 addressed envelopes so that no letter is in its correct envelope?",
         "expected_answer": "44",
@@ -114,7 +114,7 @@ GUIDED_CONFIGS = [
         "scenario_id": "improve_opensource",
         "use_case": "improve_model",
         "algorithm": "best_of_n",
-        "model_id": "llama-3.2-3b",
+        "model_id": "granite-4.2-3b-instruct",
         "budget": 4,
         "question": "In how many ways can 5 letters be placed in 5 addressed envelopes so that no letter is in its correct envelope?",
         "expected_answer": "44",
@@ -123,15 +123,15 @@ GUIDED_CONFIGS = [
         "require_improvement": True,
     },
     # --- match_same_family ---
-    # GPT-3.5 Turbo vs GPT-4o: same OpenAI family, GPT-3.5 struggles with
+    # GPT-5 Mini vs GPT-6 Astra: same OpenAI family, GPT-5 Mini struggles with
     # combinatorics. ITS costs less than the frontier model while matching quality.
     {
         "key": "match_same_family_self_consistency",
         "scenario_id": "match_same_family",
         "use_case": "match_frontier",
         "algorithm": "self_consistency",
-        "model_id": "gpt-3.5-turbo",
-        "frontier_model_id": "gpt-4o",
+        "model_id": "gpt-5-mini",
+        "frontier_model_id": "gpt-6-astra",
         "budget": 8,
         "question": "In how many ways can 5 letters be placed in 5 addressed envelopes so that no letter is in its correct envelope?",
         "expected_answer": "44",
@@ -143,8 +143,8 @@ GUIDED_CONFIGS = [
         "scenario_id": "match_same_family",
         "use_case": "match_frontier",
         "algorithm": "best_of_n",
-        "model_id": "gpt-3.5-turbo",
-        "frontier_model_id": "gpt-4o",
+        "model_id": "gpt-5-mini",
+        "frontier_model_id": "gpt-6-astra",
         "budget": 4,
         "question": "In how many ways can 5 letters be placed in 5 addressed envelopes so that no letter is in its correct envelope?",
         "expected_answer": "44",
@@ -153,15 +153,15 @@ GUIDED_CONFIGS = [
         "require_improvement": True,
     },
     # --- match_cross_family ---
-    # Llama 3.2 3B vs GPT-4o: dramatic cost savings (~20x cheaper).
-    # ITS costs ~$0.0005 for Llama+ITS vs ~$0.01 for GPT-4o.
+    # Granite 4.2 3B vs GPT-6 Astra: dramatic cost savings (~20x cheaper).
+    # ITS costs ~$0.0005 for Granite+ITS vs ~$0.01 for GPT-6 Astra.
     {
         "key": "match_cross_family_self_consistency",
         "scenario_id": "match_cross_family",
         "use_case": "match_frontier",
         "algorithm": "self_consistency",
-        "model_id": "llama-3.2-3b",
-        "frontier_model_id": "gpt-4o",
+        "model_id": "granite-4.2-3b-instruct",
+        "frontier_model_id": "gpt-6-astra",
         "budget": 8,
         "question": "In how many ways can 5 letters be placed in 5 addressed envelopes so that no letter is in its correct envelope?",
         "expected_answer": "44",
@@ -173,8 +173,8 @@ GUIDED_CONFIGS = [
         "scenario_id": "match_cross_family",
         "use_case": "match_frontier",
         "algorithm": "best_of_n",
-        "model_id": "llama-3.2-3b",
-        "frontier_model_id": "gpt-4o",
+        "model_id": "granite-4.2-3b-instruct",
+        "frontier_model_id": "gpt-6-astra",
         "budget": 4,
         "question": "In how many ways can 5 letters be placed in 5 addressed envelopes so that no letter is in its correct envelope?",
         "expected_answer": "44",
