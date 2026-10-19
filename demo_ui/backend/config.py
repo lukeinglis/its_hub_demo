@@ -106,18 +106,33 @@ MODEL_REGISTRY: Dict[str, ModelConfig] = {
     # Set OPENROUTER_API_KEY in your .env file
 
     # === MaaS / Validated Open Models 🏢 ===
-    "granite-4.0-micro": {
+    "granite-4.2-3b-instruct": {
         "base_url": "https://openrouter.ai/api/v1",
         "api_key_env_var": "OPENROUTER_API_KEY",
-        "model_name": "ibm-granite/granite-4.0-h-micro",
-        "description": "🏢🎯 IBM Granite 4.0 Micro (Red Hat validated)",
+        "model_name": "ibm-granite/granite-4.2-3b-instruct",
+        "description": "🏢🎯 IBM Granite 4.2 3B (Red Hat validated, reasoning)",
         "provider": "openrouter",
         "size": "3B",
         "input_cost_per_1m": 0.017,
         "output_cost_per_1m": 0.11,
+        "is_reasoning": True,
         "self_hostable": True,
         "min_gpu": "1x RTX 4090 / A10 (24GB)",
         "gpu_cloud_cost_hr": 0.50,
+    },
+    "granite-4.2-8b-instruct": {
+        "base_url": "https://openrouter.ai/api/v1",
+        "api_key_env_var": "OPENROUTER_API_KEY",
+        "model_name": "ibm-granite/granite-4.2-8b-instruct",
+        "description": "🏢 IBM Granite 4.2 8B (Red Hat validated, reasoning)",
+        "provider": "openrouter",
+        "size": "8B",
+        "input_cost_per_1m": 0.05,
+        "output_cost_per_1m": 0.25,
+        "is_reasoning": True,
+        "self_hostable": True,
+        "min_gpu": "1x A100 (40GB)",
+        "gpu_cloud_cost_hr": 1.50,
     },
     "gpt-oss-20b": {
         "base_url": "https://openrouter.ai/api/v1",
@@ -182,26 +197,37 @@ MODEL_REGISTRY: Dict[str, ModelConfig] = {
     },
 
     # === Claude via OpenRouter (replaces the removed Vertex AI path) ===
-    "claude-sonnet-4.6": {
+    "claude-sonnet-5.5": {
         "base_url": "https://openrouter.ai/api/v1",
         "api_key_env_var": "OPENROUTER_API_KEY",
-        "model_name": "anthropic/claude-sonnet-4.6",
-        "description": "🏆 Claude Sonnet 4.6 (Frontier)",
+        "model_name": "anthropic/claude-sonnet-5.5",
+        "description": "🏆 Claude Sonnet 5.5 (Frontier)",
         "provider": "openrouter",
         "size": "Large",
         "input_cost_per_1m": 3.00,
         "output_cost_per_1m": 15.00,
         "supports_tools": True,
     },
-    "claude-haiku-4.5": {
+    "claude-haiku-5.5": {
         "base_url": "https://openrouter.ai/api/v1",
         "api_key_env_var": "OPENROUTER_API_KEY",
-        "model_name": "anthropic/claude-haiku-4.5",
-        "description": "⚡ Claude Haiku 4.5 (Small, fast)",
+        "model_name": "anthropic/claude-haiku-5.5",
+        "description": "⚡ Claude Haiku 5.5 (Small, fast)",
         "provider": "openrouter",
         "size": "Small",
         "input_cost_per_1m": 1.00,
         "output_cost_per_1m": 5.00,
+        "supports_tools": True,
+    },
+    "claude-opus-5.5": {
+        "base_url": "https://openrouter.ai/api/v1",
+        "api_key_env_var": "OPENROUTER_API_KEY",
+        "model_name": "anthropic/claude-opus-5.5",
+        "description": "🏆 Claude Opus 5.5 (Most capable)",
+        "provider": "openrouter",
+        "size": "Large",
+        "input_cost_per_1m": 15.00,
+        "output_cost_per_1m": 75.00,
         "supports_tools": True,
     },
 
@@ -236,6 +262,21 @@ MODEL_REGISTRY: Dict[str, ModelConfig] = {
     },
 
     # === Frontier Models 🏆 ===
+    # NOTE: pricing below is an estimate pending re-verification against the
+    # current OpenAI pricing page (newly added, not yet GA-priced at audit time).
+    "gpt-6-astra": {
+        "base_url": "https://api.openai.com/v1",
+        "api_key_env_var": "OPENAI_API_KEY",
+        "model_name": "gpt-6-astra",
+        "description": "🏆 GPT-6 Astra (Flagship reasoning, best for math/ITS demos)",
+        "provider": "openai",
+        "size": "Large",
+        "input_cost_per_1m": 2.00,
+        "output_cost_per_1m": 10.00,
+        "supports_tools": True,
+        "is_reasoning": True,
+        "self_hostable": False,
+    },
     "gpt-6-sol": {
         "base_url": "https://api.openai.com/v1",
         "api_key_env_var": "OPENAI_API_KEY",

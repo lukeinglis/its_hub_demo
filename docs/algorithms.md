@@ -40,7 +40,7 @@ from its_hub.api import ChatMessage, ChatMessages
 lm = OpenAICompatibleLanguageModel(
     endpoint="https://api.openai.com/v1",
     api_key="your-api-key",
-    model_name="gpt-4o-mini"
+    model_name="gpt-6-luna"
 )
 
 # Define tools (OpenAI format)
@@ -133,7 +133,7 @@ from its_hub import BestOfN, LLMJudge, OpenAICompatibleLanguageModel
 lm = OpenAICompatibleLanguageModel(
     endpoint="https://api.openai.com/v1",
     api_key="your-api-key",
-    model_name="gpt-4o-mini"
+    model_name="gpt-6-luna"
 )
 
 # Set up LLM judge for scoring
@@ -162,6 +162,8 @@ asyncio.run(lm.close())
 from its_hub.core.reward_models.local_vllm_prm import LocalVllmProcessRewardModel
 
 # Initialize reward model (requires GPU)
+# NOTE: Qwen2.5-Math-PRM-7B is superseded by the Qwen3.x line; no direct
+# current-gen reward-model replacement has been verified yet.
 prm = LocalVllmProcessRewardModel(
     model_name="Qwen/Qwen2.5-Math-PRM-7B",
     device="cuda:0",

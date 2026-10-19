@@ -47,11 +47,11 @@ nest_asyncio.apply()
 # Load environment variables from .env file
 load_dotenv()
 
-# Main example: OpenAI API endpoint with gpt-4o-mini
+# Main example: OpenAI API endpoint with gpt-6-luna
 lm = OpenAICompatibleLanguageModel(
     endpoint="https://api.openai.com/v1",
     api_key=os.getenv("OPENAI_API_KEY"),  # Load API key from environment
-    model_name="gpt-4o-mini",
+    model_name="gpt-6-luna",
     system_prompt=SAL_STEP_BY_STEP_SYSTEM_PROMPT,
 )
 # %%
@@ -59,7 +59,7 @@ lm = OpenAICompatibleLanguageModel(
 # lm = OpenAICompatibleLanguageModel(
 #     endpoint="http://localhost:8000/v1",
 #     api_key="NO_API_KEY",
-#     model_name="qwen2-math-1.5b-instruct",
+#     model_name="Qwen/Qwen3.5-2B",
 #     system_prompt=SAL_STEP_BY_STEP_SYSTEM_PROMPT,
 # )
 

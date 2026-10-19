@@ -12,7 +12,7 @@ Example benchmark command:
 ```bash
 python scripts/benchmark.py \
     --benchmark aime-2024 \
-    --model_name Qwen/Qwen2.5-Math-1.5B-Instruct \
+    --model_name Qwen/Qwen3.5-2B \
     --alg particle-filtering \
     --rm_device cuda:1 \
     --endpoint http://0.0.0.0:8000/v1 \
@@ -28,14 +28,14 @@ python scripts/benchmark.py \
 A subset of 500 problems from the MATH dataset, covering various mathematical topics.
 
 ```bash
-python scripts/benchmark.py --benchmark math-500 --model_name Qwen/Qwen2.5-Math-1.5B-Instruct
+python scripts/benchmark.py --benchmark math-500 --model_name Qwen/Qwen3.5-2B
 ```
 
 ### AIME-2024
 American Invitational Mathematics Examination problems from 2024.
 
 ```bash
-python scripts/benchmark.py --benchmark aime-2024 --model_name Qwen/Qwen2.5-Math-1.5B-Instruct
+python scripts/benchmark.py --benchmark aime-2024 --model_name Qwen/Qwen3.5-2B
 ```
 
 ## Algorithm Comparison
@@ -47,7 +47,7 @@ python scripts/benchmark.py --benchmark aime-2024 --model_name Qwen/Qwen2.5-Math
 for alg in self-consistency best-of-n beam-search particle-filtering; do
     python scripts/benchmark.py \
         --benchmark math-500 \
-        --model_name Qwen/Qwen2.5-Math-1.5B-Instruct \
+        --model_name Qwen/Qwen3.5-2B \
         --alg $alg \
         --budgets 1,2,4,8,16 \
         --does_eval
@@ -60,7 +60,7 @@ done
 # Analyze performance vs computational budget
 python scripts/benchmark.py \
     --benchmark math-500 \
-    --model_name Qwen/Qwen2.5-Math-1.5B-Instruct \
+    --model_name Qwen/Qwen3.5-2B \
     --alg particle-filtering \
     --budgets 1,2,4,8,16,32,64,128 \
     --does_eval
@@ -71,7 +71,7 @@ python scripts/benchmark.py \
 ### Basic Parameters
 
 - `--benchmark`: Dataset to use (`math-500`, `aime-2024`)
-- `--model_name`: Model identifier (e.g., `Qwen/Qwen2.5-Math-1.5B-Instruct`)
+- `--model_name`: Model identifier (e.g., `Qwen/Qwen3.5-2B`)
 - `--alg`: Algorithm to benchmark (`self-consistency`, `best-of-n`, `beam-search`, `particle-filtering`)
 - `--budgets`: Comma-separated list of budget values
 - `--endpoint`: API endpoint for model inference
@@ -97,7 +97,7 @@ The benchmark script generates detailed results including:
 {
     "algorithm": "particle-filtering",
     "dataset": "math-500",
-    "model": "Qwen/Qwen2.5-Math-1.5B-Instruct",
+    "model": "Qwen/Qwen3.5-2B",
     "budget": 8,
     "accuracy": 0.756,
     "total_problems": 500,

@@ -20,7 +20,7 @@ from its_hub.api import ChatMessage, ChatMessages
 lm = OpenAICompatibleLanguageModel(
     endpoint="https://api.openai.com/v1",
     api_key="your-api-key",
-    model_name="gpt-4o-mini"
+    model_name="gpt-6-luna"
 )
 
 # Define tools (OpenAI format)
@@ -94,7 +94,7 @@ from its_hub import BestOfN, LLMJudge, OpenAICompatibleLanguageModel
 lm = OpenAICompatibleLanguageModel(
     endpoint="https://api.openai.com/v1",
     api_key="your-api-key",
-    model_name="gpt-4o-mini",
+    model_name="gpt-6-luna",
 )
 
 # Set up LLM judge for scoring
@@ -136,7 +136,7 @@ This example uses Particle Filtering for step-by-step mathematical reasoning wit
 Start a vLLM server with your instruction model:
 
 ```bash
-CUDA_VISIBLE_DEVICES=0 vllm serve Qwen/Qwen2.5-Math-1.5B-Instruct \
+CUDA_VISIBLE_DEVICES=0 vllm serve Qwen/Qwen3.5-2B \
     --dtype float16 \
     --port 8100 \
     --max-model-len 4096 \
@@ -157,12 +157,14 @@ from its_hub.core.utils import SAL_STEP_BY_STEP_SYSTEM_PROMPT
 lm = OpenAICompatibleLanguageModel(
     endpoint="http://localhost:8100/v1",
     api_key="NO_API_KEY",
-    model_name="Qwen/Qwen2.5-Math-1.5B-Instruct",
+    model_name="Qwen/Qwen3.5-2B",
     system_prompt=SAL_STEP_BY_STEP_SYSTEM_PROMPT,
 )
 
 # Set up step generation and process reward model
 sg = StepGeneration(step_token="\n\n", max_steps=32, stop_token=r"\boxed")
+# NOTE: Qwen2.5-Math-PRM-7B is superseded by the Qwen3.x line; no direct
+# current-gen reward-model replacement has been verified yet.
 prm = LocalVllmProcessRewardModel(
     model_name="Qwen/Qwen2.5-Math-PRM-7B",
     device="cuda:0",
@@ -186,8 +188,8 @@ asyncio.run(lm.close())
 
 ### Memory Requirements
 
-- **Instruction Model** (Qwen2.5-Math-1.5B): ~3GB GPU memory
-- **Reward Model** (Qwen2.5-Math-PRM-7B): ~14GB GPU memory
+- **Instruction Model** (Qwen3.5-2B): ~3GB GPU memory
+- **Reward Model** (Qwen2.5-Math-PRM-7B — verify current-gen replacement): ~14GB GPU memory
 - **Total**: 20GB+ recommended (H100, A100, or similar)
 
 ---

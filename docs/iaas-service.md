@@ -126,7 +126,7 @@ curl -X POST http://localhost:8109/configure \
   -d '{
     "endpoint": "https://api.openai.com/v1",
     "api_key": "your-openai-api-key",
-    "model": "gpt-4o-mini",
+    "model": "gpt-6-luna",
     "alg": "self-consistency",
     "regex_patterns": ["\\\\boxed\\{([^}]+)\\}"],
     "tool_vote": "tool_hierarchical",
@@ -157,7 +157,7 @@ curl -X POST http://localhost:8109/configure \
   -d '{
     "endpoint": "https://api.openai.com/v1",
     "api_key": "your-openai-api-key",
-    "model": "gpt-4o-mini",
+    "model": "gpt-6-luna",
     "alg": "adaptive-self-consistency",
     "tool_vote": "tool_hierarchical",
     "threshold": 0.75
@@ -173,7 +173,7 @@ curl -X POST http://localhost:8109/configure \
   -d '{
     "endpoint": "https://api.openai.com/v1",
     "api_key": "your-openai-api-key",
-    "model": "gpt-4o-mini",
+    "model": "gpt-6-luna",
     "alg": "beta-self-consistency",
     "tool_vote": "tool_hierarchical",
     "confidence_threshold": 0.95
@@ -210,7 +210,7 @@ Tool calling is the primary use case for IaaS with Self-Consistency and Best-of-
 curl -X POST http://localhost:8109/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d '{
-    "model": "gpt-4o-mini",
+    "model": "gpt-6-luna",
     "messages": [
       {
         "role": "system",
@@ -277,7 +277,7 @@ tools = [
 ]
 
 response = client.chat.completions.create(
-    model="gpt-4o-mini",
+    model="gpt-6-luna",
     messages=[
         {"role": "system", "content": "You are a precise calculator. Always use the calculator tool for arithmetic."},
         {"role": "user", "content": "What is 847 * 293 + 156?"}
@@ -299,7 +299,7 @@ print(f"Arguments: {tool_calls[0].function.arguments}")
 curl -X POST http://localhost:8109/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d '{
-    "model": "gpt-4o-mini",
+    "model": "gpt-6-luna",
     "messages": [
       {"role": "user", "content": "Explain quantum computing in one sentence"}
     ],
@@ -350,7 +350,7 @@ After establishing the tunnel, access services on your local machine:
 curl -X POST http://localhost:8100/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d '{
-    "model": "Qwen/Qwen2.5-Math-1.5B-Instruct",
+    "model": "Qwen/Qwen3.5-2B",
     "messages": [{"role": "user", "content": "Hello"}],
     "max_completion_tokens": 50
   }'
@@ -359,7 +359,7 @@ curl -X POST http://localhost:8100/v1/chat/completions \
 curl -X POST http://localhost:8109/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d '{
-    "model": "Qwen/Qwen2.5-Math-1.5B-Instruct",
+    "model": "Qwen/Qwen3.5-2B",
     "messages": [{"role": "user", "content": "Hello"}],
     "budget": 2
   }'
@@ -398,7 +398,7 @@ pkill -f "its-iaas"
 
 ```bash
 # Run vLLM in background
-CUDA_VISIBLE_DEVICES=0 vllm serve Qwen/Qwen2.5-Math-1.5B-Instruct \
+CUDA_VISIBLE_DEVICES=0 vllm serve Qwen/Qwen3.5-2B \
   --dtype float16 --host 127.0.0.1 --port 8100 > vllm.log 2>&1 &
 
 # Run IaaS in background
@@ -490,7 +490,9 @@ nvidia-smi
 **3. Model Not Found**
 ```bash
 # Verify model is downloaded
-huggingface-cli download Qwen/Qwen2.5-Math-1.5B-Instruct
+huggingface-cli download Qwen/Qwen3.5-2B
+# NOTE: Qwen2.5-Math-PRM-7B is superseded by the Qwen3.x line; no direct
+# current-gen reward-model replacement has been verified yet.
 huggingface-cli download Qwen/Qwen2.5-Math-PRM-7B
 ```
 

@@ -31,7 +31,7 @@ curl -X POST http://localhost:8108/v1/chat/completions \
   -H "X-ITS-Budget: 3" \
   -H "X-ITS-Endpoint: https://api.openai.com/v1" \
   -H "X-ITS-API-Key: $OPENAI_API_KEY" \
-  -d '{"model": "gpt-4o-mini", "messages": [{"role": "user", "content": "What is 2+2?"}]}'
+  -d '{"model": "gpt-6-luna", "messages": [{"role": "user", "content": "What is 2+2?"}]}'
 ```
 
 Requests without `X-ITS-*` headers pass through unchanged.
@@ -49,12 +49,12 @@ Configure the upstream LLM once, then send standard OpenAI requests with a `budg
 curl -X POST http://localhost:8109/configure \
   -H "Content-Type: application/json" \
   -d '{"endpoint": "https://api.openai.com/v1", "api_key": "'"$OPENAI_API_KEY"'",
-       "model": "gpt-4o-mini", "alg": "self-consistency",
+       "model": "gpt-6-luna", "alg": "self-consistency",
        "regex_patterns": ["\\boxed\\{([^}]+)\\}"]}'
 
 curl -X POST http://localhost:8109/v1/chat/completions \
   -H "Content-Type: application/json" \
-  -d '{"model": "gpt-4o-mini",
+  -d '{"model": "gpt-6-luna",
        "messages": [{"role": "user", "content": "What is 2+2?"}],
        "budget": 4}'
 ```
