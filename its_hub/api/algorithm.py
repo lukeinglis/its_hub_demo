@@ -1,8 +1,11 @@
 import asyncio
+import logging
 from abc import ABC, abstractmethod
 
 from its_hub.api.lm import AbstractLanguageModel
 from its_hub.api.types import ChatMessage, ChatMessages
+
+logger = logging.getLogger(__name__)
 
 
 class AbstractScalingResult(ABC):
@@ -91,4 +94,11 @@ class AbstractScalingAlgorithm(ABC):
                 if hasattr(lm, "close_session"):
                     await lm.close_session(asyncio.get_running_loop())
 
-        return asyncio.run(_run())
+        logger.info(
+            "infer start: algorithm=%s budget=%d", type(self).__name__, budget
+        )
+        result = asyncio.run(_run())
+        logger.info(
+            "infer complete: algorithm=%s budget=%d", type(self).__name__, budget
+        )
+        return result
