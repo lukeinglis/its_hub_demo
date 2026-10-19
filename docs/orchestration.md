@@ -132,7 +132,7 @@ orchestrator = LMOrchestrator(max_concurrency=2)
 lm = OpenAICompatibleLanguageModel(
     endpoint="https://api.openai.com/v1",
     api_key="your-api-key",
-    model_name="gpt-4o-mini"
+    model_name="gpt-6-luna"
 )
 
 messages = ChatMessages([
@@ -162,7 +162,7 @@ async def main():
     async with OpenAICompatibleLanguageModel(
         endpoint="https://api.openai.com/v1",
         api_key="your-api-key",
-        model_name="gpt-4o-mini"
+        model_name="gpt-6-luna"
     ) as lm:
         messages = ChatMessages([
             ChatMessage(role="user", content="Explain quantum computing briefly.")

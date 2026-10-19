@@ -133,7 +133,7 @@ from its_hub import OpenAICompatibleLanguageModel, SelfConsistency
 lm = OpenAICompatibleLanguageModel(
     endpoint="https://api.openai.com/v1",
     api_key="your-api-key",
-    model_name="gpt-4o-mini",
+    model_name="gpt-6-luna",
 )
 
 algorithm = SelfConsistency()
@@ -156,7 +156,7 @@ from its_hub import BestOfN, LLMJudge, OpenAICompatibleLanguageModel
 lm = OpenAICompatibleLanguageModel(
     endpoint="https://api.openai.com/v1",
     api_key="your-api-key",
-    model_name="gpt-4o-mini",
+    model_name="gpt-6-luna",
 )
 
 judge = LLMJudge(lm=lm, fallback_score=5.0)
