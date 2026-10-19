@@ -363,3 +363,48 @@ def create_regex_projection_function(
         return tuple(results)
 
     return projection_function
+
+
+def create_math_verify_projection() -> Callable[[str], str]:
+    """Create a projection function that canonicalizes mathematical expressions.
+
+    Uses the math-verify library (optional, install via `pip install its_hub[research]`)
+    to parse mathematical expressions into SymPy objects, then canonicalizes them
+    (via rationalization and simplification) so that equivalent forms
+    (e.g., "1/2" and "0.5") map to the same voting key in Self-Consistency.
+
+    Returns:
+        A projection function that takes a response string and returns a
+        canonicalized string. Falls back to stripped input when the response
+        cannot be parsed as a mathematical expression.
+
+    Raises:
+        ImportError: If math-verify is not installed.
+    """
+    try:
+        import sympy
+        from math_verify import parse
+    except ImportError as err:
+        raise ImportError(
+            "math-verify is required for equivalence-aware projection. "
+            "Install it with: pip install its_hub[research]"
+        ) from err
+
+    def projection(response: str) -> str:
+        stripped = response.strip()
+        try:
+            parsed = parse(stripped)
+            if not parsed:
+                return stripped
+            expr = parsed[0]
+            try:
+                # rationalize floats (e.g. 0.5 -> 1/2) then simplify so
+                # equivalent expressions reduce to the same canonical form
+                canonical = sympy.simplify(sympy.nsimplify(expr, rational=True))
+            except Exception:
+                canonical = expr
+            return str(canonical)
+        except Exception:
+            return stripped
+
+    return projection
