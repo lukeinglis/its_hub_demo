@@ -1,4 +1,5 @@
 import copy
+import logging
 from dataclasses import dataclass
 
 import numpy as np
@@ -12,6 +13,8 @@ from its_hub.api import (
     ChatMessages,
 )
 from its_hub.core.lms.step_generation import StepGeneration
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -145,10 +148,18 @@ class BeamSearch(AbstractScalingAlgorithm):
 
         num_beams = budget // self.beam_width
 
+        logger.debug(
+            "BeamSearch.ainfer start: budget=%d beam_width=%d num_beams=%d",
+            budget,
+            self.beam_width,
+            num_beams,
+        )
+
         candidates = [
             Path(steps=[], is_stopped=False, score=0) for _ in range(num_beams)
         ]
 
+        step = 0
         while not all(c.is_stopped for c in candidates):
             # TODO: Update _asearch_one_level to support native ChatMessages format instead of string conversion
             candidates = await self._asearch_one_level(
@@ -162,6 +173,13 @@ class BeamSearch(AbstractScalingAlgorithm):
             # get the top beam_width candidates
             candidates.sort(key=lambda x: x.score, reverse=True)
             candidates = candidates[: self.beam_width]
+            step += 1
+            logger.debug(
+                "BeamSearch step %d scores: top=%.4f bottom=%.4f",
+                step,
+                candidates[0].score,
+                candidates[-1].score,
+            )
 
             # duplicate the candidates with the highest score
             new_candidates = []
@@ -172,6 +190,13 @@ class BeamSearch(AbstractScalingAlgorithm):
 
         scores = [c.score for c in candidates]
         steps_used = [len(c.steps) for c in candidates]
+        selected_index = int(np.argmax(scores))
+        logger.info(
+            "BeamSearch selected response: budget=%d selected_score=%.4f steps_used=%d",
+            budget,
+            scores[selected_index],
+            steps_used[selected_index],
+        )
         result = BeamSearchResult(
             responses=[
                 {
@@ -181,7 +206,7 @@ class BeamSearch(AbstractScalingAlgorithm):
                 for c in candidates
             ],
             scores=scores,
-            selected_index=int(np.argmax(scores)),
+            selected_index=selected_index,
             steps_used=steps_used,
         )
         return result.the_one if return_response_only else result

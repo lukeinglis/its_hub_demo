@@ -1,4 +1,5 @@
 import json
+import logging
 from dataclasses import dataclass
 
 from its_hub.api import (
@@ -12,6 +13,8 @@ from its_hub.api import (
     GenerationUsage,
 )
 from its_hub.core.orchestrator import LMOrchestrator
+
+logger = logging.getLogger(__name__)
 
 
 def _response_to_hashable_key(response: dict) -> str:
@@ -125,6 +128,7 @@ class BestOfN(AbstractScalingAlgorithm):
         tool_choice: str | dict | None = None,
     ) -> dict | BestOfNResult:
         """run inference asynchronously with best-of-n"""
+        logger.debug("BestOfN.ainfer start: budget=%d", budget)
         chat_messages = ChatMessages.from_prompt_or_messages(prompt_or_messages)
 
         usage = GenerationUsage()
@@ -144,6 +148,13 @@ class BestOfN(AbstractScalingAlgorithm):
         # early return if all responses are identical - no need to score
         if len(unique_responses) == 1:
             scores = [1.0] * len(responses)
+            logger.info(
+                "BestOfN selected response: budget=%d candidates=%d "
+                "unique_candidates=1 selected_score=%.4f",
+                budget,
+                len(responses),
+                1.0,
+            )
             result = BestOfNResult(
                 responses=responses,
                 scores=scores,
@@ -170,6 +181,15 @@ class BestOfN(AbstractScalingAlgorithm):
 
         # select the best response
         selected_index = scores.index(max(scores))
+
+        logger.info(
+            "BestOfN selected response: budget=%d candidates=%d "
+            "unique_candidates=%d selected_score=%.4f",
+            budget,
+            len(responses),
+            len(unique_responses),
+            scores[selected_index],
+        )
 
         # return the result - preserve original message format with tool calls
         result = BestOfNResult(
