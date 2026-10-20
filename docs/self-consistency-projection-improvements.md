@@ -189,3 +189,23 @@ Until these changes land in `its_hub`, the demo works around the issue by:
    extracts final answers for both math and general questions.
 2. Post-processing `vote_counts` in `demo_ui/backend/traces.py` to unwrap tuples
    and re-aggregate by extracted answers.
+
+## Equivalence-Aware Matching
+
+`create_math_verify_projection()` (in `self_consistency.py`) canonicalizes
+mathematical expressions via SymPy so equivalent forms (`"1/2"` vs `"0.5"`)
+vote together instead of splitting. It was previously only reachable by
+manually importing and wiring it into `consistency_space_projection_func`.
+
+`SelfConsistency(equivalence_matching=True)` now wires it automatically:
+- If `math-verify` is installed, votes are cast in the canonicalized space.
+- If it isn't, construction falls back to `_default_projection_func` with a
+  single `logger.warning` pointing at `pip install its_hub[research]`
+  (best-effort, not a hard dependency).
+- Passing both `equivalence_matching=True` and an explicit
+  `consistency_space_projection_func` raises `ValueError` — ambiguous intent.
+
+This is adopted from the Open LLM Leaderboard, which reports a +4.66 point
+accuracy gain from equivalence-aware answer matching over exact string
+matching, motivating making it a discoverable first-class option rather than
+a buried helper callers had to find and wire themselves.

@@ -167,6 +167,7 @@ class SelfConsistency(AbstractScalingAlgorithm):
         tool_vote: str | None = DEFAULT_TOOL_VOTE,
         exclude_args: list[str] | None = None,
         orchestrator: AbstractOrchestrator | None = None,
+        equivalence_matching: bool = False,
     ):
         """Initialize SelfConsistency algorithm with optional tool-vote capability.
 
@@ -194,8 +195,18 @@ class SelfConsistency(AbstractScalingAlgorithm):
 
             orchestrator: Orchestrator that manages parallel calls to LM
 
+            equivalence_matching: If True, use math-verify's equivalence-aware
+                projection (see create_math_verify_projection) so that
+                mathematically equivalent responses (e.g. "1/2" and "0.5") vote
+                together instead of splitting the vote. Falls back to the
+                default exact-match projection with a warning if math-verify
+                is not installed. Mutually exclusive with
+                consistency_space_projection_func.
+
         Raises:
-            ValueError: If tool_vote is not one of the supported options.
+            ValueError: If tool_vote is not one of the supported options, or if
+                both equivalence_matching and consistency_space_projection_func
+                are provided.
         """
         # Validate tool_vote parameter - only validation needed since typing handles the rest
         valid_options = VALID_TOOL_VOTE_OPTIONS | {None}
@@ -203,6 +214,24 @@ class SelfConsistency(AbstractScalingAlgorithm):
             raise ValueError(
                 f"tool_vote must be one of {valid_options}, got: {tool_vote}"
             )
+
+        if equivalence_matching and consistency_space_projection_func is not None:
+            raise ValueError(
+                "equivalence_matching=True and an explicit "
+                "consistency_space_projection_func are mutually exclusive; "
+                "pass only one to avoid ambiguous projection configuration."
+            )
+
+        if equivalence_matching:
+            try:
+                consistency_space_projection_func = create_math_verify_projection()
+            except ImportError:
+                logging.warning(
+                    "equivalence_matching=True requested but math-verify is not "
+                    "installed; falling back to default exact-match projection. "
+                    "Install it with: pip install its_hub[research]"
+                )
+
         # Set default projection function if provided None
         self.consistency_space_projection_func = (
             consistency_space_projection_func or _default_projection_func

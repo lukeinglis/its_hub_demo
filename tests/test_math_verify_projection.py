@@ -1,6 +1,10 @@
 import pytest
 
-from its_hub.core.algorithms.self_consistency import create_math_verify_projection
+from its_hub.core.algorithms.self_consistency import (
+    SelfConsistency,
+    _default_projection_func,
+    create_math_verify_projection,
+)
 
 
 class TestMathVerifyProjectionEquivalence:
@@ -170,3 +174,42 @@ class TestMathVerifyProjectionImportError:
 
         with pytest.raises(ImportError, match="pip install"):
             create_math_verify_projection()
+
+
+class TestSelfConsistencyEquivalenceMatchingFlag:
+    def test_flag_true_uses_math_verify_projection(self):
+        pytest.importorskip("math_verify")
+        sc = SelfConsistency(equivalence_matching=True)
+        assert sc.consistency_space_projection_func("1/2") == (
+            sc.consistency_space_projection_func("0.5")
+        )
+
+    def test_flag_true_falls_back_to_default_on_import_error(self, monkeypatch, caplog):
+        from its_hub.core.algorithms import self_consistency as sc_module
+
+        def raise_import_error():
+            raise ImportError("No module named 'math_verify'")
+
+        monkeypatch.setattr(
+            sc_module, "create_math_verify_projection", raise_import_error
+        )
+
+        with caplog.at_level("WARNING"):
+            sc = SelfConsistency(equivalence_matching=True)
+
+        assert sc.consistency_space_projection_func is _default_projection_func
+        assert any(
+            "math-verify" in record.message or "pip install" in record.message
+            for record in caplog.records
+        )
+
+    def test_flag_and_explicit_projection_func_raises_value_error(self):
+        with pytest.raises(ValueError, match="mutually exclusive"):
+            SelfConsistency(
+                equivalence_matching=True,
+                consistency_space_projection_func=_default_projection_func,
+            )
+
+    def test_flag_false_default_behavior_unchanged(self):
+        sc = SelfConsistency()
+        assert sc.consistency_space_projection_func is _default_projection_func
