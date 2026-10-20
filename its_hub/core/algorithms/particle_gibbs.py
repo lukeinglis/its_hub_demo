@@ -442,14 +442,15 @@ class ParticleGibbs(AbstractScalingAlgorithm):
                     log_weights = np.array(log_weights)
                     probabilities = _softmax(log_weights * (1 / temperature))
 
-                ess = self._effective_sample_size(probabilities)
-                logger.debug(
-                    "ParticleGibbs resample trigger: step=%d ess=%.4f "
-                    "ess_ratio=%.4f",
-                    current_step,
-                    ess,
-                    ess / num_free_particles,
-                )
+                if logger.isEnabledFor(logging.DEBUG):
+                    ess = self._effective_sample_size(probabilities)
+                    logger.debug(
+                        "ParticleGibbs resample trigger: step=%d ess=%.4f "
+                        "ess_ratio=%.4f",
+                        current_step,
+                        ess,
+                        ess / num_free_particles,
+                    )
 
                 # resampling (by default multinomial)
                 resampled_particles = self._resampling(

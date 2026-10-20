@@ -26,6 +26,11 @@ from its_hub.core.utils import extract_content_from_lm_response
 # voting, which raises if every response is a tool call.
 DEFAULT_TOOL_VOTE = "tool_hierarchical"
 
+# Above this operation count, sympy.simplify() on a rationalized expression can
+# take pathologically long; skip simplification and fall back to the
+# rationalized-but-unsimplified expression instead.
+MATH_VERIFY_SIMPLIFY_MAX_OPS = 200
+
 
 def _default_projection_func(response: str) -> str:
     """Default projection function that uses exact content matching.
@@ -453,6 +458,8 @@ def create_math_verify_projection() -> Callable[[str], str]:
         ) from err
 
     def projection(response: str) -> str:
+        if not isinstance(response, str):
+            response = str(response)
         stripped = response.strip()
         try:
             parsed = parse(stripped)
@@ -460,9 +467,16 @@ def create_math_verify_projection() -> Callable[[str], str]:
                 return stripped
             expr = parsed[0]
             try:
-                # rationalize floats (e.g. 0.5 -> 1/2) then simplify so
-                # equivalent expressions reduce to the same canonical form
-                canonical = sympy.simplify(sympy.nsimplify(expr, rational=True))
+                # rationalize floats (e.g. 0.5 -> 1/2) so equivalent expressions
+                # reduce to the same canonical form
+                rationalized = sympy.nsimplify(expr, rational=True)
+                # skip simplification on pathologically complex expressions to
+                # avoid symbolic-simplification blowup; fall back to the
+                # rationalized-but-unsimplified expression instead
+                if sympy.count_ops(expr) > MATH_VERIFY_SIMPLIFY_MAX_OPS:
+                    canonical = rationalized
+                else:
+                    canonical = sympy.simplify(rationalized)
             except Exception:
                 canonical = expr
             return str(canonical)

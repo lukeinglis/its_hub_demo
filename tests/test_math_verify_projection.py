@@ -29,6 +29,78 @@ class TestMathVerifyProjectionFallback:
         assert result == "hello world"
 
 
+class TestMathVerifyProjectionNonStrInput:
+    def test_none_input_returns_str_without_raising(self):
+        pytest.importorskip("math_verify")
+        proj = create_math_verify_projection()
+        result = proj(None)
+        assert isinstance(result, str)
+
+    def test_int_input_returns_str_without_raising(self):
+        pytest.importorskip("math_verify")
+        proj = create_math_verify_projection()
+        result = proj(42)
+        assert isinstance(result, str)
+
+
+class TestMathVerifyProjectionComplexityThreshold:
+    def test_simplify_skipped_when_count_ops_exceeds_threshold(self, monkeypatch):
+        pytest.importorskip("math_verify")
+        import math_verify
+        import sympy
+
+        from its_hub.core.algorithms import self_consistency as sc_module
+
+        x = sympy.symbols("x")
+        complex_expr = sum(x**i for i in range(120))
+        assert sympy.count_ops(complex_expr) > sc_module.MATH_VERIFY_SIMPLIFY_MAX_OPS
+
+        monkeypatch.setattr(math_verify, "parse", lambda s: [complex_expr])
+
+        simplify_calls = []
+        original_simplify = sympy.simplify
+
+        def spy_simplify(*args, **kwargs):
+            simplify_calls.append(args)
+            return original_simplify(*args, **kwargs)
+
+        monkeypatch.setattr(sympy, "simplify", spy_simplify)
+
+        proj = create_math_verify_projection()
+        result = proj("ignored")
+
+        assert simplify_calls == []
+        assert isinstance(result, str)
+
+    def test_simplify_runs_below_threshold(self, monkeypatch):
+        pytest.importorskip("math_verify")
+        import math_verify
+        import sympy
+
+        from its_hub.core.algorithms import self_consistency as sc_module
+
+        x = sympy.symbols("x")
+        simple_expr = x + 1
+        assert sympy.count_ops(simple_expr) <= sc_module.MATH_VERIFY_SIMPLIFY_MAX_OPS
+
+        monkeypatch.setattr(math_verify, "parse", lambda s: [simple_expr])
+
+        simplify_calls = []
+        original_simplify = sympy.simplify
+
+        def spy_simplify(*args, **kwargs):
+            simplify_calls.append(args)
+            return original_simplify(*args, **kwargs)
+
+        monkeypatch.setattr(sympy, "simplify", spy_simplify)
+
+        proj = create_math_verify_projection()
+        result = proj("ignored")
+
+        assert len(simplify_calls) == 1
+        assert isinstance(result, str)
+
+
 class TestMathVerifyProjectionImportError:
     def test_missing_math_verify_raises_with_install_hint(self, monkeypatch):
         import builtins
