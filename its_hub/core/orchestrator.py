@@ -12,6 +12,8 @@ from its_hub.api import (
 )
 from its_hub.core.utils import resolve_max_completion_tokens
 
+logger = logging.getLogger(__name__)
+
 
 class _ThreadSafeAsyncSemaphore:
     """A semaphore that works across event loops and threads.
@@ -116,8 +118,15 @@ class LMOrchestrator(AbstractOrchestrator):
         if not messages_lst:
             return []
 
-        logging.debug(
+        logger.debug(
             "LMOrchestrator: Processing batch of %d messages", len(messages_lst)
+        )
+        logger.debug(
+            "LMOrchestrator.agenerate start: %d prompt(s), %d expected response(s), "
+            "max_concurrency=%s",
+            len(messages_lst),
+            len(messages_lst),
+            self.max_concurrency,
         )
 
         # Prepare temperature list
@@ -174,6 +183,6 @@ class LMOrchestrator(AbstractOrchestrator):
         # Collect results in order
         responses = [task.result() for task in tasks]
 
-        logging.debug("LMOrchestrator: Completed batch generation")
+        logger.debug("LMOrchestrator: Completed batch generation")
 
         return responses

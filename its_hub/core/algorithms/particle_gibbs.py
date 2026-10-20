@@ -1,4 +1,5 @@
 import copy
+import logging
 import random
 from dataclasses import dataclass
 from enum import Enum
@@ -14,6 +15,8 @@ from its_hub.api import (
     ChatMessages,
 )
 from its_hub.core.lms.step_generation import StepGeneration
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -382,6 +385,13 @@ class ParticleGibbs(AbstractScalingAlgorithm):
 
         num_particles = budget // self.num_iterations
 
+        logger.debug(
+            "ParticleGibbs.ainfer start: budget=%d num_particles=%d num_iterations=%d",
+            budget,
+            num_particles,
+            self.num_iterations,
+        )
+
         ref_particles = []
         responses_lst = []
         log_weights_lst = []
@@ -431,6 +441,16 @@ class ParticleGibbs(AbstractScalingAlgorithm):
                     # apply temperature annealing to the log weights
                     log_weights = np.array(log_weights)
                     probabilities = _softmax(log_weights * (1 / temperature))
+
+                if logger.isEnabledFor(logging.DEBUG):
+                    ess = self._effective_sample_size(probabilities)
+                    logger.debug(
+                        "ParticleGibbs resample trigger: step=%d ess=%.4f "
+                        "ess_ratio=%.4f",
+                        current_step,
+                        ess,
+                        ess / num_free_particles,
+                    )
 
                 # resampling (by default multinomial)
                 resampled_particles = self._resampling(
@@ -488,6 +508,14 @@ class ParticleGibbs(AbstractScalingAlgorithm):
                 )[0]
             case SelectionMethod.ARGMAX:
                 selected_index = np.argmax(log_weights).item()
+
+        logger.info(
+            "ParticleGibbs selected response: budget=%d num_particles=%d "
+            "selected_log_weight=%.4f",
+            budget,
+            num_particles,
+            log_weights[selected_index],
+        )
 
         result = ParticleGibbsResult(
             responses_lst=responses_lst,
