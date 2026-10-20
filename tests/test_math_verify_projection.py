@@ -101,6 +101,60 @@ class TestMathVerifyProjectionComplexityThreshold:
         assert isinstance(result, str)
 
 
+class TestMathVerifyProjectionPathologicalInput:
+    def test_deep_continued_fraction_does_not_hang(self):
+        pytest.importorskip("math_verify")
+        import time
+
+        proj = create_math_verify_projection()
+        depth = 25
+        continued_fraction = "1/" + "(1+1/" * depth + "1" + ")" * depth
+
+        start = time.monotonic()
+        result = proj(continued_fraction)
+        elapsed = time.monotonic() - start
+
+        assert elapsed < 2.0
+        assert isinstance(result, str)
+
+    def test_deep_continued_fraction_skips_parse_entirely(self, monkeypatch):
+        # math-verify's extraction regex has catastrophic backtracking on this
+        # shape of input regardless of any sympy-side guard, so parse() itself
+        # must never be called for a sufficiently nested expression.
+        pytest.importorskip("math_verify")
+        import math_verify
+
+        parse_calls = []
+        monkeypatch.setattr(
+            math_verify, "parse", lambda s: parse_calls.append(s) or []
+        )
+
+        proj = create_math_verify_projection()
+        depth = 25
+        continued_fraction = "1/" + "(1+1/" * depth + "1" + ")" * depth
+        result = proj(continued_fraction)
+
+        assert parse_calls == []
+        assert result == continued_fraction
+
+
+class TestMaxParenDepth:
+    def test_flat_expression_has_zero_depth(self):
+        from its_hub.core.algorithms.self_consistency import _max_paren_depth
+
+        assert _max_paren_depth("1 + 2 + 3") == 0
+
+    def test_nested_parens_counted_correctly(self):
+        from its_hub.core.algorithms.self_consistency import _max_paren_depth
+
+        assert _max_paren_depth("(1+(2+(3)))") == 3
+
+    def test_sequential_parens_not_summed(self):
+        from its_hub.core.algorithms.self_consistency import _max_paren_depth
+
+        assert _max_paren_depth("(1)(2)(3)") == 1
+
+
 class TestMathVerifyProjectionImportError:
     def test_missing_math_verify_raises_with_install_hint(self, monkeypatch):
         import builtins
