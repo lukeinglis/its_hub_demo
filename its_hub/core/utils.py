@@ -1,5 +1,8 @@
 import json
+import logging
 import warnings
+
+logger = logging.getLogger(__name__)
 
 # the system prompt for step-by-step reasoning taken from https://github.com/huggingface/search-and-learn
 SAL_STEP_BY_STEP_SYSTEM_PROMPT = "Solve the following math problem efficiently and clearly:\n\n- For simple problems (2 steps or fewer):\nProvide a concise solution with minimal explanation.\n\n- For complex problems (3 steps or more):\nUse this step-by-step format:\n\n## Step 1: [Concise description]\n[Brief explanation and calculations]\n\n## Step 2: [Concise description]\n[Brief explanation and calculations]\n\n...\n\nRegardless of the approach, always conclude with:\n\nTherefore, the final answer is: $\\boxed{answer}$. I hope it is correct.\n\nWhere [answer] is just the final number or expression that solves the problem."
@@ -60,6 +63,10 @@ def extract_content_from_lm_response(message: dict) -> str:
         ]
         content = " ".join(text_parts)
     else:
+        logger.warning(
+            "Invalid content type: %s, expected str, list[dict], or None",
+            type(raw_content),
+        )
         raise ValueError(
             f"Invalid content type: {type(raw_content)}, expected str, list[dict], or None"
         )
@@ -76,6 +83,10 @@ def extract_content_from_lm_response(message: dict) -> str:
                     f"[Tool call: {func_name} Tool args: {json.dumps(func.get('arguments', {}))}]"
                 )
             else:
+                logger.warning(
+                    "Invalid tool call: %s, expected a dict with a 'function' key",
+                    tc,
+                )
                 raise ValueError(
                     f"Invalid tool call: {tc}, expected a dict with a 'function' key"
                 )

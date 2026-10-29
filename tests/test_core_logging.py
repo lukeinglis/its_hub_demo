@@ -5,6 +5,7 @@ import logging
 
 import pytest
 
+from its_hub.api.algorithm import AbstractScalingAlgorithm
 from its_hub.api.lm import AbstractLanguageModel
 from its_hub.api.types import ChatMessage
 from its_hub.core.lms.step_generation import StepGeneration
@@ -129,12 +130,39 @@ def test_agenerate_single_default_path_logs_debug_before_raising(caplog):
     assert "does not implement agenerate_single" in caplog.text
 
 
+def test_infer_logs_debug_with_algorithm_name_and_budget(caplog):
+    """The synchronous infer() wrapper logs the algorithm class name and budget."""
+
+    class EchoAlgorithm(AbstractScalingAlgorithm):
+        async def ainfer(
+            self,
+            lm,
+            prompt_or_messages,
+            budget,
+            return_response_only=True,
+            tools=None,
+            tool_choice=None,
+        ):
+            return {"role": "assistant", "content": "ok"}
+
+    algorithm = EchoAlgorithm()
+    lm = SimpleMockLanguageModel(["unused"])
+
+    with caplog.at_level(logging.DEBUG, logger="its_hub.api.algorithm"):
+        result = algorithm.infer(lm, "prompt", budget=7)
+
+    assert result == {"role": "assistant", "content": "ok"}
+    assert "EchoAlgorithm.infer start" in caplog.text
+    assert "budget=7" in caplog.text
+
+
 @pytest.mark.parametrize(
     "module_path",
     [
         "its_hub.core.orchestrator",
         "its_hub.core.lms.step_generation",
         "its_hub.api.lm",
+        "its_hub.api.algorithm",
     ],
 )
 def test_module_declares_module_level_logger(module_path):
