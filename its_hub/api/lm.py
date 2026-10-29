@@ -1,6 +1,9 @@
+import logging
 from abc import ABC, abstractmethod
 
 from its_hub.api.types import ChatMessage
+
+logger = logging.getLogger(__name__)
 
 
 class AbstractLanguageModel(ABC):
@@ -54,6 +57,10 @@ class AbstractLanguageModel(ABC):
             Single response dict
             Response dict format: {"role": "assistant", "content": "...", "tool_calls": [...]}
         """
+        logger.debug(
+            "%s does not implement agenerate_single; raising NotImplementedError",
+            self.__class__.__name__,
+        )
         raise NotImplementedError(
             f"{self.__class__.__name__} does not implement async agenerate_single. "
             "Override agenerate_single() to use this LM with the orchestrator."

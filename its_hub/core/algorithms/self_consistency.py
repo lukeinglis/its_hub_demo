@@ -17,8 +17,16 @@ from its_hub.api import (
     ChatMessages,
     GenerationUsage,
 )
+from its_hub.core.algorithms.projections import (
+    MATH_VERIFY_MAX_PAREN_DEPTH,  # noqa: F401
+    MATH_VERIFY_SIMPLIFY_MAX_OPS,  # noqa: F401
+    _max_paren_depth,  # noqa: F401
+    create_math_verify_projection,
+)
 from its_hub.core.orchestrator import LMOrchestrator
 from its_hub.core.utils import extract_content_from_lm_response
+
+logger = logging.getLogger(__name__)
 
 # Default tool-call voting strategy for the self-consistency family. Chosen so
 # that responses containing tool calls vote sensibly out of the box (the primary
@@ -140,6 +148,7 @@ class SelfConsistency(AbstractScalingAlgorithm):
         tool_vote: str | None = DEFAULT_TOOL_VOTE,
         exclude_args: list[str] | None = None,
         orchestrator: AbstractOrchestrator | None = None,
+        equivalence_matching: bool = False,
     ):
         """Initialize SelfConsistency algorithm with optional tool-vote capability.
 
@@ -167,8 +176,18 @@ class SelfConsistency(AbstractScalingAlgorithm):
 
             orchestrator: Orchestrator that manages parallel calls to LM
 
+            equivalence_matching: If True, use math-verify's equivalence-aware
+                projection (see create_math_verify_projection) so that
+                mathematically equivalent responses (e.g. "1/2" and "0.5") vote
+                together instead of splitting the vote. Falls back to the
+                default exact-match projection with a warning if math-verify
+                is not installed. Mutually exclusive with
+                consistency_space_projection_func.
+
         Raises:
-            ValueError: If tool_vote is not one of the supported options.
+            ValueError: If tool_vote is not one of the supported options, or if
+                both equivalence_matching and consistency_space_projection_func
+                are provided.
         """
         # Validate tool_vote parameter - only validation needed since typing handles the rest
         valid_options = VALID_TOOL_VOTE_OPTIONS | {None}
@@ -176,6 +195,24 @@ class SelfConsistency(AbstractScalingAlgorithm):
             raise ValueError(
                 f"tool_vote must be one of {valid_options}, got: {tool_vote}"
             )
+
+        if equivalence_matching and consistency_space_projection_func is not None:
+            raise ValueError(
+                "equivalence_matching=True and an explicit "
+                "consistency_space_projection_func are mutually exclusive; "
+                "pass only one to avoid ambiguous projection configuration."
+            )
+
+        if equivalence_matching:
+            try:
+                consistency_space_projection_func = create_math_verify_projection()
+            except ImportError:
+                logger.warning(
+                    "equivalence_matching=True requested but math-verify is not "
+                    "installed; falling back to default exact-match projection. "
+                    "Install it with: pip install its_hub[research]"
+                )
+
         # Set default projection function if provided None
         self.consistency_space_projection_func = (
             consistency_space_projection_func or _default_projection_func
@@ -257,7 +294,7 @@ class SelfConsistency(AbstractScalingAlgorithm):
         # Warn if tool calls detected but tool_vote not set
         tool_call_count = sum(1 for r in responses if r.get("tool_calls"))
         if tool_call_count > 0 and not self.tool_vote:
-            logging.warning(
+            logger.warning(
                 f"Detected {tool_call_count}/{len(responses)} responses with tool calls, "
                 "but tool_vote is not set. Consider setting tool_vote parameter "
                 "(e.g., 'tool_name', 'tool_args', 'tool_hierarchical') for tool call voting."
