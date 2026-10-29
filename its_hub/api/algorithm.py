@@ -1,8 +1,11 @@
 import asyncio
+import logging
 from abc import ABC, abstractmethod
 
 from its_hub.api.lm import AbstractLanguageModel
 from its_hub.api.types import ChatMessage, ChatMessages
+
+logger = logging.getLogger(__name__)
 
 
 class AbstractScalingResult(ABC):
@@ -75,6 +78,7 @@ class AbstractScalingAlgorithm(ABC):
 
         Default implementation wraps ainfer() using asyncio.run().
         """
+        logger.debug("%s.infer start: budget=%d", type(self).__name__, budget)
 
         async def _run():
             try:
