@@ -78,9 +78,7 @@ class AbstractScalingAlgorithm(ABC):
 
         Default implementation wraps ainfer() using asyncio.run().
         """
-        logger.debug(
-            "%s.infer start: budget=%d", type(self).__name__, budget
-        )
+        logger.debug("%s.infer start: budget=%d", type(self).__name__, budget)
 
         async def _run():
             try:
