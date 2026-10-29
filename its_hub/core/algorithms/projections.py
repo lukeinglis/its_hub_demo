@@ -45,8 +45,8 @@ def create_math_verify_projection() -> Callable[[str], str]:
         ImportError: If math-verify is not installed.
     """
     try:
-        import sympy
-        from math_verify import parse
+        import sympy  # pyright: ignore[reportMissingImports]
+        from math_verify import parse  # pyright: ignore[reportMissingImports]
     except ImportError as err:
         raise ImportError(
             "math-verify is required for equivalence-aware projection. "
