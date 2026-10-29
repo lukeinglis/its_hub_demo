@@ -17,6 +17,7 @@ from its_hub.core.algorithms.adaptive_self_consistency import AdaptiveSelfConsis
 from its_hub.core.algorithms.beta_self_consistency import BetaSelfConsistency
 from its_hub.core.algorithms.bon import BestOfN
 from its_hub.core.algorithms.confidence_selection import ConfidenceSelection
+from its_hub.core.algorithms.projections import create_math_verify_projection
 from its_hub.core.algorithms.self_consistency import SelfConsistency
 from its_hub.core.algorithms.weighted_self_consistency import WeightedSelfConsistency
 
@@ -40,6 +41,7 @@ __all__ = [  # noqa: RUF022
     "SelfConsistency",
     "WeightedSelfConsistency",
     "BestOfN",
+    "create_math_verify_projection",
 ]
 
 # Optional LM implementations - only available if [lm] extra is installed

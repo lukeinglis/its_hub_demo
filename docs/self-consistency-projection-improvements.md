@@ -209,3 +209,11 @@ This is adopted from the Open LLM Leaderboard, which reports a +4.66 point
 accuracy gain from equivalence-aware answer matching over exact string
 matching, motivating making it a discoverable first-class option rather than
 a buried helper callers had to find and wire themselves.
+
+For callers that need the raw projection function directly — e.g. to pass
+into `WeightedSelfConsistency` or `BeamSearch` rather than `SelfConsistency`
+— `create_math_verify_projection` is also exported from the top-level
+package: `from its_hub import create_math_verify_projection`. This import
+succeeds on a core-only install (neither `sympy` nor `math-verify` is
+imported at module load time); only calling the returned projection still
+requires `pip install its_hub[research]`.
