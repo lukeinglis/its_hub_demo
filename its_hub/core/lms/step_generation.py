@@ -4,6 +4,8 @@ import logging
 from its_hub.api import AbstractLanguageModel, ChatMessage
 from its_hub.core.utils import extract_content_from_lm_response
 
+logger = logging.getLogger(__name__)
+
 
 def rstrip_iff_entire(s: str, subs: str) -> str:
     if s.endswith(subs):
@@ -118,7 +120,7 @@ class StepGeneration:
         if is_single_prompt:
             prompt = prompt_or_prompts
             current_step = len(steps_so_far) + 1
-            logging.info("Generating step %s/%s", current_step, self.max_steps)
+            logger.info("Generating step %s/%s", current_step, self.max_steps)
 
             messages = [
                 ChatMessage(role="user", content=prompt),
@@ -149,7 +151,7 @@ class StepGeneration:
                 len(steps_so_far_per_prompt) + 1
                 for steps_so_far_per_prompt in steps_so_far
             ]
-            logging.info(
+            logger.info(
                 "Generating steps (batch): %s / %s", step_numbers, self.max_steps
             )
 
