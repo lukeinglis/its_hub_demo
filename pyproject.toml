@@ -89,6 +89,7 @@ dev = [
     "pytest-asyncio>=0.21.0",
     "pytest-cov>=4.1.0",
     "ruff>=0.10.0",
+    "pyright>=1.1.390",
     "python-dotenv>=1.0.0",
     "jupytext>=1.15.0",
     "jupyter>=1.0.0",
@@ -134,3 +135,32 @@ include = [
 omit = [
     "its_hub/integration/proto/*",
 ]
+
+[tool.pyright]
+include = ["its_hub"]
+# Excludes pre-existing modules with a large baseline error count (optional-dependency
+# stubs, generated proto bindings, legacy algorithm code); scoped this way so CI catches
+# regressions in the already-clean modules without requiring a full-repo type-error fix.
+exclude = [
+    "its_hub/api/algorithm.py",
+    "its_hub/api/types.py",
+    "its_hub/core/gateway.py",
+    "its_hub/core/orchestrator.py",
+    "its_hub/core/algorithms/beam_search.py",
+    "its_hub/core/algorithms/bon.py",
+    "its_hub/core/algorithms/confidence_selection.py",
+    "its_hub/core/algorithms/particle_gibbs.py",
+    "its_hub/core/algorithms/planning_wrapper.py",
+    "its_hub/core/algorithms/projections.py",
+    "its_hub/core/algorithms/weighted_self_consistency.py",
+    "its_hub/core/lms/openai_lm.py",
+    "its_hub/core/lms/step_generation.py",
+    "its_hub/core/reward_models/llm_judge.py",
+    "its_hub/core/reward_models/local_vllm_prm.py",
+    "its_hub/integration/ext_proc/processor.py",
+    "its_hub/integration/ext_proc/server.py",
+    "its_hub/integration/iaas/app_server.py",
+    "its_hub/integration/iaas/ext_processor.py",
+    "its_hub/integration/iaas/grpc_server.py",
+]
+typeCheckingMode = "basic"
